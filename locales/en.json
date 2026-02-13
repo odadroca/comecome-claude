@@ -176,6 +176,11 @@
   "weight": "Weight",
 
   "_ui_manage": "=== MANAGEMENT ===",
+  "manage_logs": "Manage Logs",
+  "portion": "Portion",
+  "time": "Time",
+  "no_data": "No data",
+  "actions": "Actions",
   "add_new": "Add New",
   "edit": "Edit",
   "delete": "Delete",

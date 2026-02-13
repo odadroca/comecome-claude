@@ -176,6 +176,11 @@
   "weight": "Peso",
 
   "_ui_manage": "=== GESTÃO ===",
+  "manage_logs": "Gerir Registos",
+  "portion": "Porção",
+  "time": "Hora",
+  "no_data": "Sem dados",
+  "actions": "Ações",
   "add_new": "Adicionar Novo",
   "edit": "Editar",
   "delete": "Eliminar",
