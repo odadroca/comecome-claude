@@ -1,12 +1,28 @@
 <?php
 /**
  * Child - History Page
+ * Your food story - every day tells a tale
  */
 
 $user = getCurrentUser();
 $selectedDate = $_GET['date'] ?? date('Y-m-d');
 $foodLog = getFoodLogByDate($user['id'], $selectedDate);
 $checkIn = getCheckIn($user['id'], $selectedDate);
+
+// Calculate previous and next day for navigation
+$prevDate = date('Y-m-d', strtotime($selectedDate . ' -1 day'));
+$nextDate = date('Y-m-d', strtotime($selectedDate . ' +1 day'));
+$isToday = $selectedDate === date('Y-m-d');
+$isYesterday = $selectedDate === date('Y-m-d', strtotime('-1 day'));
+
+// Friendly date label
+if ($isToday) {
+    $dateLabel = t('today');
+} elseif ($isYesterday) {
+    $dateLabel = t('yesterday');
+} else {
+    $dateLabel = formatDate($selectedDate, 'd/m/Y');
+}
 
 ob_start();
 ?>
@@ -19,15 +35,24 @@ ob_start();
     </nav>
 
     <main class="container">
-        <!-- Date Selector -->
+        <!-- Date Selector with prev/next navigation -->
         <section class="date-selector">
-            <input type="date" id="dateInput" value="<?php echo $selectedDate; ?>" max="<?php echo date('Y-m-d'); ?>">
+            <a href="?page=history&date=<?php echo $prevDate; ?>" class="date-nav-btn">◀</a>
+            <div style="text-align:center;flex:1;">
+                <div style="font-weight:700;font-size:1.1rem;"><?php echo $dateLabel; ?></div>
+                <input type="date" id="dateInput" value="<?php echo $selectedDate; ?>" max="<?php echo date('Y-m-d'); ?>" style="font-size:0.85rem;border:none;background:transparent;text-align:center;color:#667eea;">
+            </div>
+            <?php if (!$isToday): ?>
+            <a href="?page=history&date=<?php echo $nextDate; ?>" class="date-nav-btn">▶</a>
+            <?php else: ?>
+            <div style="width:40px;"></div>
+            <?php endif; ?>
         </section>
 
         <!-- Check-in Summary -->
         <?php if ($checkIn): ?>
         <section class="checkin-summary">
-            <h3><?php echo t('daily_checkin'); ?></h3>
+            <h3><?php echo t('daily_checkin'); ?> ✅</h3>
             <div class="summary-grid">
                 <div class="summary-item">
                     <span class="summary-label"><?php echo t('appetite'); ?></span>
@@ -67,7 +92,7 @@ ob_start();
 
         <!-- Food Log -->
         <section class="food-log-section">
-            <h3><?php echo t('log_food'); ?></h3>
+            <h3><?php echo t('log_food'); ?> 🍽️</h3>
 
             <?php if (count($foodLog) > 0): ?>
             <div class="food-log-list">
@@ -91,7 +116,7 @@ ob_start();
                             <span class="food-emoji"><?php echo $entry['emoji']; ?></span>
                             <span class="food-details">
                                 <strong><?php echo t($entry['food_name_key']); ?></strong>
-                                <small><?php echo t('portion_' . $entry['portion']); ?> • <?php echo date('H:i', strtotime($entry['log_time'])); ?></small>
+                                <small><?php echo t('portion_' . $entry['portion']); ?> · <?php echo date('H:i', strtotime($entry['log_time'])); ?></small>
                             </span>
                         </div>
                         <?php endforeach; ?>
@@ -100,9 +125,18 @@ ob_start();
                 <?php endforeach; ?>
             </div>
             <?php else: ?>
-            <p style="text-align:center;opacity:0.6;padding:2rem;">
-                <?php echo t('no_logs_today'); ?>
-            </p>
+            <div class="empty-state">
+                <div class="empty-state-emoji"><?php echo $isToday ? '🌱' : '📭'; ?></div>
+                <div class="empty-state-text">
+                    <?php echo $isToday ? t('empty_today_title') : t('no_logs_today'); ?>
+                </div>
+                <?php if ($isToday): ?>
+                <div class="empty-state-hint"><?php echo t('empty_today_hint'); ?></div>
+                <a href="?page=log-food" class="btn-primary" style="display:inline-block;width:auto;margin-top:1rem;">
+                    🍽️ <?php echo t('log_food'); ?>
+                </a>
+                <?php endif; ?>
+            </div>
             <?php endif; ?>
         </section>
     </main>

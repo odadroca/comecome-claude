@@ -1,6 +1,6 @@
 <?php
 /**
- * Login Page
+ * Login Page - Welcome home!
  */
 
 $error = '';
@@ -23,15 +23,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $users = getAllUsers();
 $activeUsers = array_filter($users, function($u) { return $u['active'] == 1; });
 
+// Time-based greeting
+$greetingKey = getTimeGreeting();
+$greetingEmoji = getTimeEmoji();
+
 ob_start();
 ?>
 
 <main class="container login-container">
     <article class="login-card">
         <header style="text-align: center;">
-            <h1 style="font-size: 4rem; margin: 0;">🍽️</h1>
+            <div class="login-icon" style="font-size: 4rem; margin: 0;">🍽️</div>
             <h2><?php echo t('app_name'); ?></h2>
-            <p><?php echo t('app_tagline'); ?></p>
+            <p class="login-greeting">
+                <?php echo $greetingEmoji; ?> <?php echo t($greetingKey); ?>
+            </p>
+            <p style="font-size: 0.85rem; opacity: 0.7;"><?php echo t('app_tagline'); ?></p>
         </header>
 
         <?php if ($error): ?>
@@ -60,7 +67,7 @@ ob_start();
                 </label>
 
                 <button type="submit" class="btn-primary">
-                    <?php echo t('login_submit'); ?>
+                    <?php echo t('login_submit'); ?> 👋
                 </button>
             </div>
         </form>
@@ -75,9 +82,13 @@ ob_start();
 
 <script>
 document.querySelectorAll('input[name="user_id"]').forEach(radio => {
-    radio.addEventListener('change', () => {
+    radio.addEventListener('change', function() {
         document.getElementById('pinSection').style.display = 'block';
         document.getElementById('pin').focus();
+
+        // Highlight the selected card
+        document.querySelectorAll('.user-card').forEach(c => c.style.borderColor = '');
+        this.closest('.user-card').style.borderColor = '#4CAF50';
     });
 });
 </script>

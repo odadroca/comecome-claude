@@ -244,6 +244,41 @@ function getReportData($userId, $startDate, $endDate) {
 }
 
 /**
+ * Get time-based greeting key for i18n
+ */
+function getTimeGreeting() {
+    $hour = (int) date('H');
+    if ($hour < 6) return 'greeting_night';
+    if ($hour < 12) return 'greeting_morning';
+    if ($hour < 18) return 'greeting_afternoon';
+    return 'greeting_evening';
+}
+
+/**
+ * Get time-based greeting emoji
+ */
+function getTimeEmoji() {
+    $hour = (int) date('H');
+    if ($hour < 6) return '🌙';
+    if ($hour < 12) return '🌅';
+    if ($hour < 18) return '☀️';
+    return '🌆';
+}
+
+/**
+ * Get a random encouraging message key for i18n
+ */
+function getRandomEncouragementKey($type = 'food') {
+    $messages = [
+        'food' => ['encourage_food_1', 'encourage_food_2', 'encourage_food_3', 'encourage_food_4', 'encourage_food_5'],
+        'checkin' => ['encourage_checkin_1', 'encourage_checkin_2', 'encourage_checkin_3', 'encourage_checkin_4', 'encourage_checkin_5'],
+        'weight' => ['encourage_weight_1', 'encourage_weight_2', 'encourage_weight_3', 'encourage_weight_4', 'encourage_weight_5'],
+    ];
+    $keys = $messages[$type] ?? $messages['food'];
+    return $keys[array_rand($keys)];
+}
+
+/**
  * Render HTML layout
  */
 function renderLayout($title, $content, $additionalHead = '') {

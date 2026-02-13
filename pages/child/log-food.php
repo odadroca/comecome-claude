@@ -1,6 +1,7 @@
 <?php
 /**
  * Child - Log Food Page
+ * The heart of ComeCome - where eating becomes a celebration
  */
 
 $user = getCurrentUser();
@@ -26,6 +27,25 @@ if ($selectedMeal) {
     }
 }
 
+// Get today's food count for encouragement
+$todayCount = 0;
+$stmt = $db->prepare("SELECT COUNT(*) as cnt FROM food_log WHERE user_id = ? AND log_date = ?");
+$stmt->execute([$user['id'], date('Y-m-d')]);
+$todayCount = $stmt->fetch()['cnt'] ?? 0;
+
+// Random encouragement for success modal
+$encouragementKey = getRandomEncouragementKey('food');
+
+// Meal emojis for visual flair
+$mealEmojis = [
+    'meal_breakfast' => '🌅',
+    'meal_morning_snack' => '🍎',
+    'meal_lunch' => '🍽️',
+    'meal_afternoon_snack' => '🧁',
+    'meal_dinner' => '🌙',
+    'meal_night_snack' => '🥛',
+];
+
 ob_start();
 ?>
 
@@ -34,6 +54,7 @@ ob_start();
     <nav class="child-nav">
         <a href="index.php" class="btn-back">← <?php echo t('back'); ?></a>
         <h1><?php echo t('welcome', ['name' => $user['name']]); ?></h1>
+        <span class="streak-badge" id="streakDisplay"></span>
         <a href="index.php?page=logout" class="btn-logout">🚪</a>
     </nav>
 
@@ -41,11 +62,18 @@ ob_start();
         <section class="log-food-section">
             <h2 style="text-align: center;"><?php echo t('whats_the_meal'); ?></h2>
 
+            <?php if ($todayCount > 0): ?>
+            <p style="text-align:center;font-size:0.85rem;color:#667eea;margin-bottom:1rem;">
+                <?php echo t('today_logged_count', ['count' => $todayCount]); ?>
+            </p>
+            <?php endif; ?>
+
             <!-- Meal Selection -->
             <div class="meal-selection">
                 <?php foreach ($meals as $meal): ?>
                 <a href="?page=log-food&meal=<?php echo $meal['id']; ?>"
                    class="meal-btn <?php echo $selectedMeal == $meal['id'] ? 'active' : ''; ?>">
+                    <span style="font-size:1.5rem;"><?php echo $mealEmojis[$meal['name_key']] ?? '🍴'; ?></span>
                     <?php echo t($meal['name_key']); ?>
                     <?php if ($currentMeal && $currentMeal['id'] == $meal['id']): ?>
                     <small style="display:block;font-size:0.75rem;opacity:0.8;">(<?php echo t('auto_detected'); ?>)</small>
@@ -156,17 +184,19 @@ ob_start();
     </article>
 </dialog>
 
-<!-- Success Modal -->
+<!-- Success Modal - THE CELEBRATION -->
 <dialog id="successModal">
     <article style="text-align:center;">
-        <div style="font-size:4rem;">🎉</div>
-        <h3><?php echo t('food_logged'); ?></h3>
-        <footer style="display:flex;gap:1rem;">
+        <div class="success-emoji">🎉</div>
+        <div class="success-message"><?php echo t('food_logged'); ?></div>
+        <div class="success-encouragement" id="successEncouragement"><?php echo t($encouragementKey); ?></div>
+        <div class="success-streak" id="successStreak" style="display:none;"></div>
+        <footer style="display:flex;gap:1rem;margin-top:1.5rem;">
             <button class="btn-secondary" onclick="location.reload()">
-                <?php echo t('add_another'); ?>
+                <?php echo t('add_another'); ?> ➕
             </button>
-            <button class="btn-primary" onclick="window.location='index.php'">
-                <?php echo t('done'); ?>
+            <button class="btn-primary" onclick="window.location='index.php'" style="flex:1;">
+                <?php echo t('done'); ?> ✨
             </button>
         </footer>
     </article>
@@ -177,6 +207,15 @@ let selectedFood = null;
 let selectedMeal = <?php echo json_encode($selectedMeal); ?>;
 let longPressTimer = null;
 let isLongPress = false;
+
+// Encouragement messages (translated via PHP)
+const encouragements = [
+    <?php echo json_encode(t('encourage_food_1')); ?>,
+    <?php echo json_encode(t('encourage_food_2')); ?>,
+    <?php echo json_encode(t('encourage_food_3')); ?>,
+    <?php echo json_encode(t('encourage_food_4')); ?>,
+    <?php echo json_encode(t('encourage_food_5')); ?>
+];
 
 // Food card click/long-press handlers
 document.querySelectorAll('.food-card').forEach(card => {
@@ -248,7 +287,7 @@ function toggleFavorite(foodId, element) {
     });
 }
 
-// Log food
+// Log food - WITH CELEBRATION
 function logFood(foodId, portion) {
     fetch('api/food-log.php', {
         method: 'POST',
@@ -263,6 +302,25 @@ function logFood(foodId, portion) {
     .then(data => {
         if (data.success) {
             document.getElementById('portionModal').close();
+
+            // Update streak
+            const streakCount = updateStreak();
+
+            // Show random encouragement
+            const msg = encouragements[Math.floor(Math.random() * encouragements.length)];
+            document.getElementById('successEncouragement').textContent = msg;
+
+            // Show streak if > 1
+            const streakEl = document.getElementById('successStreak');
+            if (streakCount > 1) {
+                streakEl.textContent = getStreakEmoji(streakCount) + ' ' + streakCount + ' <?php echo t('streak_days'); ?>';
+                streakEl.style.display = 'inline-flex';
+            }
+
+            // CONFETTI!
+            launchConfetti();
+            vibrate([50, 100, 50, 100, 50]);
+
             document.getElementById('successModal').showModal();
         }
     });

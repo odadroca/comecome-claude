@@ -1,6 +1,7 @@
 <?php
 /**
  * Child - Daily Check-in Page
+ * Your feelings matter. Every single one.
  */
 
 $user = getCurrentUser();
@@ -18,6 +19,9 @@ $stmt = $db->prepare("
 $stmt->execute([$user['id']]);
 $medications = $stmt->fetchAll();
 
+// Random encouragement for success
+$encouragementKey = getRandomEncouragementKey('checkin');
+
 ob_start();
 ?>
 
@@ -29,6 +33,12 @@ ob_start();
     </nav>
 
     <main class="container">
+        <?php if ($checkIn): ?>
+        <p style="text-align:center;font-size:0.85rem;color:#4CAF50;margin-bottom:0.5rem;font-weight:600;">
+            ✅ <?php echo t('checkin_already_done'); ?>
+        </p>
+        <?php endif; ?>
+
         <form id="checkInForm" class="checkin-form">
             <!-- Appetite Level -->
             <section class="checkin-section">
@@ -96,7 +106,7 @@ ob_start();
             <!-- Optional Notes -->
             <section class="checkin-section">
                 <label for="notes">
-                    <h3><?php echo t('any_notes'); ?></h3>
+                    <h3><?php echo t('any_notes'); ?> 💭</h3>
                     <textarea id="notes" name="notes" rows="4" placeholder="<?php echo t('notes_placeholder'); ?>"><?php echo $checkIn ? sanitize($checkIn['notes']) : ''; ?></textarea>
                 </label>
             </section>
@@ -127,14 +137,15 @@ ob_start();
     </footer>
 </div>
 
-<!-- Success Modal -->
+<!-- Success Modal - Warm and encouraging -->
 <dialog id="successModal">
     <article style="text-align:center;">
-        <div style="font-size:4rem;">👍</div>
-        <h3><?php echo t('checkin_saved'); ?></h3>
-        <footer>
+        <div class="success-emoji">🌟</div>
+        <div class="success-message"><?php echo t('checkin_saved'); ?></div>
+        <div class="success-encouragement"><?php echo t($encouragementKey); ?></div>
+        <footer style="margin-top:1.5rem;">
             <button class="btn-primary" onclick="window.location='index.php'">
-                <?php echo t('done'); ?>
+                <?php echo t('done'); ?> ✨
             </button>
         </footer>
     </article>
@@ -160,6 +171,10 @@ document.getElementById('checkInForm').addEventListener('submit', function(e) {
     .then(r => r.json())
     .then(result => {
         if (result.success) {
+            // Update streak for check-in too
+            updateStreak();
+            launchConfetti();
+            vibrate([50, 100, 50]);
             document.getElementById('successModal').showModal();
         }
     });
