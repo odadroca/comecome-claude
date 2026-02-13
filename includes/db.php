@@ -80,7 +80,7 @@ function resetDatabase() {
  */
 function getSetting($key, $default = null) {
     $db = getDB();
-    $stmt = $db->prepare("SELECT value FROM settings WHERE key = ?");
+    $stmt = $db->prepare("SELECT value FROM settings WHERE \"key\" = ?");
     $stmt->execute([$key]);
     $result = $stmt->fetch();
     return $result ? $result['value'] : $default;
@@ -91,7 +91,7 @@ function getSetting($key, $default = null) {
  */
 function setSetting($key, $value) {
     $db = getDB();
-    $stmt = $db->prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
+    $stmt = $db->prepare("INSERT OR REPLACE INTO settings (\"key\", value) VALUES (?, ?)");
     return $stmt->execute([$key, $value]);
 }
 

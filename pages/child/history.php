@@ -31,6 +31,7 @@ ob_start();
     <nav class="child-nav">
         <a href="index.php" class="btn-back">← <?php echo t('back'); ?></a>
         <h1><?php echo t('my_history'); ?></h1>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme"></button>
         <a href="index.php?page=logout" class="btn-logout">🚪</a>
     </nav>
 
@@ -139,6 +140,14 @@ ob_start();
             </div>
             <?php endif; ?>
         </section>
+
+        <!-- Daily Intake Chart -->
+        <?php if (count($foodLog) > 0): ?>
+        <section class="chart-container" style="margin-top:1.5rem;">
+            <h3 style="text-align:center;margin-bottom:1rem;"><?php echo t('daily_intake'); ?> 📊</h3>
+            <canvas id="intakeChart"></canvas>
+        </section>
+        <?php endif; ?>
     </main>
 
     <footer class="child-footer">
@@ -161,10 +170,79 @@ ob_start();
     </footer>
 </div>
 
+<?php if (count($foodLog) > 0): ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<?php endif; ?>
+
 <script>
 document.getElementById('dateInput').addEventListener('change', function() {
     window.location = '?page=history&date=' + this.value;
 });
+
+<?php if (count($foodLog) > 0): ?>
+// Build chart data from food log
+const mealData = {};
+const portionValues = {'little': 0.25, 'some': 0.5, 'lot': 0.75, 'all': 1.0};
+const chartFoodLog = <?php echo json_encode($foodLog); ?>;
+
+chartFoodLog.forEach(entry => {
+    const mealName = <?php echo json_encode(array_map(function($key) { return t($key); }, array_unique(array_column($foodLog, 'meal_name_key')))); ?>;
+    const key = entry.meal_name_key;
+    if (!mealData[key]) mealData[key] = 0;
+    mealData[key] += (portionValues[entry.portion] || 0);
+});
+
+const mealLabels = Object.keys(mealData).map(k => {
+    const translations = <?php
+        $mealTranslations = [];
+        foreach (array_unique(array_column($foodLog, 'meal_name_key')) as $mk) {
+            $mealTranslations[$mk] = t($mk);
+        }
+        echo json_encode($mealTranslations);
+    ?>;
+    return translations[k] || k;
+});
+
+const mealColors = ['#667eea', '#764ba2', '#4CAF50', '#FF9800', '#E91E63', '#00BCD4'];
+
+const intakeCtx = document.getElementById('intakeChart');
+if (intakeCtx) {
+    new Chart(intakeCtx.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: mealLabels,
+            datasets: [{
+                label: '<?php echo t('daily_intake'); ?>',
+                data: Object.values(mealData),
+                backgroundColor: mealColors.slice(0, mealLabels.length),
+                borderRadius: 8,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {display: false}
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(102, 126, 234, 0.1)' },
+                    ticks: {
+                        callback: function(value) {
+                            return value + ' <?php echo t('portion_all'); ?>';
+                        }
+                    }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
+<?php endif; ?>
 </script>
 
 <?php

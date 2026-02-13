@@ -3,24 +3,53 @@
  * ADHD-Friendly interactions with celebrations & warmth
  */
 
-// Register service worker for PWA
+// Register service worker for PWA (force update on new version)
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('Service Worker registered'))
+            .then(reg => {
+                // Check for updates every time the page loads
+                reg.update();
+            })
             .catch(err => console.log('Service Worker registration failed', err));
     });
 }
 
-// Theme switcher (respects system preference)
+// Theme switcher with manual toggle + system preference
 function initTheme() {
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    const saved = localStorage.getItem('comecome_theme');
+
+    if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.documentElement.setAttribute('data-theme', 'dark');
     }
 
-    // Listen for changes
+    // Listen for system changes (only when no manual preference)
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-        document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+        if (!localStorage.getItem('comecome_theme')) {
+            document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+            updateThemeToggleIcon();
+        }
+    });
+
+    // Initialize toggle buttons
+    updateThemeToggleIcon();
+}
+
+function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('comecome_theme', next);
+    updateThemeToggleIcon();
+}
+
+function updateThemeToggleIcon() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.querySelectorAll('.theme-toggle').forEach(btn => {
+        btn.textContent = isDark ? '\u{1F31E}' : '\u{1F31B}';
+        btn.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
     });
 }
 
@@ -304,15 +333,21 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => vibrate([50, 100, 50]));
     });
 
-    // Add the streak display if on child interface
+    // Add the streak display if on child interface (only show for 2+ days)
     const streakDisplay = document.getElementById('streakDisplay');
     if (streakDisplay) {
         const count = getStreak();
-        if (count > 0) {
-            streakDisplay.textContent = getStreakEmoji(count) + ' ' + count;
+        if (count >= 2) {
+            streakDisplay.textContent = getStreakEmoji(count) + ' ' + count + 'd';
+            streakDisplay.title = count + ' days in a row!';
             streakDisplay.style.display = 'inline-flex';
         }
     }
+
+    // Initialize theme toggle buttons
+    document.querySelectorAll('.theme-toggle').forEach(btn => {
+        btn.addEventListener('click', toggleTheme);
+    });
 });
 
 // Offline detection

@@ -55,6 +55,7 @@ ob_start();
         <a href="index.php" class="btn-back">← <?php echo t('back'); ?></a>
         <h1><?php echo t('welcome', ['name' => $user['name']]); ?></h1>
         <span class="streak-badge" id="streakDisplay"></span>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme"></button>
         <a href="index.php?page=logout" class="btn-logout">🚪</a>
     </nav>
 
@@ -85,16 +86,31 @@ ob_start();
             <?php if ($selectedMeal): ?>
             <!-- Food Grid -->
             <div class="food-section">
-                <?php if (count($favorites) > 0): ?>
+                <?php
+                // Group foods by category
+                $foodsByCategory = [];
+                $categoryNames = [];
+                foreach ($foods as $food) {
+                    $catKey = $food['category_name_key'];
+                    if (!isset($foodsByCategory[$catKey])) {
+                        $foodsByCategory[$catKey] = [];
+                        $categoryNames[$catKey] = t($catKey);
+                    }
+                    $foodsByCategory[$catKey][] = $food;
+                }
+
+                // Favorites section
+                $availableIds = array_column($foods, 'id');
+                $mealFavorites = array_filter($favorites, function($f) use ($availableIds) {
+                    return in_array($f['id'], $availableIds);
+                });
+                ?>
+
+                <?php if (count($mealFavorites) > 0): ?>
                 <h3><?php echo t('favorites'); ?> ⭐</h3>
                 <div class="food-grid">
-                    <?php foreach ($favorites as $food): ?>
-                    <?php
-                    // Check if food is available for this meal
-                    $availableIds = array_column($foods, 'id');
-                    if (!in_array($food['id'], $availableIds)) continue;
-                    ?>
-                    <button class="food-card favorite" data-food-id="<?php echo $food['id']; ?>" data-food-name="<?php echo t($food['name_key']); ?>" data-is-favorite="1">
+                    <?php foreach ($mealFavorites as $food): ?>
+                    <button class="food-card favorite" data-food-id="<?php echo $food['id']; ?>" data-food-name="<?php echo t($food['name_key']); ?>" data-is-favorite="1" data-category="<?php echo $food['category_name_key']; ?>">
                         <div class="food-emoji"><?php echo $food['emoji']; ?></div>
                         <div class="food-name"><?php echo t($food['name_key']); ?></div>
                         <div class="favorite-badge">⭐</div>
@@ -103,15 +119,26 @@ ob_start();
                 </div>
                 <?php endif; ?>
 
-                <h3><?php echo count($favorites) > 0 ? t('all_foods') : t('choose_food'); ?></h3>
+                <h3><?php echo count($mealFavorites) > 0 ? t('all_foods') : t('choose_food'); ?></h3>
                 <p style="text-align:center;font-size:0.875rem;opacity:0.7;"><?php echo t('long_press_favorite'); ?></p>
 
-                <div class="food-grid">
+                <!-- Category filter tabs -->
+                <?php if (count($foodsByCategory) > 1): ?>
+                <div class="category-tabs">
+                    <button class="category-tab active" data-category="all"><?php echo t('all'); ?></button>
+                    <?php foreach ($categoryNames as $catKey => $catName): ?>
+                    <button class="category-tab" data-category="<?php echo $catKey; ?>"><?php echo $catName; ?></button>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+
+                <div class="food-grid" id="foodGrid">
                     <?php foreach ($foods as $food): ?>
                     <button class="food-card <?php echo $food['is_favorite'] ? 'is-favorite' : ''; ?>"
                             data-food-id="<?php echo $food['id']; ?>"
                             data-food-name="<?php echo t($food['name_key']); ?>"
-                            data-is-favorite="<?php echo $food['is_favorite'] ? '1' : '0'; ?>">
+                            data-is-favorite="<?php echo $food['is_favorite'] ? '1' : '0'; ?>"
+                            data-category="<?php echo $food['category_name_key']; ?>">
                         <div class="food-emoji"><?php echo $food['emoji']; ?></div>
                         <div class="food-name"><?php echo t($food['name_key']); ?></div>
                         <?php if ($food['is_favorite']): ?>
@@ -193,7 +220,7 @@ ob_start();
             <button class="btn-secondary" onclick="location.reload()">
                 <?php echo t('add_another'); ?> ➕
             </button>
-            <button class="btn-primary" onclick="window.location='index.php'" style="flex:1;">
+            <button class="btn-primary" onclick="window.location='index.php?page=log-food'" style="flex:1;">
                 <?php echo t('done'); ?> ✨
             </button>
         </footer>
@@ -205,7 +232,9 @@ let selectedFood = null;
 let selectedMeal = <?php echo json_encode($selectedMeal); ?>;
 let longPressTimer = null;
 let isLongPress = false;
+let wasTouchScroll = false;
 let touchStartY = 0;
+let touchStartX = 0;
 
 // Encouragement messages (translated via PHP)
 const encouragements = [
@@ -218,23 +247,31 @@ const encouragements = [
 
 // Food card click/long-press handlers
 document.querySelectorAll('.food-card').forEach(card => {
-    // Desktop: regular click
+    // Click handler - works for desktop and mobile tap
     card.addEventListener('click', function(e) {
-        if (!isLongPress) {
-            selectedFood = {
-                id: this.dataset.foodId,
-                name: this.dataset.foodName
-            };
-            document.getElementById('portionModalTitle').textContent = this.dataset.foodName + ' - <?php echo t('how_much'); ?>';
-            document.getElementById('portionModal').showModal();
+        // Skip if it was a long press or a scroll gesture
+        if (isLongPress || wasTouchScroll) {
+            isLongPress = false;
+            wasTouchScroll = false;
+            return;
         }
         isLongPress = false;
+        wasTouchScroll = false;
+
+        selectedFood = {
+            id: this.dataset.foodId,
+            name: this.dataset.foodName
+        };
+        document.getElementById('portionModalTitle').textContent = this.dataset.foodName + ' - <?php echo t('how_much'); ?>';
+        document.getElementById('portionModal').showModal();
     });
 
     // Mobile: track touch position to distinguish scroll from tap
     card.addEventListener('touchstart', function(e) {
         isLongPress = false;
+        wasTouchScroll = false;
         touchStartY = e.touches[0].clientY;
+        touchStartX = e.touches[0].clientX;
         longPressTimer = setTimeout(() => {
             isLongPress = true;
             navigator.vibrate && navigator.vibrate(50);
@@ -247,11 +284,13 @@ document.querySelectorAll('.food-card').forEach(card => {
     }, {passive: true});
 
     card.addEventListener('touchmove', function(e) {
-        // If finger moved more than 10px, it's a scroll - cancel everything
+        // If finger moved more than 8px in any direction, it's a scroll
         const moveY = Math.abs(e.touches[0].clientY - touchStartY);
-        if (moveY > 10) {
+        const moveX = Math.abs(e.touches[0].clientX - touchStartX);
+        if (moveY > 8 || moveX > 8) {
             clearTimeout(longPressTimer);
             isLongPress = false;
+            wasTouchScroll = true;
         }
     }, {passive: true});
 
@@ -259,6 +298,26 @@ document.querySelectorAll('.food-card').forEach(card => {
     card.addEventListener('contextmenu', function(e) {
         e.preventDefault();
         toggleFavorite(this.dataset.foodId, this);
+    });
+});
+
+// Category filter tabs
+document.querySelectorAll('.category-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+        // Update active tab
+        document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+
+        const category = this.dataset.category;
+        const cards = document.querySelectorAll('#foodGrid .food-card');
+
+        cards.forEach(card => {
+            if (category === 'all' || card.dataset.category === category) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
     });
 });
 

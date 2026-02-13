@@ -17,6 +17,7 @@ ob_start();
     <nav class="child-nav">
         <a href="index.php" class="btn-back">← <?php echo t('back'); ?></a>
         <h1><?php echo t('weight_tracking'); ?> 🌱</h1>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme"></button>
         <a href="index.php?page=logout" class="btn-logout">🚪</a>
     </nav>
 

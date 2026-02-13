@@ -1,0 +1,62 @@
+{
+  "pt": {
+    "morning": [
+      "Pirata, ahoy! Bom dia!",
+      "Olá, campeão! Prontos para o dia?",
+      "Bom dia, estrela! O sol nasceu para ti!",
+      "Eh lá, dorminhoco! Hora de comer!",
+      "Bom dia! O pequeno-almoço espera por ti!"
+    ],
+    "afternoon": [
+      "Boa tarde, herói!",
+      "Hey! Como foi a manhã?",
+      "A tarde está linda, tal como tu!",
+      "Boa tarde! Hora do lanche?",
+      "Olá de novo! Pronto para mais?"
+    ],
+    "evening": [
+      "Boa noite, super-herói!",
+      "O dia foi longo, mas tu és mais forte!",
+      "Boa noite! Já comeste bem hoje?",
+      "Hey! Quase na hora de descansar!",
+      "Boa noite, campeão! Fizeste um bom dia!"
+    ],
+    "night": [
+      "Ei, coruja! Ainda acordado?",
+      "Shhh... um lanchinho noturno?",
+      "As estrelas brilham, e tu também!",
+      "Boa noite, aventureiro da noite!",
+      "Hora de descansar, pequeno herói!"
+    ]
+  },
+  "en": {
+    "morning": [
+      "Pirate, ahoy! Good morning!",
+      "Hey champ! Ready for the day?",
+      "Good morning, star! The sun's out for you!",
+      "Rise and shine, sleepyhead!",
+      "Good morning! Breakfast is calling!"
+    ],
+    "afternoon": [
+      "Good afternoon, hero!",
+      "Hey! How was the morning?",
+      "The afternoon is as lovely as you!",
+      "Good afternoon! Snack time?",
+      "Hello again! Ready for more?"
+    ],
+    "evening": [
+      "Good evening, superhero!",
+      "Long day, but you're tougher!",
+      "Good evening! Did you eat well today?",
+      "Hey! Almost time to rest!",
+      "Good evening, champ! What a great day!"
+    ],
+    "night": [
+      "Hey, night owl! Still up?",
+      "Shhh... a little night snack?",
+      "The stars shine, and so do you!",
+      "Good night, night adventurer!",
+      "Time to rest, little hero!"
+    ]
+  }
+}

@@ -29,6 +29,7 @@ ob_start();
     <nav class="child-nav">
         <a href="index.php" class="btn-back">← <?php echo t('back'); ?></a>
         <h1><?php echo t('daily_checkin'); ?></h1>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme"></button>
         <a href="index.php?page=logout" class="btn-logout">🚪</a>
     </nav>
 
@@ -144,7 +145,7 @@ ob_start();
         <div class="success-message"><?php echo t('checkin_saved'); ?></div>
         <div class="success-encouragement"><?php echo t($encouragementKey); ?></div>
         <footer style="margin-top:1.5rem;">
-            <button class="btn-primary" onclick="window.location='index.php'">
+            <button class="btn-primary" onclick="window.location='index.php?page=log-food'">
                 <?php echo t('done'); ?> ✨
             </button>
         </footer>

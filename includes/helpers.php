@@ -266,6 +266,33 @@ function getTimeEmoji() {
 }
 
 /**
+ * Get a random fun greeting phrase from greetings.json
+ */
+function getRandomGreetingPhrase() {
+    $locale = getAppLocale();
+    $file = LOCALES_PATH . '/greetings.json';
+
+    if (!file_exists($file)) return '';
+
+    $data = json_decode(file_get_contents($file), true);
+    if (!$data || !isset($data[$locale])) {
+        $locale = 'en'; // fallback
+    }
+    if (!isset($data[$locale])) return '';
+
+    $hour = (int) date('H');
+    if ($hour < 6) $period = 'night';
+    elseif ($hour < 12) $period = 'morning';
+    elseif ($hour < 18) $period = 'afternoon';
+    else $period = 'evening';
+
+    $phrases = $data[$locale][$period] ?? [];
+    if (empty($phrases)) return '';
+
+    return $phrases[array_rand($phrases)];
+}
+
+/**
  * Get a random encouraging message key for i18n
  */
 function getRandomEncouragementKey($type = 'food') {
@@ -295,6 +322,9 @@ function renderLayout($title, $content, $additionalHead = '') {
         <link rel="stylesheet" href="assets/css/custom.css">
         <link rel="manifest" href="manifest.json">
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
+        <script>
+        (function(){var t=localStorage.getItem('comecome_theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)document.documentElement.setAttribute('data-theme','dark');})();
+        </script>
         <?php echo $additionalHead; ?>
     </head>
     <body>
