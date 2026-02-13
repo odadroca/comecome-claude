@@ -155,7 +155,7 @@ const weightData = <?php echo json_encode($data['weight_history']); ?>;
 new Chart(document.getElementById('weightChart'), {
     type: 'line',
     data: {
-        labels: weightData.map(d => new Date(d.log_date).toLocaleDateString('<?php echo getLocale(); ?>', {month: 'short', day: 'numeric'})),
+        labels: weightData.map(d => new Date(d.log_date).toLocaleDateString('<?php echo getAppLocale(); ?>', {month: 'short', day: 'numeric'})),
         datasets: [{
             label: '<?php echo t('weight'); ?> (kg)',
             data: weightData.map(d => d.weight_kg),
@@ -187,7 +187,7 @@ const mealTypes = [...new Set(intakeData.map(d => d.meal_name_key))];
 new Chart(document.getElementById('intakeChart'), {
     type: 'bar',
     data: {
-        labels: dates.map(d => new Date(d).toLocaleDateString('<?php echo getLocale(); ?>', {month: 'short', day: 'numeric'})),
+        labels: dates.map(d => new Date(d).toLocaleDateString('<?php echo getAppLocale(); ?>', {month: 'short', day: 'numeric'})),
         datasets: mealTypes.map((meal, idx) => ({
             label: '<?php echo '{MEAL}'; ?>'.replace('{MEAL}', meal),
             data: dates.map(date => groupedIntake[date][meal] || 0),

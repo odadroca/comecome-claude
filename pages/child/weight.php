@@ -149,7 +149,7 @@ new Chart(ctx, {
     data: {
         labels: weightData.map(d => {
             const date = new Date(d.log_date);
-            return date.toLocaleDateString('<?php echo getLocale(); ?>', {month: 'short', day: 'numeric'});
+            return date.toLocaleDateString('<?php echo getAppLocale(); ?>', {month: 'short', day: 'numeric'});
         }),
         datasets: [{
             label: '<?php echo t('weight'); ?> (kg)',

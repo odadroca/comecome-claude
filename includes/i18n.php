@@ -10,7 +10,7 @@ $GLOBALS['current_locale'] = DEFAULT_LOCALE;
 /**
  * Set current locale
  */
-function setLocale($locale) {
+function setAppLocale($locale) {
     $GLOBALS['current_locale'] = $locale;
     $_SESSION['locale'] = $locale;
     loadTranslations($locale);
@@ -19,7 +19,7 @@ function setLocale($locale) {
 /**
  * Get current locale
  */
-function getLocale() {
+function getAppLocale() {
     if (isset($_SESSION['locale'])) {
         return $_SESSION['locale'];
     }
@@ -56,7 +56,7 @@ function loadTranslations($locale) {
  * @return string Translated text
  */
 function t($key, $params = []) {
-    $locale = getLocale();
+    $locale = getAppLocale();
 
     // Load translations if not loaded
     if (!isset($GLOBALS['translations'][$locale])) {
@@ -133,7 +133,7 @@ function getMissingTranslations($sourceLocale, $targetLocale) {
 // Initialize locale on first load
 if (!isset($_SESSION['locale'])) {
     $defaultLocale = getSetting('default_language', DEFAULT_LOCALE);
-    setLocale($defaultLocale);
+    setAppLocale($defaultLocale);
 } else {
     $GLOBALS['current_locale'] = $_SESSION['locale'];
     loadTranslations($_SESSION['locale']);

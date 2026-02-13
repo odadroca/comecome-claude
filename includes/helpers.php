@@ -249,7 +249,7 @@ function getReportData($userId, $startDate, $endDate) {
 function renderLayout($title, $content, $additionalHead = '') {
     ?>
     <!DOCTYPE html>
-    <html lang="<?php echo getLocale(); ?>" data-theme="light">
+    <html lang="<?php echo getAppLocale(); ?>" data-theme="light">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">

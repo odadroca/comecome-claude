@@ -66,8 +66,8 @@ ob_start();
         </form>
 
         <footer style="text-align: center; margin-top: 2rem; font-size: 0.875rem;">
-            <a href="?lang=<?php echo getLocale() === 'pt' ? 'en' : 'pt'; ?>" style="text-decoration: none;">
-                🌐 <?php echo getLocale() === 'pt' ? 'English' : 'Português'; ?>
+            <a href="?lang=<?php echo getAppLocale() === 'pt' ? 'en' : 'pt'; ?>" style="text-decoration: none;">
+                🌐 <?php echo getAppLocale() === 'pt' ? 'English' : 'Português'; ?>
             </a>
         </footer>
     </article>
