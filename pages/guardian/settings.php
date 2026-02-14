@@ -24,7 +24,7 @@ ob_start();
         <h1><?php echo t('system_settings'); ?></h1>
 
         <?php if (isset($success)): ?>
-        <div style="background:#e8f5e9;padding:1rem;border-radius:0.5rem;margin-bottom:1rem;">
+        <div class="alert alert-success">
             ✅ <?php echo t('changes_saved'); ?>
         </div>
         <?php endif; ?>

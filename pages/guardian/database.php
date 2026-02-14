@@ -75,7 +75,7 @@ ob_start();
         <h1><?php echo t('database_management'); ?></h1>
 
         <?php if ($message): ?>
-        <div style="background:<?php echo $messageType === 'error' ? '#ffebee' : ($messageType === 'warning' ? '#fff3e0' : 'var(--pico-primary-background)'); ?>;padding:1rem;border-radius:0.5rem;margin-bottom:1rem;">
+        <div class="alert <?php echo $messageType === 'error' ? 'alert-error' : ($messageType === 'warning' ? 'alert-warning' : 'alert-success'); ?>">
             <?php echo $messageType === 'error' ? '❌' : ($messageType === 'warning' ? '⚠️' : '✅'); ?> <?php echo $message; ?>
         </div>
         <?php endif; ?>
@@ -119,14 +119,14 @@ ob_start();
         <!-- Delete All -->
         <section class="management-section">
             <h2>🗑️ <?php echo t('delete_all_data'); ?></h2>
-            <p style="color:#f44336;font-weight:600;"><?php echo t('delete_warning'); ?></p>
+            <p class="text-danger" style="font-weight:600;"><?php echo t('delete_warning'); ?></p>
             <form method="POST" onsubmit="return confirm('Tem ABSOLUTA certeza? Esta ação NÃO PODE ser desfeita!')">
                 <input type="hidden" name="action" value="delete">
                 <label>
                     <?php echo t('type_delete_confirm'); ?>
                     <input type="text" name="confirm" placeholder="ELIMINAR" required>
                 </label>
-                <button type="submit" class="btn-secondary" style="background:#f44336;">
+                <button type="submit" class="btn-secondary btn-danger">
                     🗑️ <?php echo t('delete_all_data'); ?>
                 </button>
             </form>

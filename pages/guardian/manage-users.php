@@ -92,7 +92,7 @@ ob_start();
         <h1><?php echo t('manage_users'); ?></h1>
 
         <?php if ($message): ?>
-        <div style="background:<?php echo $message === t('login_error') ? '#ffebee' : 'var(--pico-primary-background)'; ?>;padding:1rem;border-radius:0.5rem;margin-bottom:1rem;">
+        <div class="alert <?php echo $message === t('login_error') ? 'alert-error' : 'alert-success'; ?>">
             <?php echo $message === t('login_error') ? '❌' : '✅'; ?> <?php echo $message; ?>
         </div>
         <?php endif; ?>

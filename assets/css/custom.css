@@ -808,6 +808,44 @@
     font-size: 1.1rem;
 }
 
+.btn-danger {
+    background: #e53935;
+    color: white;
+    border-color: #e53935;
+}
+.btn-danger:hover {
+    background: #c62828;
+    color: white;
+    border-color: #c62828;
+}
+
+/* Alert/notification boxes */
+.alert {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+.alert-success {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border-left: 4px solid #4CAF50;
+}
+.alert-error {
+    background: #ffebee;
+    color: #c62828;
+    border-left: 4px solid #e53935;
+}
+.alert-warning {
+    background: #fff3e0;
+    color: #e65100;
+    border-left: 4px solid #FF9800;
+}
+
+.text-danger {
+    color: #e53935;
+}
+
 /* ============================================================
    SUCCESS MODALS - Celebrate EVERYTHING
    ============================================================ */
@@ -1096,6 +1134,7 @@ dialog article header {
 
 [data-theme="dark"] .error-message {
     background: rgba(198, 40, 40, 0.15);
+    color: #ef9a9a;
 }
 
 [data-theme="dark"] dialog {
@@ -1186,6 +1225,164 @@ dialog article header {
 
 [data-theme="dark"] .management-section h2 {
     color: var(--text-primary);
+}
+
+/* Guardian page headings */
+[data-theme="dark"] .guardian-interface h1 {
+    color: #b3a8ff;
+}
+
+[data-theme="dark"] .guardian-interface h2 {
+    color: var(--text-primary);
+}
+
+/* Child interface text on dark cards */
+[data-theme="dark"] .checkin-section h3 {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .meal-btn {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .portion-btn {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .option-card label {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .face-label {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .face-option input[type="radio"]:checked + .face-emoji + .face-label {
+    color: var(--accent-green);
+}
+
+[data-theme="dark"] .user-card input[type="radio"]:checked ~ .user-name {
+    color: var(--accent-green);
+}
+
+/* Summary and empty state */
+[data-theme="dark"] .summary-label {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .empty-state {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .weight-encouragement {
+    color: var(--accent-purple);
+}
+
+/* Guardian login link on login page */
+[data-theme="dark"] .guardian-login-link {
+    color: var(--text-secondary);
+}
+
+/* Login greeting text */
+[data-theme="dark"] .login-greeting {
+    color: var(--text-secondary);
+}
+
+/* User name in login cards */
+[data-theme="dark"] .user-name {
+    color: var(--text-primary);
+}
+
+/* Weight unit */
+[data-theme="dark"] .weight-input-group input {
+    color: var(--text-primary);
+}
+
+/* Dashboard filters and inputs */
+[data-theme="dark"] .dashboard-filters select,
+[data-theme="dark"] .dashboard-filters label {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .filter-group label {
+    color: var(--text-secondary);
+}
+
+/* Dashboard section background */
+[data-theme="dark"] .dashboard-section {
+    color: var(--text-primary);
+}
+
+/* Alert boxes for dark mode */
+[data-theme="dark"] .alert-success {
+    background: rgba(76, 175, 80, 0.15);
+    color: #81C784;
+    border-color: #4CAF50;
+}
+
+[data-theme="dark"] .alert-error {
+    background: rgba(229, 57, 53, 0.15);
+    color: #ef9a9a;
+    border-color: #e53935;
+}
+
+[data-theme="dark"] .alert-warning {
+    background: rgba(255, 152, 0, 0.15);
+    color: #FFB74D;
+    border-color: #FF9800;
+}
+
+/* Inline style overrides - message boxes in guardian pages */
+[data-theme="dark"] .guardian-interface [style*="background:#ffebee"],
+[data-theme="dark"] .guardian-interface [style*="background:#e8f5e9"],
+[data-theme="dark"] .guardian-interface [style*="background:#fff3e0"] {
+    filter: none;
+}
+
+/* Guardian form inputs on dark */
+[data-theme="dark"] .guardian-interface input[type="text"],
+[data-theme="dark"] .guardian-interface input[type="password"],
+[data-theme="dark"] .guardian-interface input[type="number"],
+[data-theme="dark"] .guardian-interface input[type="date"],
+[data-theme="dark"] .guardian-interface input[type="time"],
+[data-theme="dark"] .guardian-interface input[type="file"],
+[data-theme="dark"] .guardian-interface input[type="search"],
+[data-theme="dark"] .guardian-interface select,
+[data-theme="dark"] .guardian-interface textarea {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .guardian-interface label {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .guardian-interface small {
+    color: var(--text-secondary);
+}
+
+/* Delete warning text */
+[data-theme="dark"] .text-danger {
+    color: #ef5350;
+}
+
+/* btn-danger in dark mode */
+[data-theme="dark"] .btn-danger {
+    background: #c62828;
+}
+
+[data-theme="dark"] .btn-danger:hover {
+    background: #b71c1c;
+}
+
+/* Child page inline text colors that need dark support */
+[data-theme="dark"] .child-interface [style*="color:#667eea"] {
+    color: var(--accent-purple) !important;
+}
+
+[data-theme="dark"] .child-interface [style*="color:#4CAF50"] {
+    color: var(--accent-green) !important;
 }
 
 /* ============================================================

@@ -100,7 +100,7 @@ ob_start();
         <h1><?php echo t('manage_meals'); ?></h1>
 
         <?php if ($message): ?>
-        <div style="background:var(--pico-primary-background);padding:1rem;border-radius:0.5rem;margin-bottom:1rem;">
+        <div class="alert alert-success">
             ✅ <?php echo $message; ?>
         </div>
         <?php endif; ?>
