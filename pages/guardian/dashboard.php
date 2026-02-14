@@ -46,7 +46,8 @@ ob_start();
         </div>
 
         <?php if ($data): ?>
-        <!-- Weight Timeline Chart -->
+
+        <!-- 1. Weight Timeline Chart -->
         <?php if (count($data['weight_history']) > 0): ?>
         <section class="dashboard-section">
             <h2><?php echo t('weight_timeline'); ?></h2>
@@ -56,7 +57,17 @@ ob_start();
         </section>
         <?php endif; ?>
 
-        <!-- Appetite & Mood History -->
+        <!-- 2. Food Evolution Chart (period-based, right below weight) -->
+        <?php if (count($data['daily_intake']) > 0): ?>
+        <section class="dashboard-section">
+            <h2><?php echo t('food_evolution'); ?></h2>
+            <div class="chart-container">
+                <canvas id="intakeChart"></canvas>
+            </div>
+        </section>
+        <?php endif; ?>
+
+        <!-- 3. Appetite & Mood History -->
         <?php if (count($data['check_ins']) > 0): ?>
         <section class="dashboard-section">
             <h2><?php echo t('appetite_mood_history'); ?></h2>
@@ -87,7 +98,7 @@ ob_start();
         </section>
         <?php endif; ?>
 
-        <!-- Most Eaten Foods -->
+        <!-- 4. Most Eaten Foods -->
         <?php if (count($data['top_foods']) > 0): ?>
         <section class="dashboard-section">
             <h2><?php echo t('most_eaten_foods'); ?></h2>
@@ -117,17 +128,7 @@ ob_start();
         </section>
         <?php endif; ?>
 
-        <!-- Daily Intake Chart -->
-        <?php if (count($data['daily_intake']) > 0): ?>
-        <section class="dashboard-section">
-            <h2><?php echo t('daily_intake'); ?></h2>
-            <div class="chart-container">
-                <canvas id="intakeChart"></canvas>
-            </div>
-        </section>
-        <?php endif; ?>
-
-        <?php if (count($data['check_ins']) == 0 && count($data['top_foods']) == 0 && count($data['weight_history']) == 0): ?>
+        <?php if (count($data['check_ins']) == 0 && count($data['top_foods']) == 0 && count($data['weight_history']) == 0 && count($data['daily_intake']) == 0): ?>
         <p style="text-align:center;padding:3rem;opacity:0.6;">
             <?php echo t('no_data_period'); ?>
         </p>
@@ -173,7 +174,7 @@ new Chart(document.getElementById('weightChart'), {
 <?php endif; ?>
 
 <?php if ($data && count($data['daily_intake']) > 0): ?>
-// Daily Intake Chart
+// Food Evolution Chart
 const intakeData = <?php echo json_encode($data['daily_intake']); ?>;
 const groupedIntake = {};
 intakeData.forEach(item => {

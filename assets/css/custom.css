@@ -882,7 +882,28 @@ dialog article header {
 .guardian-interface { display: flex; min-height: 100vh; }
 .guardian-interface > main { flex: 1; padding: 2rem; overflow-y: auto; max-width: none; width: auto; }
 .guardian-nav { background: #1a237e; color: white; width: 250px; padding: 1.5rem; flex-shrink: 0; }
-.nav-brand { margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 2px solid rgba(255,255,255,0.2); }
+.nav-header { display: flex; align-items: center; justify-content: space-between; }
+.nav-brand { margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 2px solid rgba(255,255,255,0.2); flex: 1; }
+
+/* Hamburger toggle - hidden on desktop */
+.nav-toggle {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    flex-direction: column;
+    gap: 5px;
+    margin-left: 0.5rem;
+}
+.nav-toggle span {
+    display: block;
+    width: 24px;
+    height: 3px;
+    background: white;
+    border-radius: 2px;
+    transition: all 0.3s;
+}
 .nav-menu { list-style: none; padding: 0; margin: 0; }
 .nav-menu li { margin-bottom: 0.5rem; }
 .nav-menu a { color: rgba(255,255,255,0.8); text-decoration: none; padding: 0.75rem; display: block; border-radius: 0.5rem; transition: all 0.2s; }
@@ -944,8 +965,29 @@ dialog article header {
    RESPONSIVE
    ============================================================ */
 @media (max-width: 768px) {
-    .guardian-nav { width: 100%; position: relative; }
     .guardian-interface { flex-direction: column; }
+    .guardian-nav {
+        width: 100%;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        padding: 1rem;
+    }
+    .nav-header { margin-bottom: 0; }
+    .nav-brand { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+    .nav-toggle { display: flex; }
+    .guardian-nav .nav-menu {
+        display: none;
+        padding-top: 1rem;
+        margin-top: 1rem;
+        border-top: 1px solid rgba(255,255,255,0.2);
+    }
+    .guardian-nav.nav-open .nav-menu { display: block; }
+    /* Animate hamburger to X when open */
+    .guardian-nav.nav-open .nav-toggle span:nth-child(1) { transform: rotate(45deg) translate(5px, 6px); }
+    .guardian-nav.nav-open .nav-toggle span:nth-child(2) { opacity: 0; }
+    .guardian-nav.nav-open .nav-toggle span:nth-child(3) { transform: rotate(-45deg) translate(5px, -6px); }
+
     .food-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
     .meal-selection { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 

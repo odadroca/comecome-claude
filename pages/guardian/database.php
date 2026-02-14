@@ -18,6 +18,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             readfile($backupPath);
             exit;
         }
+    } elseif ($action === 'download') {
+        // Direct download of current .db file (no backup copy)
+        if (file_exists(DB_PATH)) {
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: attachment; filename="comecome_' . date('Y-m-d') . '.db"');
+            header('Content-Length: ' . filesize(DB_PATH));
+            readfile(DB_PATH);
+            exit;
+        }
     } elseif ($action === 'upload') {
         if (isset($_FILES['dbfile']) && $_FILES['dbfile']['error'] === UPLOAD_ERR_OK) {
             $tmpFile = $_FILES['dbfile']['tmp_name'];
@@ -77,14 +86,20 @@ ob_start();
             <p>Tamanho da base de dados: <strong><?php echo $dbSizeStr; ?></strong></p>
         </section>
 
-        <!-- Backup -->
+        <!-- Backup & Download -->
         <section class="management-section">
             <h2>💾 <?php echo t('backup_database'); ?></h2>
-            <p>Criar uma cópia de segurança de todos os dados.</p>
-            <form method="POST">
-                <input type="hidden" name="action" value="backup">
-                <button type="submit" class="btn-primary">💾 <?php echo t('backup_database'); ?></button>
-            </form>
+            <p><?php echo t('backup_description'); ?></p>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+                <form method="POST">
+                    <input type="hidden" name="action" value="backup">
+                    <button type="submit" class="btn-primary">💾 <?php echo t('backup_database'); ?></button>
+                </form>
+                <form method="POST">
+                    <input type="hidden" name="action" value="download">
+                    <button type="submit" class="btn-secondary">📥 <?php echo t('download_db'); ?></button>
+                </form>
+            </div>
         </section>
 
         <!-- Upload / Restore -->

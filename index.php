@@ -64,9 +64,10 @@ switch ($page) {
         include 'pages/guardian/dashboard.php';
         break;
 
-    case 'manage-children':
+    case 'manage-users':
+    case 'manage-children': // backward compat
         requireGuardian();
-        include 'pages/guardian/manage-children.php';
+        include 'pages/guardian/manage-users.php';
         break;
 
     case 'manage-meals':
