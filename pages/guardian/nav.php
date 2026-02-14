@@ -29,6 +29,9 @@ $currentPage = $_GET['page'] ?? 'dashboard';
         <li><a href="?page=manage-medications" class="<?php echo $currentPage === 'manage-medications' ? 'active' : ''; ?>">
             💊 <?php echo t('manage_medications'); ?>
         </a></li>
+        <li><a href="?page=manage-logs" class="<?php echo $currentPage === 'manage-logs' ? 'active' : ''; ?>">
+            📋 <?php echo t('manage_logs'); ?>
+        </a></li>
         <li><a href="?page=export" class="<?php echo $currentPage === 'export' ? 'active' : ''; ?>">
             📤 <?php echo t('export_data'); ?>
         </a></li>

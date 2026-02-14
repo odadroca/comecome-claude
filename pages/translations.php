@@ -81,6 +81,7 @@ ob_start();
                     <tbody>
                         <?php foreach ($translations as $key => $value): ?>
                         <?php if (strpos($key, '_') === 0) continue; // Skip section headers ?>
+                        <?php if (!is_string($value)) continue; // Skip non-string values ?>
                         <tr>
                             <td><code><?php echo $key; ?></code></td>
                             <td><?php echo sanitize($value); ?></td>

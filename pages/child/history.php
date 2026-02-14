@@ -1,12 +1,28 @@
 <?php
 /**
  * Child - History Page
+ * Your food story - every day tells a tale
  */
 
 $user = getCurrentUser();
 $selectedDate = $_GET['date'] ?? date('Y-m-d');
 $foodLog = getFoodLogByDate($user['id'], $selectedDate);
 $checkIn = getCheckIn($user['id'], $selectedDate);
+
+// Calculate previous and next day for navigation
+$prevDate = date('Y-m-d', strtotime($selectedDate . ' -1 day'));
+$nextDate = date('Y-m-d', strtotime($selectedDate . ' +1 day'));
+$isToday = $selectedDate === date('Y-m-d');
+$isYesterday = $selectedDate === date('Y-m-d', strtotime('-1 day'));
+
+// Friendly date label
+if ($isToday) {
+    $dateLabel = t('today');
+} elseif ($isYesterday) {
+    $dateLabel = t('yesterday');
+} else {
+    $dateLabel = formatDate($selectedDate, 'd/m/Y');
+}
 
 ob_start();
 ?>
@@ -15,19 +31,29 @@ ob_start();
     <nav class="child-nav">
         <a href="index.php" class="btn-back">← <?php echo t('back'); ?></a>
         <h1><?php echo t('my_history'); ?></h1>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme"></button>
         <a href="index.php?page=logout" class="btn-logout">🚪</a>
     </nav>
 
     <main class="container">
-        <!-- Date Selector -->
+        <!-- Date Selector with prev/next navigation -->
         <section class="date-selector">
-            <input type="date" id="dateInput" value="<?php echo $selectedDate; ?>" max="<?php echo date('Y-m-d'); ?>">
+            <a href="?page=history&date=<?php echo $prevDate; ?>" class="date-nav-btn">◀</a>
+            <div style="text-align:center;flex:1;">
+                <div style="font-weight:700;font-size:1.1rem;"><?php echo $dateLabel; ?></div>
+                <input type="date" id="dateInput" value="<?php echo $selectedDate; ?>" max="<?php echo date('Y-m-d'); ?>" style="font-size:0.85rem;border:none;background:transparent;text-align:center;color:#667eea;">
+            </div>
+            <?php if (!$isToday): ?>
+            <a href="?page=history&date=<?php echo $nextDate; ?>" class="date-nav-btn">▶</a>
+            <?php else: ?>
+            <div style="width:40px;"></div>
+            <?php endif; ?>
         </section>
 
         <!-- Check-in Summary -->
         <?php if ($checkIn): ?>
         <section class="checkin-summary">
-            <h3><?php echo t('daily_checkin'); ?></h3>
+            <h3><?php echo t('daily_checkin'); ?> ✅</h3>
             <div class="summary-grid">
                 <div class="summary-item">
                     <span class="summary-label"><?php echo t('appetite'); ?></span>
@@ -67,7 +93,7 @@ ob_start();
 
         <!-- Food Log -->
         <section class="food-log-section">
-            <h3><?php echo t('log_food'); ?></h3>
+            <h3><?php echo t('log_food'); ?> 🍽️</h3>
 
             <?php if (count($foodLog) > 0): ?>
             <div class="food-log-list">
@@ -91,7 +117,7 @@ ob_start();
                             <span class="food-emoji"><?php echo $entry['emoji']; ?></span>
                             <span class="food-details">
                                 <strong><?php echo t($entry['food_name_key']); ?></strong>
-                                <small><?php echo t('portion_' . $entry['portion']); ?> • <?php echo date('H:i', strtotime($entry['log_time'])); ?></small>
+                                <small><?php echo t('portion_' . $entry['portion']); ?> · <?php echo date('H:i', strtotime($entry['log_time'])); ?></small>
                             </span>
                         </div>
                         <?php endforeach; ?>
@@ -100,11 +126,28 @@ ob_start();
                 <?php endforeach; ?>
             </div>
             <?php else: ?>
-            <p style="text-align:center;opacity:0.6;padding:2rem;">
-                <?php echo t('no_logs_today'); ?>
-            </p>
+            <div class="empty-state">
+                <div class="empty-state-emoji"><?php echo $isToday ? '🌱' : '📭'; ?></div>
+                <div class="empty-state-text">
+                    <?php echo $isToday ? t('empty_today_title') : t('no_logs_today'); ?>
+                </div>
+                <?php if ($isToday): ?>
+                <div class="empty-state-hint"><?php echo t('empty_today_hint'); ?></div>
+                <a href="?page=log-food" class="btn-primary" style="display:inline-block;width:auto;margin-top:1rem;">
+                    🍽️ <?php echo t('log_food'); ?>
+                </a>
+                <?php endif; ?>
+            </div>
             <?php endif; ?>
         </section>
+
+        <!-- Daily Intake Chart -->
+        <?php if (count($foodLog) > 0): ?>
+        <section class="chart-container" style="margin-top:1.5rem;">
+            <h3 style="text-align:center;margin-bottom:1rem;"><?php echo t('daily_intake'); ?> 📊</h3>
+            <canvas id="intakeChart"></canvas>
+        </section>
+        <?php endif; ?>
     </main>
 
     <footer class="child-footer">
@@ -127,10 +170,79 @@ ob_start();
     </footer>
 </div>
 
+<?php if (count($foodLog) > 0): ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<?php endif; ?>
+
 <script>
 document.getElementById('dateInput').addEventListener('change', function() {
     window.location = '?page=history&date=' + this.value;
 });
+
+<?php if (count($foodLog) > 0): ?>
+// Build chart data from food log
+const mealData = {};
+const portionValues = {'little': 0.25, 'some': 0.5, 'lot': 0.75, 'all': 1.0};
+const chartFoodLog = <?php echo json_encode($foodLog); ?>;
+
+chartFoodLog.forEach(entry => {
+    const mealName = <?php echo json_encode(array_map(function($key) { return t($key); }, array_unique(array_column($foodLog, 'meal_name_key')))); ?>;
+    const key = entry.meal_name_key;
+    if (!mealData[key]) mealData[key] = 0;
+    mealData[key] += (portionValues[entry.portion] || 0);
+});
+
+const mealLabels = Object.keys(mealData).map(k => {
+    const translations = <?php
+        $mealTranslations = [];
+        foreach (array_unique(array_column($foodLog, 'meal_name_key')) as $mk) {
+            $mealTranslations[$mk] = t($mk);
+        }
+        echo json_encode($mealTranslations);
+    ?>;
+    return translations[k] || k;
+});
+
+const mealColors = ['#667eea', '#764ba2', '#4CAF50', '#FF9800', '#E91E63', '#00BCD4'];
+
+const intakeCtx = document.getElementById('intakeChart');
+if (intakeCtx) {
+    new Chart(intakeCtx.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: mealLabels,
+            datasets: [{
+                label: '<?php echo t('daily_intake'); ?>',
+                data: Object.values(mealData),
+                backgroundColor: mealColors.slice(0, mealLabels.length),
+                borderRadius: 8,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {display: false}
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(102, 126, 234, 0.1)' },
+                    ticks: {
+                        callback: function(value) {
+                            return value + ' <?php echo t('portion_all'); ?>';
+                        }
+                    }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
+<?php endif; ?>
 </script>
 
 <?php

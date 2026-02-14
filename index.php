@@ -84,6 +84,11 @@ switch ($page) {
         include 'pages/guardian/manage-medications.php';
         break;
 
+    case 'manage-logs':
+        requireGuardian();
+        include 'pages/guardian/manage-logs.php';
+        break;
+
     case 'export':
         requireGuardian();
         include 'pages/guardian/export.php';

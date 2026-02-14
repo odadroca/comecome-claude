@@ -1,6 +1,7 @@
 <?php
 /**
  * Child - Daily Check-in Page
+ * Your feelings matter. Every single one.
  */
 
 $user = getCurrentUser();
@@ -18,6 +19,9 @@ $stmt = $db->prepare("
 $stmt->execute([$user['id']]);
 $medications = $stmt->fetchAll();
 
+// Random encouragement for success
+$encouragementKey = getRandomEncouragementKey('checkin');
+
 ob_start();
 ?>
 
@@ -25,10 +29,17 @@ ob_start();
     <nav class="child-nav">
         <a href="index.php" class="btn-back">← <?php echo t('back'); ?></a>
         <h1><?php echo t('daily_checkin'); ?></h1>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme"></button>
         <a href="index.php?page=logout" class="btn-logout">🚪</a>
     </nav>
 
     <main class="container">
+        <?php if ($checkIn): ?>
+        <p style="text-align:center;font-size:0.85rem;color:#4CAF50;margin-bottom:0.5rem;font-weight:600;">
+            ✅ <?php echo t('checkin_already_done'); ?>
+        </p>
+        <?php endif; ?>
+
         <form id="checkInForm" class="checkin-form">
             <!-- Appetite Level -->
             <section class="checkin-section">
@@ -96,7 +107,7 @@ ob_start();
             <!-- Optional Notes -->
             <section class="checkin-section">
                 <label for="notes">
-                    <h3><?php echo t('any_notes'); ?></h3>
+                    <h3><?php echo t('any_notes'); ?> 💭</h3>
                     <textarea id="notes" name="notes" rows="4" placeholder="<?php echo t('notes_placeholder'); ?>"><?php echo $checkIn ? sanitize($checkIn['notes']) : ''; ?></textarea>
                 </label>
             </section>
@@ -127,14 +138,15 @@ ob_start();
     </footer>
 </div>
 
-<!-- Success Modal -->
+<!-- Success Modal - Warm and encouraging -->
 <dialog id="successModal">
     <article style="text-align:center;">
-        <div style="font-size:4rem;">👍</div>
-        <h3><?php echo t('checkin_saved'); ?></h3>
-        <footer>
-            <button class="btn-primary" onclick="window.location='index.php'">
-                <?php echo t('done'); ?>
+        <div class="success-emoji">🌟</div>
+        <div class="success-message"><?php echo t('checkin_saved'); ?></div>
+        <div class="success-encouragement"><?php echo t($encouragementKey); ?></div>
+        <footer style="margin-top:1.5rem;">
+            <button class="btn-primary" onclick="window.location='index.php?page=log-food'">
+                <?php echo t('done'); ?> ✨
             </button>
         </footer>
     </article>
@@ -143,6 +155,11 @@ ob_start();
 <script>
 document.getElementById('checkInForm').addEventListener('submit', function(e) {
     e.preventDefault();
+
+    // Disable submit button to prevent double-tap
+    const submitBtn = this.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳';
 
     const formData = new FormData(this);
     const data = {
@@ -160,8 +177,26 @@ document.getElementById('checkInForm').addEventListener('submit', function(e) {
     .then(r => r.json())
     .then(result => {
         if (result.success) {
-            document.getElementById('successModal').showModal();
+            // Update streak for check-in too
+            updateStreak();
+
+            // Confetti first, then modal
+            launchConfetti();
+            vibrate([50, 100, 50]);
+
+            setTimeout(function() {
+                document.getElementById('successModal').showModal();
+            }, 600);
+        } else {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '<?php echo t('save'); ?> ✅';
+            alert('<?php echo t('error_generic'); ?>');
         }
+    })
+    .catch(function() {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '<?php echo t('save'); ?> ✅';
+        alert('<?php echo t('error_generic'); ?>');
     });
 });
 </script>

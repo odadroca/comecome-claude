@@ -20,6 +20,7 @@ function portionToValue($portion) {
  * Sanitize input
  */
 function sanitize($input) {
+    if (!is_string($input)) $input = (string) $input;
     return htmlspecialchars(strip_tags($input), ENT_QUOTES, 'UTF-8');
 }
 
@@ -244,6 +245,68 @@ function getReportData($userId, $startDate, $endDate) {
 }
 
 /**
+ * Get time-based greeting key for i18n
+ */
+function getTimeGreeting() {
+    $hour = (int) date('H');
+    if ($hour < 6) return 'greeting_night';
+    if ($hour < 12) return 'greeting_morning';
+    if ($hour < 18) return 'greeting_afternoon';
+    return 'greeting_evening';
+}
+
+/**
+ * Get time-based greeting emoji
+ */
+function getTimeEmoji() {
+    $hour = (int) date('H');
+    if ($hour < 6) return '🌙';
+    if ($hour < 12) return '🌅';
+    if ($hour < 18) return '☀️';
+    return '🌆';
+}
+
+/**
+ * Get a random fun greeting phrase from greetings.json
+ */
+function getRandomGreetingPhrase() {
+    $locale = getAppLocale();
+    $file = LOCALES_PATH . '/greetings.json';
+
+    if (!file_exists($file)) return '';
+
+    $data = json_decode(file_get_contents($file), true);
+    if (!$data || !isset($data[$locale])) {
+        $locale = 'en'; // fallback
+    }
+    if (!isset($data[$locale])) return '';
+
+    $hour = (int) date('H');
+    if ($hour < 6) $period = 'night';
+    elseif ($hour < 12) $period = 'morning';
+    elseif ($hour < 18) $period = 'afternoon';
+    else $period = 'evening';
+
+    $phrases = $data[$locale][$period] ?? [];
+    if (empty($phrases)) return '';
+
+    return $phrases[array_rand($phrases)];
+}
+
+/**
+ * Get a random encouraging message key for i18n
+ */
+function getRandomEncouragementKey($type = 'food') {
+    $messages = [
+        'food' => ['encourage_food_1', 'encourage_food_2', 'encourage_food_3', 'encourage_food_4', 'encourage_food_5'],
+        'checkin' => ['encourage_checkin_1', 'encourage_checkin_2', 'encourage_checkin_3', 'encourage_checkin_4', 'encourage_checkin_5'],
+        'weight' => ['encourage_weight_1', 'encourage_weight_2', 'encourage_weight_3', 'encourage_weight_4', 'encourage_weight_5'],
+    ];
+    $keys = $messages[$type] ?? $messages['food'];
+    return $keys[array_rand($keys)];
+}
+
+/**
  * Render HTML layout
  */
 function renderLayout($title, $content, $additionalHead = '') {
@@ -260,6 +323,9 @@ function renderLayout($title, $content, $additionalHead = '') {
         <link rel="stylesheet" href="assets/css/custom.css">
         <link rel="manifest" href="manifest.json">
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
+        <script>
+        (function(){var t=localStorage.getItem('comecome_theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)document.documentElement.setAttribute('data-theme','dark');})();
+        </script>
         <?php echo $additionalHead; ?>
     </head>
     <body>
