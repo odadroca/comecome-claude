@@ -925,7 +925,7 @@ dialog article header {
 
 /* Hamburger toggle - hidden on desktop */
 .nav-toggle {
-    display: none;
+    display: none !important;
     background: none;
     border: none;
     cursor: pointer;
@@ -933,6 +933,8 @@ dialog article header {
     flex-direction: column;
     gap: 5px;
     margin-left: 0.5rem;
+    min-height: 0;
+    width: auto;
 }
 .nav-toggle span {
     display: block;
@@ -1005,7 +1007,8 @@ dialog article header {
 @media (max-width: 768px) {
     .guardian-interface { flex-direction: column; }
     .guardian-nav {
-        width: 100%;
+        width: 100% !important;
+        max-width: 100%;
         position: sticky;
         top: 0;
         z-index: 100;
@@ -1013,7 +1016,7 @@ dialog article header {
     }
     .nav-header { margin-bottom: 0; }
     .nav-brand { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
-    .nav-toggle { display: flex; }
+    .nav-toggle { display: flex !important; }
     .guardian-nav .nav-menu {
         display: none;
         padding-top: 1rem;
