@@ -66,7 +66,7 @@ ob_start();
                             $prevWeight = $entry['weight_kg'];
                         ?>
                         <tr>
-                            <td><?php echo formatDate($entry['log_date'], 'd/m/Y'); ?></td>
+                            <td><?php echo formatDate($entry['log_date'], 'd-m-Y'); ?></td>
                             <td><?php echo number_format($entry['weight_kg'], 1); ?> kg</td>
                             <td>
                                 <?php if ($change === null): ?>
@@ -174,7 +174,7 @@ new Chart(ctx, {
     data: {
         labels: weightData.map(d => {
             const date = new Date(d.log_date);
-            return date.toLocaleDateString('<?php echo getAppLocale(); ?>', {month: 'short', day: 'numeric'});
+            return String(date.getDate()).padStart(2,'0') + '-' + String(date.getMonth()+1).padStart(2,'0');
         }),
         datasets: [{
             label: '<?php echo t('weight'); ?> (kg)',

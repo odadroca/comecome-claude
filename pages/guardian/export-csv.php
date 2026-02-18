@@ -8,7 +8,7 @@ if (!isset($reportData)) {
 }
 
 $child = $reportData['user'];
-$filename = 'comecome-report-' . preg_replace('/[^a-zA-Z0-9]/', '', $child['name']) . '-' . date('Y-m-d') . '.csv';
+$filename = 'comecome-report-' . preg_replace('/[^a-zA-Z0-9]/', '', $child['name']) . '-' . date('d-m-Y') . '.csv';
 
 header('Content-Type: text/csv; charset=UTF-8');
 header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -21,8 +21,8 @@ fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
 // Report Header
 fputcsv($output, ['ComeCome Report']);
 fputcsv($output, ['Child', $child['name']]);
-fputcsv($output, ['Period', $startDate . ' to ' . $endDate]);
-fputcsv($output, ['Generated', date('Y-m-d H:i:s')]);
+fputcsv($output, ['Period', formatDate($startDate) . ' to ' . formatDate($endDate)]);
+fputcsv($output, ['Generated', date('d-m-Y H:i:s')]);
 fputcsv($output, []);
 
 // Weight Timeline
@@ -40,7 +40,7 @@ if (count($reportData['weights']) > 0) {
             $change = '—';
         }
         fputcsv($output, [
-            $entry['log_date'],
+            formatDate($entry['log_date']),
             $entry['weight_kg'],
             $change
         ]);
@@ -83,7 +83,7 @@ if (count($reportData['daily_meal_count']) > 0) {
 
     foreach ($reportData['daily_meal_count'] as $day) {
         fputcsv($output, [
-            $day['log_date'],
+            formatDate($day['log_date']),
             $day['meals_logged']
         ]);
     }

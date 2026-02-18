@@ -27,7 +27,7 @@ function sanitize($input) {
 /**
  * Format date for display
  */
-function formatDate($date, $format = 'Y-m-d') {
+function formatDate($date, $format = 'd-m-Y') {
     if (empty($date)) return '';
     $dt = new DateTime($date);
     return $dt->format($format);

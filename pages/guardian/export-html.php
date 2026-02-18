@@ -71,8 +71,8 @@ header('Content-Type: text/html; charset=UTF-8');
     <div class="header">
         <h1>Come-Come Report</h1>
         <p><strong><?php echo sanitize($child['name']); ?></strong></p>
-        <p><?php echo formatDate($startDate, 'Y-m-d'); ?> to <?php echo formatDate($endDate, 'Y-m-d'); ?></p>
-        <p style="font-size: 7pt;">Generated: <?php echo date('Y-m-d H:i:s'); ?> by <?php echo sanitize($generatedBy); ?></p>
+        <p><?php echo formatDate($startDate, 'd-m-Y'); ?> to <?php echo formatDate($endDate, 'd-m-Y'); ?></p>
+        <p style="font-size: 7pt;">Generated: <?php echo date('d-m-Y H:i:s'); ?> by <?php echo sanitize($generatedBy); ?></p>
     </div>
 
     <?php if (count($weights) > 0): ?>
@@ -105,7 +105,7 @@ header('Content-Type: text/html; charset=UTF-8');
                     $prevWeight = $entry['weight_kg'];
                 ?>
                 <tr>
-                    <td><?php echo formatDate($entry['log_date'], 'Y-m-d'); ?></td>
+                    <td><?php echo formatDate($entry['log_date'], 'd-m-Y'); ?></td>
                     <td><?php echo number_format($entry['weight_kg'], 1); ?></td>
                     <td><?php echo $changeStr; ?></td>
                 </tr>
@@ -163,7 +163,7 @@ header('Content-Type: text/html; charset=UTF-8');
             <tbody>
                 <?php foreach ($dailyMealCount as $day): ?>
                 <tr>
-                    <td><?php echo formatDate($day['log_date'], 'Y-m-d'); ?></td>
+                    <td><?php echo formatDate($day['log_date'], 'd-m-Y'); ?></td>
                     <td><?php echo $day['meals_logged']; ?></td>
                 </tr>
                 <?php endforeach; ?>
