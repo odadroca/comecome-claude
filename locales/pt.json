@@ -269,7 +269,7 @@
   "times_logged": "Vezes Registado",
   "intake_by_category": "Ingestão por Categoria",
   "total_quantity": "Quantidade Total",
-  "report_footer": "Gerado por ComeCome v1.0",
+  "report_footer": "Gerado por ComeCome v0.8",
   "page_of": "Página {current} de {total}",
 
   "_errors": "=== ERROS ===",

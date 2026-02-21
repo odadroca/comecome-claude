@@ -6,11 +6,15 @@ $currentPage = $_GET['page'] ?? 'dashboard';
 ?>
 
 <nav class="guardian-nav">
+    <input type="checkbox" id="guardian-nav-toggle" class="guardian-nav-toggle">
     <div class="nav-brand">
-        <h1 style="margin:0;font-size:1.5rem;">🍽️ <?php echo t('app_name'); ?></h1>
-        <p style="margin:0;font-size:0.875rem;opacity:0.8;">
-            <?php echo t('welcome', ['name' => $user['name']]); ?>
-        </p>
+        <div>
+            <h1 style="margin:0;font-size:1.5rem;">🍽️ <?php echo t('app_name'); ?></h1>
+            <p style="margin:0;font-size:0.875rem;opacity:0.8;">
+                <?php echo t('welcome', ['name' => $user['name']]); ?>
+            </p>
+        </div>
+        <label for="guardian-nav-toggle" class="guardian-nav-toggle-label">☰</label>
     </div>
 
     <ul class="nav-menu">

@@ -292,12 +292,14 @@
 .footer-btn {
     flex: 1;
     padding: 0.75rem;
+    min-height: 48px;
     text-align: center;
     text-decoration: none;
     color: #888;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 0.25rem;
     font-size: 0.75rem;
     border-radius: 0.75rem;
@@ -655,8 +657,8 @@
     color: white;
     border: none;
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
+    width: 48px;
+    height: 48px;
     font-size: 1.25rem;
     cursor: pointer;
     display: flex;
@@ -943,18 +945,74 @@ dialog article header {
 /* ============================================================
    RESPONSIVE
    ============================================================ */
+
+/* ---- Guardian mobile nav ---- */
+.guardian-nav-toggle { display: none; }
+.guardian-nav-toggle-label { display: none; }
+
 @media (max-width: 768px) {
-    .guardian-nav { width: 100%; position: relative; }
+    /* Guardian nav: collapsible on mobile */
+    .guardian-nav { width: 100%; position: relative; padding: 0; }
     .guardian-interface { flex-direction: column; }
+    .guardian-interface > main { padding: 1rem; }
+
+    .guardian-nav .nav-brand {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        margin-bottom: 0;
+        border-bottom: none;
+    }
+
+    .guardian-nav-toggle-label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        font-size: 1.5rem;
+        cursor: pointer;
+        background: rgba(255,255,255,0.1);
+        border-radius: 0.5rem;
+        color: white;
+    }
+
+    .guardian-nav .nav-menu {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        padding: 0 1rem;
+    }
+
+    .guardian-nav-toggle:checked ~ .nav-menu {
+        max-height: 600px;
+        padding: 0 1rem 1rem;
+    }
+
+    /* Larger touch targets on mobile nav links */
+    .nav-menu a { padding: 0.875rem 1rem; min-height: 48px; display: flex; align-items: center; }
+
+    /* Food grid */
     .food-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
     .meal-selection { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 
+    /* Face scale */
     .face-scale { grid-template-columns: repeat(5, 1fr); gap: 0.35rem; }
-    .face-option { padding: 0.5rem 0.15rem; border-width: 2px; }
+    .face-option { padding: 0.5rem 0.15rem; border-width: 2px; min-height: 48px; }
     .face-emoji { font-size: 1.75rem; }
-    .face-label { font-size: 0.6rem; }
+    .face-label { font-size: 0.65rem; line-height: 1.2; }
 
+    /* Login */
     .login-card { margin: 1rem; padding: 1.5rem; }
+
+    /* Dashboard filters stack */
+    .dashboard-filters { flex-direction: column; }
+    .filter-group { min-width: 100%; }
+
+    /* Form grids stack on mobile */
+    .form-grid { flex-direction: column; }
+    .form-grid > * { min-width: 100%; }
 }
 
 @media (max-width: 400px) {
@@ -1153,9 +1211,14 @@ dialog article header {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 1.25rem;
-    padding: 0.35rem;
+    font-size: 1.5rem;
+    padding: 0.5rem;
     border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.3s;
     line-height: 1;
     position: relative;
@@ -1174,8 +1237,8 @@ dialog article header {
     background: rgba(255,255,255,0.2);
     backdrop-filter: blur(10px);
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
+    width: 48px;
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
