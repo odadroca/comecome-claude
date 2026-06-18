@@ -11,6 +11,10 @@ function getDB() {
         $db = new PDO('sqlite:' . DB_PATH);
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        // Wait briefly for a lock instead of failing immediately, so
+        // concurrent writers (SQLite single-writer) don't throw "database is
+        // locked" under normal load. See roadmap "SQLite Concurrency" risk.
+        $db->exec('PRAGMA busy_timeout = 5000');
         return $db;
     } catch (PDOException $e) {
         die('Database connection failed: ' . $e->getMessage());
