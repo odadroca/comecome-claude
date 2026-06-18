@@ -23,7 +23,10 @@ if ($selectedChild && isset($_GET['generate'])) {
     } elseif ($format === 'json') {
         header('Content-Type: application/json');
         header('Content-Disposition: attachment; filename="comecome-report-' . $reportData['user']['name'] . '-' . date('Y-m-d') . '.json"');
-        echo json_encode($reportData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        // Decision (iii): whitelisted projection — NEVER serialize user.pin or
+        // internal columns. projectReportForJson() is the single choke-point that
+        // keeps later sprints (gender/DOB/percentiles) from auto-leaking.
+        echo json_encode(projectReportForJson($reportData), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         exit;
     }
 }

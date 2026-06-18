@@ -15,7 +15,10 @@ $mealsByType = $reportData['meals_by_type'];
 $intakeByCategory = $reportData['intake_by_category'];
 $sleepHistory = $reportData['sleep_history'] ?? [];
 $sleepQualityHistory = $reportData['sleep_quality_history'] ?? [];
-$generatedBy = getCurrentUser()['name'];
+$clinical = $reportData['clinical_summary'] ?? null;
+// Guest-report includes this template with no logged-in user; fall back gracefully.
+$currentUser = getCurrentUser();
+$generatedBy = $currentUser['name'] ?? '—';
 
 header('Content-Type: text/html; charset=UTF-8');
 ?>
@@ -58,6 +61,35 @@ header('Content-Type: text/html; charset=UTF-8');
         @media print {
             button { display: none; }
         }
+        .clinical-summary {
+            border: 1px solid #bbb;
+            background: #f7f9fb;
+            padding: 8px 12px;
+            margin-bottom: 18px;
+        }
+        .clinical-summary h2 {
+            font-size: 11pt;
+            margin: 0 0 4px 0;
+        }
+        .clinical-summary .intro {
+            font-size: 7.5pt;
+            color: #555;
+            margin: 0 0 8px 0;
+        }
+        .clinical-summary ul {
+            margin: 4px 0;
+            padding-left: 18px;
+        }
+        .clinical-summary li {
+            font-size: 8.5pt;
+            margin-bottom: 3px;
+        }
+        .clinical-summary .disclaimer {
+            font-size: 7pt;
+            color: #777;
+            font-style: italic;
+            margin-top: 6px;
+        }
     </style>
 </head>
 <body>
@@ -76,6 +108,58 @@ header('Content-Type: text/html; charset=UTF-8');
         <p><?php echo formatDate($startDate, 'd-m-Y'); ?> to <?php echo formatDate($endDate, 'd-m-Y'); ?></p>
         <p style="font-size: 7pt;">Generated: <?php echo date('d-m-Y H:i:s'); ?> by <?php echo sanitize($generatedBy); ?></p>
     </div>
+
+    <?php if ($clinical): ?>
+    <div class="clinical-summary">
+        <h2><?php echo t('clinical_summary'); ?></h2>
+        <p class="intro"><?php echo t('clinical_summary_intro'); ?></p>
+        <?php
+        $hasFigure = false;
+        $appetite = $clinical['appetite_trend'] ?? null;
+        $mood = $clinical['mood_trend'] ?? null;
+        $sleep = $clinical['sleep'] ?? null;
+        $corr = $clinical['correlations'] ?? null;
+        ?>
+        <ul>
+            <?php if ($clinical['med_adherence_pct'] !== null): $hasFigure = true; ?>
+            <li><strong><?php echo t('med_adherence'); ?>:</strong> <?php echo $clinical['med_adherence_pct']; ?>%</li>
+            <?php endif; ?>
+
+            <?php if ($appetite && $appetite['avg'] !== null): $hasFigure = true; ?>
+            <li><strong><?php echo t('avg_appetite'); ?>:</strong> <?php echo $appetite['avg']; ?> <?php echo t('out_of_5'); ?> (<?php echo t($appetite['trend_key']); ?>)</li>
+            <?php endif; ?>
+
+            <?php if ($mood && $mood['avg'] !== null): $hasFigure = true; ?>
+            <li><strong><?php echo t('avg_mood'); ?>:</strong> <?php echo $mood['avg']; ?> <?php echo t('out_of_5'); ?> (<?php echo t($mood['trend_key']); ?>)</li>
+            <?php endif; ?>
+
+            <?php if ($sleep && $sleep['avg_quality'] !== null): $hasFigure = true; ?>
+            <li><strong><?php echo t('avg_sleep_quality'); ?>:</strong> <?php echo $sleep['avg_quality']; ?> <?php echo t('out_of_5'); ?></li>
+            <?php endif; ?>
+
+            <?php if ($sleep && $sleep['avg_duration_min'] !== null): $hasFigure = true; ?>
+            <li><strong><?php echo t('avg_sleep_duration'); ?>:</strong> <?php echo floor($sleep['avg_duration_min'] / 60); ?><?php echo t('hours_short'); ?> <?php echo $sleep['avg_duration_min'] % 60; ?><?php echo t('minutes_short'); ?></li>
+            <?php endif; ?>
+
+            <?php if ($sleep && $sleep['interruption_freq'] !== null): $hasFigure = true; ?>
+            <li><strong><?php echo t('interruption_frequency'); ?>:</strong> <?php echo $sleep['interruption_freq']; ?></li>
+            <?php endif; ?>
+
+            <?php if ($corr && !empty($corr['enough'])): $hasFigure = true; ?>
+            <li><strong><?php echo t('correlation_sleep_appetite'); ?>:</strong> <?php echo t($corr['sleep_vs_next_appetite']['note_key']); ?></li>
+            <li><strong><?php echo t('correlation_sleep_mood'); ?>:</strong> <?php echo t($corr['sleep_vs_next_mood']['note_key']); ?></li>
+            <li style="opacity:0.7;"><?php echo t('paired_days'); ?>: <?php echo $corr['paired_days']; ?></li>
+            <?php else: ?>
+            <li style="opacity:0.7;"><?php echo t('correlation_sleep_appetite'); ?>: <?php echo t('not_enough_data'); ?></li>
+            <?php endif; ?>
+        </ul>
+
+        <?php if (!$hasFigure): ?>
+        <p class="intro"><?php echo t('no_clinical_data'); ?></p>
+        <?php endif; ?>
+        <p class="disclaimer"><?php echo t('correlation_disclaimer'); ?></p>
+    </div>
+    <?php endif; ?>
 
     <?php if (count($weights) > 0): ?>
     <div class="section">

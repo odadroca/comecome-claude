@@ -47,6 +47,72 @@ ob_start();
 
         <?php if ($data): ?>
 
+        <!-- 0. Insights Panel (Sprint 3) — takeaways-first, descriptive only -->
+        <?php $clinical = $data['clinical_summary'] ?? null; ?>
+        <?php if ($clinical): ?>
+        <section class="dashboard-section">
+            <h2>💡 <?php echo t('insights_panel_title'); ?></h2>
+            <div class="insights-panel">
+                <?php
+                $corr = $clinical['correlations'] ?? null;
+                $appetite = $clinical['appetite_trend'] ?? null;
+                $mood = $clinical['mood_trend'] ?? null;
+                $sleep = $clinical['sleep'] ?? null;
+                ?>
+                <ul style="list-style:none;padding:0;margin:0;">
+                    <?php if ($clinical['med_adherence_pct'] !== null): ?>
+                    <li style="margin-bottom:0.5rem;">
+                        💊 <strong><?php echo t('med_adherence'); ?>:</strong> <?php echo $clinical['med_adherence_pct']; ?>%
+                    </li>
+                    <?php endif; ?>
+
+                    <?php if ($appetite && $appetite['avg'] !== null): ?>
+                    <li style="margin-bottom:0.5rem;">
+                        🍽️ <strong><?php echo t('avg_appetite'); ?>:</strong>
+                        <?php echo $appetite['avg']; ?> <?php echo t('out_of_5'); ?> (<?php echo t($appetite['trend_key']); ?>)
+                    </li>
+                    <?php endif; ?>
+
+                    <?php if ($mood && $mood['avg'] !== null): ?>
+                    <li style="margin-bottom:0.5rem;">
+                        😊 <strong><?php echo t('avg_mood'); ?>:</strong>
+                        <?php echo $mood['avg']; ?> <?php echo t('out_of_5'); ?> (<?php echo t($mood['trend_key']); ?>)
+                    </li>
+                    <?php endif; ?>
+
+                    <?php if ($sleep && $sleep['avg_duration_min'] !== null): ?>
+                    <li style="margin-bottom:0.5rem;">
+                        😴 <strong><?php echo t('avg_sleep_duration'); ?>:</strong>
+                        <?php echo floor($sleep['avg_duration_min'] / 60); ?><?php echo t('hours_short'); ?> <?php echo $sleep['avg_duration_min'] % 60; ?><?php echo t('minutes_short'); ?>
+                    </li>
+                    <?php endif; ?>
+
+                    <li style="margin-bottom:0.5rem;">
+                        🌙 <strong><?php echo t('correlation_sleep_appetite'); ?>:</strong>
+                        <?php if ($corr && !empty($corr['enough'])): ?>
+                            <?php echo t($corr['sleep_vs_next_appetite']['note_key']); ?>
+                        <?php else: ?>
+                            <em style="opacity:0.7;"><?php echo t('not_enough_data'); ?></em>
+                        <?php endif; ?>
+                    </li>
+
+                    <?php if ($corr && !empty($corr['enough'])): ?>
+                    <li style="margin-bottom:0.5rem;">
+                        🌙 <strong><?php echo t('correlation_sleep_mood'); ?>:</strong>
+                        <?php echo t($corr['sleep_vs_next_mood']['note_key']); ?>
+                    </li>
+                    <li style="opacity:0.7;font-size:0.85rem;">
+                        <?php echo t('paired_days'); ?>: <?php echo $corr['paired_days']; ?>
+                    </li>
+                    <?php endif; ?>
+                </ul>
+                <p style="font-size:0.75rem;opacity:0.6;font-style:italic;margin-top:0.75rem;">
+                    <?php echo t('correlation_disclaimer'); ?>
+                </p>
+            </div>
+        </section>
+        <?php endif; ?>
+
         <!-- 1. Weight Timeline Chart -->
         <?php if (count($data['weight_history']) > 0): ?>
         <section class="dashboard-section">

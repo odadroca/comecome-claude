@@ -25,6 +25,45 @@ fputcsv($output, ['Period', formatDate($startDate) . ' to ' . formatDate($endDat
 fputcsv($output, ['Generated', date('d-m-Y H:i:s')]);
 fputcsv($output, []);
 
+// Clinical Summary (Sprint 3) — flat columns, descriptive figures only.
+$clinical = $reportData['clinical_summary'] ?? null;
+if ($clinical) {
+    $appetiteAvg = $clinical['appetite_trend']['avg'] ?? '';
+    $moodAvg = $clinical['mood_trend']['avg'] ?? '';
+    $sleepQ = $clinical['sleep']['avg_quality'] ?? '';
+    $sleepDur = $clinical['sleep']['avg_duration_min'] ?? '';
+    $interruptFreq = $clinical['sleep']['interruption_freq'] ?? '';
+    $medAdherence = $clinical['med_adherence_pct'] ?? '';
+
+    $corr = $clinical['correlations'] ?? null;
+    if ($corr && !empty($corr['enough'])) {
+        $corrNote = t($corr['sleep_vs_next_appetite']['note_key']);
+    } else {
+        $corrNote = t('not_enough_data');
+    }
+
+    fputcsv($output, [t('clinical_summary')]);
+    fputcsv($output, [
+        'avg_appetite',
+        'avg_mood',
+        'avg_sleep_quality',
+        'avg_sleep_duration_min',
+        'interruption_freq',
+        'med_adherence_pct',
+        'sleep_appetite_corr_note'
+    ]);
+    fputcsv($output, [
+        $appetiteAvg,
+        $moodAvg,
+        $sleepQ,
+        $sleepDur,
+        $interruptFreq,
+        $medAdherence !== '' ? $medAdherence . '%' : '',
+        $corrNote
+    ]);
+    fputcsv($output, []);
+}
+
 // Weight Timeline
 if (count($reportData['weights']) > 0) {
     fputcsv($output, [t('weight_timeline_title')]);
