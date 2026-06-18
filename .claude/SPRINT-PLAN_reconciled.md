@@ -22,7 +22,7 @@ Footer is at **4 of max 5** items.
 ### Decisions locked (2026-06-19) — full rationale + citations in `docs/roadmap/DECISIONS.md`
 | # | Decision | Choice |
 |---|---|---|
-| i | Growth reference | **WHO 0–2y + CDC 2–19y hybrid** (+ CDC 2022 Extended BMI). Engine carries BOTH WHO & CDC LMS data, keyed `[standard][metric][sex][age]`. |
+| i | Growth reference | **WHO-first** (WHO 2006+2007, all ages) for Sprints 7–8; **CDC 2–19y + 2022 Ext. BMI as a follow-on** → hybrid end state. Arrays keyed `[standard][metric][sex][age]`. |
 | ii | Height capture | **Fold into child weight page → "Growth"**, toggle-gated, no new footer item. |
 | iii | Privacy (gender/DOB) | **Balanced** — gender+age+percentiles in clinician outputs; exact DOB guardian-side only; **JSON export whitelisted**. |
 | iv | Missing demographics | **Graceful degradation + soft-warn**; enabling `show_percentiles` never blocks. |
@@ -35,8 +35,9 @@ Footer is at **4 of max 5** items.
 | **4** | **Security & Deployment Foundations — Pt 1: migration/test safety net** — dependency-free `tests/run.php` (getDB / migrate-idempotency / backup-restore). **Lands before any new migration.** | S | Zero (dev tooling) | — |
 | **5** | **Demographics Foundation** — `users.gender` + `users.date_of_birth` (the riskiest auth/identity migration), isolated and additive. | S | Zero (guardian-only) | Sprint 1 |
 | **6** | **Growth Page Foundation** — `height_log`, `calculateBMI`, `show_percentiles` (default OFF); height folded into the weight page → "Growth". | M | 1 optional field, toggle-gated | Sprint 5 |
-| **7** | **Percentiles Engine + WHO/CDC Reference Data** — read-only LMS arrays (WHO 0–2 + CDC 2–19 + CDC 2022 Ext. BMI) + side-effect-free engine, unit-tested. **No UI.** | L | None | Sprints 5–6 |
-| **8** | **Percentiles Display** — dashboard + exports + guest-report; bands/zones/trajectory guardian/clinician-only; **annotate the age-2 WHO→CDC transition** so the z-score jump isn't misread. | M | Child chart unchanged | Sprint 7 |
+| **7** | **Percentiles Engine + WHO Reference Data** — read-only WHO LMS arrays (WHO 2006 0–5y + WHO 2007 5–19y; one provider, no seam) + side-effect-free engine, unit-tested. **No UI.** | L | None | Sprints 5–6 |
+| **8** | **Percentiles Display** — dashboard + exports + guest-report; WHO bands/zones/trajectory (±2 SD), guardian/clinician-only. | M | Child chart unchanged | Sprint 7 |
+| **8b** | **(Follow-on) CDC 2–19y hybrid** — add CDC 2000 + CDC 2022 Extended BMI under the `[standard]` key; age-based source selection (24-mo cutoff), mixed CDC thresholds, and the age-2 transition annotation. Realizes the hybrid end state (decision i). Additive; does not block 9–11. | M | None | Sprint 8 |
 | **9** | **Medication Timing Foundation** — `medication_schedules` + `food_log.med_window` auto-stamped at insert. | L | Zero | shipped meds tables |
 | **10** | **Nutrition Intelligence Discovery** (gating spike) — lock recommendation rules, tag-maintenance UX, SQLite read-lock approach. | S | None | Sprint 9 |
 | **11** | **Growth-Support Nutrition Intelligence** — food tags + rule-based panel + clinician summary. **AI/LLM decision pending** — see [`docs/roadmap/SPRINT-11-nutrition-intelligence.md`](../docs/roadmap/SPRINT-11-nutrition-intelligence.md). | XL | Zero child UI | Sprints 8, 9, 10 |
@@ -323,8 +324,9 @@ Gender options, date of birth label, height labels, percentile toggle label, val
 ## Sprint 4 — Percentiles Full
 
 > **⚠ Re-sequenced (2026-06-19).** Split into **Sprint 7 (Engine + reference data, no UI)** +
-> **Sprint 8 (Display)**. Per **decision (i)** the reference data is the **WHO 0–2y + CDC 2–19y
-> hybrid** (+ CDC 2022 Extended BMI), **not WHO-only**. Content below is task-level reference.
+> **Sprint 8 (Display)**. Per **decision (i, revised)** build **WHO-only first** (WHO 2006 0–5y + WHO
+> 2007 5–19y); **CDC 2–19y + 2022 Ext. BMI** land as an additive **follow-on (Sprint 8b)** → hybrid
+> end state. Content below is task-level reference.
 
 **Goal:** Implement WHO growth standard percentile calculations and display them in charts and reports.
 **Child boundary:** The child's weight chart remains a simple line chart — no percentile curves shown to the child. Encouraging language only (e.g. "Growing well!" not "Below 3rd percentile").
@@ -338,7 +340,7 @@ Store LMS (Lambda-Mu-Sigma) parameters as static PHP arrays in `includes/growth-
 - Height-for-age: 0-228 months (boys and girls)
 - BMI-for-age: 24-228 months (boys and girls)
 
-Source (per **decision (i)**, 2026-06-19): **hybrid** — WHO 2006 Growth Standards for **0–<24 months**, CDC 2000 Growth Reference for **≥24 months**, plus **CDC 2022 Extended BMI-for-age** for very high BMI. Key arrays `[standard][metric][sex][ageMonths]` and select by age (24-month cutoff). ~2000+ rows. Document source/version/license inline.
+Source (per **decision (i, revised)**, 2026-06-19): **WHO-first** — build on **WHO 2006 (0–5y) + WHO 2007 (5–19y)** only (one provider, no age-2 seam); add **CDC 2000 (2–19y) + CDC 2022 Extended BMI** as an additive **follow-on (Sprint 8b)** to reach the hybrid end state. Key arrays `[standard][metric][sex][ageMonths]`. Document source/version/license inline.
 
 ### 4.2 — Percentile calculation engine
 
@@ -592,11 +594,11 @@ Default tags cover seed foods. Guardian-added foods default to no tags (opt-in).
 
 ### Percentile Data Accuracy
 Reference data is published per month of age; use linear interpolation of LMS values between points.
-Per **decision (i)** the framework is the **WHO 0–<24mo + CDC ≥24mo hybrid** (+ CDC 2022 Extended BMI),
-**not WHO-only**. Note the **age-2 WHO→CDC z-score discontinuity** (2025 AAP study: mean BMI-z drop
-~0.59 at the transition) and **annotate it in the report**. Also define behavior for in-range age but
-out-of-coverage metric (BMI <24mo, weight-for-age >120mo) and cap extreme z-scores. Document
-source/version/license for each dataset.
+Per **decision (i, revised)** the build is **WHO-first** (WHO 2006 0–5y + WHO 2007 5–19y, continuous,
+no seam); **CDC 2–19y + 2022 Extended BMI** land as a **follow-on (Sprint 8b)**. The **age-2 WHO→CDC
+z-score discontinuity** (2025 AAP study: mean BMI-z drop ~0.59) applies **only once CDC is
+introduced** — annotate it in the report then. Still define behavior for out-of-coverage metric/age
+and cap extreme z-scores. Document source/version/license for each dataset.
 
 ### Medication Timing Assumptions
 Default timing offsets are approximations. Individual response to stimulant medication varies significantly. Manual override is essential — defaults are starting points, not prescriptions.

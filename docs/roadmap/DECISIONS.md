@@ -8,11 +8,16 @@ decision, captured as it is made.
 
 ## (i) Growth-reference framework for percentiles — **DECIDED 2026-06-19**
 
-**Decision:** Adopt the **hybrid US framework** — **WHO Growth Standards for ages 0–<24 months**
-+ **CDC 2000 Growth Reference for ages ≥24 months**, with the **CDC 2022 Extended BMI-for-age**
-charts for children/adolescents with very high BMI (>97th percentile).
+**Decision (revised 2026-06-19): WHO-first, CDC-2–19y as a follow-on.** Build and validate the
+percentile engine on **WHO-only across all ages first** — WHO 2006 Growth Standards (0–5y) + WHO 2007
+Growth Reference (5–19y) — then add **CDC 2000 (2–19y) + CDC 2022 Extended BMI** as an **additive
+follow-on** to reach the full hybrid end state.
 
-This **supersedes** the engine's original WHO-only design (WHO 2006 + WHO 2007).
+The **end-state target remains the hybrid** (WHO 0–<24mo + CDC ≥24mo + CDC 2022 Extended BMI for very
+high BMI). WHO-first is a **sequencing** choice — it de-risks the highest-fidelity-risk sprint
+(transcribing/validating reference data) by starting with **one provider, one format, and no age-2
+provider seam** — not an abandonment of the hybrid. Because the LMS arrays are keyed
+`[standard][metric][sex][age]`, adding CDC later is additive, not a rewrite.
 
 ### Scientific basis
 
@@ -33,30 +38,44 @@ Rationale:
 - **Very high BMI (≥2y) → CDC 2022 Extended BMI-for-age** charts, which fix the compression/distortion
   of the original CDC 2000 curves above the 97th percentile.
 
+### Why WHO-first (sequencing rationale)
+- **De-risks Sprint 7.** WHO 2006 (0–5y) and WHO 2007 (5–19y) are one provider, one LMS
+  format/methodology, and were built to **join continuously at 5y** — so the initial build has **no
+  provider seam**, a single ±2 SD flagging convention, and a smaller transcription/validation surface
+  to get numerically right (the single highest-correctness risk in the program).
+- **The interim is itself clinically defensible.** WHO Growth Standards across all ages are the
+  **EU/Portuguese clinical norm** (Portugal's DGS uses WHO curves), so shipping WHO-only first is not a
+  degraded state for the app's primary (pt) audience.
+- **The hybrid stays the target** because the CDC ≥2y reference is the US CDC/AAP consensus (above); it
+  lands as Phase 2 once the WHO engine is validated against published WHO checkpoints.
+
 ### Screening thresholds (differ by segment)
 - **WHO segment (0–2y):** flag at **±2 SD = P2.3 / P97.7**.
 - **CDC segment (≥2y):** CDC conventions — P5 underweight; P85 overweight; P95 obese; Extended charts above P97.
 - **Display bands** remain P3/P15/P50/P85/P97 as specced; flagging logic uses the segment rule above.
 
-### Known caveat to handle (evidence-based)
-The abrupt WHO→CDC switch at exactly 24 months produces a **clinically meaningful z-score
-discontinuity**. A 2025 AAP *Pediatrics* study found a **mean BMI-for-age z-score drop of ~0.59 at
+### Known caveat to handle (evidence-based) — *applies in Phase 2 only*
+This caveat is **irrelevant to the WHO-first Phase 1** (WHO 2006→2007 is continuous, no seam). It
+arises **only when CDC is introduced** in the follow-on: the abrupt WHO→CDC switch at exactly 24
+months produces a **clinically meaningful z-score discontinuity**. A 2025 AAP *Pediatrics* study found a **mean BMI-for-age z-score drop of ~0.59 at
 the transition, with 28.3% of children dropping >1.0 z** — in children whose growth was actually
 stable. Implications for ComeCome:
 - **Annotate the report around the 24-month boundary** so a one-time jump is not misread as a real
   growth change.
 - Optionally adopt the **gradual WHO→CDC blend** the AAP 2025 paper proposes, if/when feasible.
 
-### Implementation impact (Sprints 6 / 7 / 8)
-- `includes/growth-standards.php` must hold **both** WHO (0–24mo) and **CDC 2000** (24mo–19y) LMS
-  tables, **plus CDC 2022 Extended BMI**; key arrays `[standard][metric][sex][ageMonths]` and select
-  the standard by age (cutoff 24 months). Document source/version/license/attribution inline for
-  clinical traceability.
-- `includes/percentiles.php` selects the LMS source by age and applies the segment-appropriate
-  flagging convention.
-- **BMI-for-age** is computed only **≥24 months** (CDC); under 2y use weight-for-age and
-  length/height-for-age (and weight-for-length if added later).
-- Re-tag the Sprint-7/8 work in the roadmap from "WHO-only" to "WHO+CDC hybrid".
+### Implementation impact (Sprints 6 / 7 / 8 + follow-on)
+- **Phase 1 (Sprints 7–8):** `includes/growth-standards.php` holds **WHO only** — WHO 2006 (0–5y) +
+  WHO 2007 (5–19y) — keyed `[standard][metric][sex][ageMonths]`. Single **±2 SD** flagging convention;
+  **no provider seam**; no transition annotation. Document source/version/license inline.
+- **Phase 2 (follow-on after Sprint 8):** add **CDC 2000 (2–19y) + CDC 2022 Extended BMI** under the
+  same `[standard]` key; introduce age-based source selection (24-month cutoff), the mixed CDC
+  thresholds (P5/P85/P95), and the age-2 transition annotation. This realizes the hybrid end state.
+- `includes/percentiles.php` selects the LMS source by age + standard and applies the
+  segment-appropriate flagging convention.
+- **BMI-for-age:** WHO BMI-for-age is available from birth (Phase 1); in Phase 2 the CDC segment uses
+  BMI-for-age **≥24 months**, with weight-for-age + length/height-for-age below 2y.
+- Add a roadmap **follow-on item (after Sprint 8): "CDC 2–19y hybrid"** (additive).
 
 ### Citations
 - Grummer-Strawn et al., CDC. MMWR Recomm Rep. 2010;59(RR-9). — https://www.cdc.gov/mmwr/pdf/rr/rr5909.pdf
@@ -158,7 +177,7 @@ percentile arc; **encryption stays DEFERRED** but now has a named predecessor tr
 
 | # | Decision | Choice |
 |---|---|---|
-| i | Growth reference framework | **WHO 0–2y + CDC 2–19y hybrid** (+ CDC 2022 Extended BMI); engine keyed for later CDC/WHO switch |
+| i | Growth reference framework | **WHO-first** (WHO 2006+2007, all ages) for Sprints 7–8; **CDC 2–19y + 2022 Ext. BMI added as a follow-on** to reach the hybrid end state. Arrays keyed `[standard][metric][sex][age]`. |
 | ii | Height capture UX | **Fold into child weight page → "Growth"**, toggle-gated, no new footer item |
 | iii | Privacy posture (gender/DOB) | **Balanced** — gender+age+percentiles in clinician outputs; exact DOB guardian-side only; JSON whitelisted |
 | iv | Missing-demographics UX | **Graceful degradation + soft-warn**; never blocks the toggle |
