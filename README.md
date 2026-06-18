@@ -1,4 +1,4 @@
-# 🍽️ ComeCome v0.9 - ADHD-Friendly Food Tracking
+# 🍽️ ComeCome v0.9.1 - ADHD-Friendly Food Tracking
 
 A compassionate nutrition tracking application designed specifically for neuro-divergent children, particularly those with ADHD and medication-induced appetite challenges.
 
@@ -200,6 +200,13 @@ This is a FOSS project built with love for families managing ADHD.
 ## 🏥 Medical Disclaimer
 
 ComeCome is a tracking tool, not medical software. Always consult healthcare professionals for medical advice. This tool is meant to facilitate communication with clinicians, not replace it.
+
+## 🗺️ Roadmap
+
+Planning and review documents live in [`docs/roadmap/`](docs/roadmap/). The
+canonical sprint plan is [`.claude/SPRINT-PLAN_reconciled.md`](.claude/SPRINT-PLAN_reconciled.md).
+Sprints 0–2 (bug fixes, feature toggles, sleep tracking) shipped in v0.9; Sprints 3–5
+(percentiles, growth-support nutrition) and at-rest encryption are planned/deferred.
 
 ## 📄 License
 

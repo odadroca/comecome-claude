@@ -11,7 +11,7 @@ define('DB_SEED', __DIR__ . '/db/seed.sql');
 
 // Application configuration
 define('APP_NAME', 'ComeCome');
-define('APP_VERSION', '0.9');
+define('APP_VERSION', '0.9.1');
 define('DEFAULT_LOCALE', 'pt');
 define('LOCALES_PATH', __DIR__ . '/locales');
 

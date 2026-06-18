@@ -66,3 +66,7 @@ When adding new child-facing features, follow the same pattern: add a setting, g
 ## Timezone & Locale
 
 App timezone is `Europe/Lisbon`. Default locale is Portuguese (`pt`). Date display format is dd-mm-yyyy throughout.
+
+## Roadmap
+
+Canonical sprint plan: `.claude/SPRINT-PLAN_reconciled.md`. Source planning/review docs (sprints 3–5, DB encryption) live in `docs/roadmap/`.
