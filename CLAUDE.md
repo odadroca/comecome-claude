@@ -67,6 +67,24 @@ When adding new child-facing features, follow the same pattern: add a setting, g
 
 App timezone is `Europe/Lisbon`. Default locale is Portuguese (`pt`). Date display format is dd-mm-yyyy throughout.
 
+## Testing
+
+Single regression command (dependency-free — no Composer, no PHPUnit, honoring the no-build-step ethos):
+
+```bash
+php tests/run.php
+```
+
+`tests/run.php` is the **single regression entry point**. It runs entirely against **throwaway temp SQLite DBs** (never `db/data.db`) and exits non-zero on any failure. It covers:
+
+- **initialize**: `initializeDatabase()` on a fresh DB — every expected table exists and `schema_version` reaches 2.
+- **migrate + idempotency**: `migrateDatabase()` forward from a synthetic v1 fixture (asserts `daily_checkin.sleep_quality`, `sleep_log`, `sleep_interruptions` appear and pre-existing rows survive), then re-runs migrate and asserts it is a no-op.
+- **backup/restore**: file-copy round-trip via `backupDatabase()` / `restoreDatabase()` (write → backup → mutate → restore → assert match).
+- **cumulative Sprint 0–3 smoke**: folds in `tests/smoke.php` (auth, feature toggles, sleep, page renders, clinical-report correlations, JSON-export pin whitelist, pt/en i18n parity) and `tests/migration_idempotency.php` as orchestrated sub-runners.
+- **negative self-test**: re-invokes itself in a deliberately-broken mode and asserts a non-zero exit, proving the runner actually catches failures.
+
+The individual sub-runners (`tests/smoke.php`, `tests/migration_idempotency.php`) can still be run directly. See `tests/README.md` — this harness is the **'tests' prerequisite** the deferred SQLCipher at-rest encryption review requires (decision v) before encryption is scheduled.
+
 ## Roadmap
 
 Canonical sprint plan: `.claude/SPRINT-PLAN_reconciled.md`. Source planning/review docs (sprints 3–5, DB encryption) live in `docs/roadmap/`.
