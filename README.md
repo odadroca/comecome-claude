@@ -214,7 +214,7 @@ Open Source - Free to use, modify, and distribute.
 
 ## ❤️ Acknowledgments
 
-Built for Eduardo and all children navigating ADHD with courage.
+Built with love for all children navigating ADHD with courage.
 
 Special thanks to parents and caregivers who provided insights into real-world challenges.
 
