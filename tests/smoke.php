@@ -42,6 +42,18 @@
  *            ~49.9cm -> ~50th pct) to catch fabricated LMS; out-of-coverage age
  *            returns null (graceful, no crash); schema_version STILL 4 (no
  *            migration) and show_percentiles STILL defaults OFF (no UI change).
+ *   Sprint 8 (percentiles DISPLAY, NO schema): the Sprint-7 WHO engine is wired
+ *            into getDashboardData()/getReportData() + the four export surfaces.
+ *            computePercentileSummary() gates on show_percentiles + gender/DOB
+ *            (graceful 'missing_demographics' prompt otherwise, 'disabled' when
+ *            OFF); the guardian Growth-Percentiles section renders ranks/zones for
+ *            a COMPLETE child and the complete-DOB prompt for an INCOMPLETE one;
+ *            the JSON projection still omits user.pin AND raw date_of_birth in the
+ *            guest path while INCLUDING gender + derived age + the percentile block;
+ *            dashboard / html / csv / json carry the SAME current ranks (four-surface
+ *            parity); the CHILD growth page carries NO WHO overlay / NO clinical
+ *            percentile flags; schema_version STILL 4 (display-only, NO migration);
+ *            the Sprint-8 i18n keys hold pt/en parity.
  * -------------------------------------------------------------------------
  */
 
@@ -542,6 +554,156 @@ ok(calculateWeightForAgePercentile(15, 36, 'unknown') === null,
    "Sprint 7: unknown sex returns null");
 ok(calculateHeightForAgePercentile(100, 36, 'boys') !== null,
    "Sprint 7: in-coverage height-for-age resolves to a percentile");
+
+// --- 4e. SPRINT 8 ACCEPTANCE (Percentiles Display: guardian + clinician) -----
+// Scope: wire the Sprint-7 WHO engine into the guardian dashboard, the four export
+// surfaces (html / csv / json / guest-report) and the clinical narrative — WITHOUT
+// schema change (schema_version stays 4) and WITHOUT touching the child surface.
+// The DEEP display-layer drive lives in tests/run.php PHASE E; here in the cumulative
+// smoke we confirm the same contract end-to-end against the running app: gating,
+// the graceful prompt, the child-boundary (NO WHO overlay / NO clinical flags on the
+// child Growth page), the JSON whitelist (no pin, no raw DOB; gender+age+percentiles
+// in), four-surface parity, no migration, and Sprint-8 pt/en i18n parity.
+echo "\n-- Sprint 8 acceptance (percentiles display; guardian + clinician only) --\n";
+
+// (a) NO migration: Sprint 8 is display-only, so schema_version is STILL 4.
+ok((int) getSetting('schema_version', '0') === 4,
+   "Sprint 8: schema_version still 4 (display-only, NO migration / NO schema change)");
+
+// Turn the feature ON for the display path (it defaults OFF).
+setSetting('show_percentiles', '1');
+
+$s8start = date('Y-m-d', strtotime('-120 days'));
+$s8end   = date('Y-m-d');
+
+// COMPLETE child: gender + DOB (~4y => in WHO coverage) + a weight & height
+// trajectory across two months so a percentile-over-time trend exists.
+$s8dob = date('Y-m-d', strtotime('-4 years'));
+$s8complete = createUser('SmokePctComplete', 'child', '2468', '🧒', 'male', $s8dob);
+ok($s8complete > 0, "Sprint 8: complete child created (gender+DOB)");
+logWeight($s8complete, 15.0, date('Y-m-d', strtotime('-90 days')));
+logWeight($s8complete, 16.2, date('Y-m-d', strtotime('-15 days')));
+logHeight($s8complete, 100.0, date('Y-m-d', strtotime('-90 days')));
+logHeight($s8complete, 103.0, date('Y-m-d', strtotime('-15 days')));
+
+// INCOMPLETE child: no gender/DOB (only demographics gate it), but has a weight.
+$s8incomplete = createUser('SmokePctNoDemo', 'child', '1357', '👶');
+ok($s8incomplete > 0, "Sprint 8: incomplete child created (no gender/DOB)");
+logWeight($s8incomplete, 14.0, date('Y-m-d', strtotime('-10 days')));
+
+// (b) computePercentileSummary() gating: available for the complete child (with a
+//     current weight rank + zone and a weight trajectory), missing_demographics for
+//     the incomplete child, disabled when the toggle is OFF.
+$s8pc = computePercentileSummary($s8complete, $s8start, $s8end);
+ok(($s8pc['available'] ?? null) === true
+   && isset($s8pc['current']['weight']['rank'], $s8pc['current']['weight']['zone']),
+   "Sprint 8: complete child => available=true with current weight rank+zone");
+ok(($s8pc['current']['height'] ?? null) !== null && ($s8pc['current']['bmi'] ?? null) !== null,
+   "Sprint 8: complete child => height + BMI ranks present (weight+height paired)");
+ok(($s8pc['trends']['weight'] ?? null) !== null
+   && isset($s8pc['trends']['weight']['from_rank'], $s8pc['trends']['weight']['to_rank'], $s8pc['trends']['weight']['narrative_key']),
+   "Sprint 8: complete child => weight trajectory (from/to/narrative) computed at query time");
+ok(($s8pc['age_months'] ?? null) !== null && $s8pc['age_months'] >= 47 && $s8pc['age_months'] <= 49,
+   "Sprint 8: complete child => derived age ~48 months [got " . var_export($s8pc['age_months'] ?? null, true) . "]");
+
+$s8pi = computePercentileSummary($s8incomplete, $s8start, $s8end);
+ok(($s8pi['available'] ?? null) === false && ($s8pi['reason'] ?? null) === 'missing_demographics',
+   "Sprint 8: incomplete child => available=false, reason=missing_demographics (graceful prompt, never blocks)");
+
+setSetting('show_percentiles', '0');
+$s8pd = computePercentileSummary($s8complete, $s8start, $s8end);
+ok(($s8pd['available'] ?? null) === false && ($s8pd['reason'] ?? null) === 'disabled',
+   "Sprint 8: toggle OFF => reason=disabled (section renders nothing)");
+setSetting('show_percentiles', '1'); // restore ON for the rendering + parity checks
+
+// (c) Section rendering: ranks for the complete child; graceful prompt otherwise;
+//     empty string when disabled (no leakage).
+$s8htmlComplete = renderPercentileSection($s8pc, 'dashboard');
+ok(strpos($s8htmlComplete, $s8pc['current']['weight']['rank']) !== false
+   && strpos($s8htmlComplete, t('weight_for_age')) !== false
+   && strpos($s8htmlComplete, t('percentile_reference_who')) !== false,
+   "Sprint 8: Growth-Percentiles section renders weight rank + label + WHO attribution");
+ok(strpos(renderPercentileSection($s8pi, 'dashboard'), t('percentile_complete_dob_prompt')) !== false,
+   "Sprint 8: incomplete child => graceful 'complete gender/DOB' prompt is shown");
+ok(renderPercentileSection($s8pd, 'dashboard') === '',
+   "Sprint 8: disabled => section renders empty string (nothing leaks)");
+
+// (d) JSON whitelist (decision iii): no pin, no raw DOB in the guest-token path;
+//     gender + derived age + the percentile block ARE included.
+$s8report = getReportData($s8complete, $s8start, $s8end);
+$s8json = projectReportForJson($s8report);
+$s8jsonStr = json_encode($s8json);
+ok(!array_key_exists('pin', $s8json['user']) && strpos($s8jsonStr, '"pin"') === false,
+   "Sprint 8: JSON export has NO user.pin anywhere");
+ok(!array_key_exists('date_of_birth', $s8json['user']) && strpos($s8jsonStr, '"date_of_birth"') === false,
+   "Sprint 8: JSON export has NO raw date_of_birth in guest-token path (decision iii)");
+ok(($s8json['user']['gender'] ?? null) === 'male'
+   && ($s8json['user']['age_months'] ?? null) !== null,
+   "Sprint 8: JSON export includes gender + derived age_months (not raw DOB)");
+ok(isset($s8json['percentiles']) && ($s8json['percentiles']['available'] ?? null) === true
+   && isset($s8json['percentiles']['current']['weight']['rank']),
+   "Sprint 8: JSON export includes the whitelisted percentile block (ranks/zones/trends)");
+
+// (e) FOUR-SURFACE PARITY: dashboard / report(html+csv) / json carry the SAME ranks,
+//     and the percentile trajectory is woven into BOTH dashboard + report summaries.
+$s8dash = getDashboardData($s8complete, $s8start, $s8end);
+$s8dashRankW = $s8dash['percentiles']['current']['weight']['rank'] ?? null;
+$s8rptRankW  = $s8report['percentiles']['current']['weight']['rank'] ?? null;
+$s8jsonRankW = $s8json['percentiles']['current']['weight']['rank'] ?? null;
+ok($s8dashRankW !== null && $s8dashRankW === $s8rptRankW && $s8rptRankW === $s8jsonRankW,
+   "Sprint 8: weight rank identical across dashboard / report(html+csv) / json [$s8dashRankW]");
+$s8dashRankH = $s8dash['percentiles']['current']['height']['rank'] ?? null;
+$s8jsonRankH = $s8json['percentiles']['current']['height']['rank'] ?? null;
+ok($s8dashRankH !== null && $s8dashRankH === $s8jsonRankH,
+   "Sprint 8: height rank identical across dashboard / json [$s8dashRankH]");
+ok(($s8dash['clinical_summary']['percentile_trajectory'] ?? null) !== null
+   && ($s8report['clinical_summary']['percentile_trajectory'] ?? null) !== null,
+   "Sprint 8: percentile trajectory woven into BOTH dashboard + report clinical_summary");
+
+// (f) CHILD BOUNDARY (critical): the child Growth page must stay a plain encouraging
+//     line chart with NO WHO percentile curves and NO clinical flags. We render the
+//     child weight/Growth page (show_percentiles ON) and assert NONE of the guardian
+//     percentile vocabulary leaks into the child surface, while the encouraging
+//     copy stays. The child render uses the SAME isolated-subprocess harness.
+[$cKid, $htmlKid, $eKid] = renderPageEmit($php, $self, 'pages/child/weight.php', 'child', $tmpDb, $childId);
+$kidClean = strpos($eKid, 'RENDER_OK') !== false && strpos($eKid, 'RENDER_FATAL') === false;
+if (!$kidClean) { echo "      stderr(child): " . trim($eKid) . "\n"; }
+ok($kidClean, "Sprint 8: child Growth page renders without fatal (show_percentiles ON)");
+// The guardian-only vocabulary that must NEVER reach the child surface.
+$leakTerms = [
+    t('growth_percentiles'), t('percentile_rank'), t('percentile_band'),
+    t('percentile_reference_who'), t('zone_green'), t('zone_yellow'), t('zone_red'),
+    'percentile', 'P3', 'P15', 'P50', 'P85', 'P97', '3rd percentile',
+];
+$leaked = [];
+foreach ($leakTerms as $term) {
+    if ($term !== '' && stripos($htmlKid, $term) !== false) { $leaked[] = $term; }
+}
+ok(empty($leaked),
+   "Sprint 8: child Growth page carries NO WHO overlay / NO clinical percentile flags"
+   . (empty($leaked) ? '' : ' [leaked: ' . implode(', ', $leaked) . ']'));
+// Sanity: the child page DID render its encouraging growth surface (heading present).
+ok(strpos($htmlKid, t('growth')) !== false || strpos($htmlKid, t('weight_tracking')) !== false,
+   "Sprint 8: child Growth page still renders its encouraging chart surface");
+// Restore default OFF so nothing leaks between checks.
+setSetting('show_percentiles', '0');
+
+// (g) Sprint 8 i18n keys present + non-empty in BOTH locales (hard parity).
+$ptS8 = json_decode(@file_get_contents($ROOT . '/locales/pt.json'), true);
+$enS8 = json_decode(@file_get_contents($ROOT . '/locales/en.json'), true);
+$s8Keys = [
+    'percentile', 'growth_percentiles', 'weight_for_age', 'height_for_age', 'bmi_for_age',
+    'percentile_rank', 'percentile_band', 'percentile_trajectory_label',
+    'percentile_reference_who', 'percentile_complete_dob_prompt', 'percentile_no_measurements',
+    'zone_green', 'zone_yellow', 'zone_red',
+    'percentile_trend_up', 'percentile_trend_down', 'percentile_trend_stable',
+];
+$s8Ok = is_array($ptS8) && is_array($enS8);
+foreach ($s8Keys as $k) {
+    $s8Ok = $s8Ok && array_key_exists($k, $ptS8) && array_key_exists($k, $enS8)
+            && trim((string) $ptS8[$k]) !== '' && trim((string) $enS8[$k]) !== '';
+}
+ok($s8Ok, "Sprint 8: i18n keys present + non-empty in BOTH pt and en");
 
 // --- 5. i18n key parity sanity (pt canonical) -------------------------------
 echo "\n-- i18n parity (pt canonical) --\n";

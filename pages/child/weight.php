@@ -41,8 +41,10 @@ ob_start();
                     <span class="weight-unit">kg</span>
                 </div>
                 <?php if ($showPercentiles): ?>
-                <!-- Sprint 6: optional height. Shown ONLY when show_percentiles is ON.
-                     Not required — the child can still log just weight and celebrate. -->
+                <?php /* Sprint 6: optional height field, shown only when the guardian
+                         toggle is on. Not required — the child can still log just
+                         weight and celebrate. (Kept as a PHP comment, never emitted
+                         to the child-visible page source — child-boundary, Sprint 8.) */ ?>
                 <div class="weight-input-group">
                     <input type="number" id="height" name="height" step="0.1" min="30" max="220" placeholder="<?php echo t('height_cm'); ?>">
                     <span class="weight-unit">cm</span>
