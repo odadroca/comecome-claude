@@ -13,16 +13,16 @@ ComeCome helps families monitor their children's eating habits with **minimal fr
 - **Auto-detect meal times** - One less decision to make
 - **Simple portions** - "A little / Some / A lot / All" (no calorie counting)
 - **Favorites rise to top** - Most-used items need fewest taps
-- **Daily check-in** - Track appetite, mood, and medication
-- **Weight tracking** - Simple visual charts
+- **Daily check-in** - Track appetite, mood, sleep, and medication
+- **Weight & growth** - Simple charts; optional height entry (the weight page becomes "Growth")
 - **History view** - See what you ate
 
 ### For Parents/Guardians
-- **Family dashboard** - Visual analytics and trends
-- **Multiple children** - Manage whole family
-- **Clinician reports** - Export as HTML, CSV, or JSON
-- **Guest links** - Time-limited access for doctors
-- **Full data control** - Backup, restore, or delete
+- **Family dashboard** - Visual analytics, trends, and **WHO growth percentiles**
+- **Multiple children** - Manage whole family (gender + date of birth enable percentiles)
+- **Sleep & medication-timing** - Sleep quality tracking + medication-window analysis of intake
+- **Clinician reports** - Export as HTML, CSV, JSON, or a token-shared guest link
+- **Full data control** - Backup, restore, or delete; **opt-in at-rest field encryption**
 
 ### ADHD-Friendly Design
 - ✅ Large touch targets (48px+)
@@ -198,16 +198,17 @@ threat-ordered plan in `docs/roadmap/SPRINT-SECURITY.md`.
 
 ## 🗄️ Database Schema
 
-ComeCome uses SQLite with a clean, normalized schema:
-- **users** - Children and guardians
-- **meals** - 6 configurable meal types
-- **foods** - Extensible food catalog
-- **food_log** - Daily intake tracking
-- **daily_checkin** - Appetite, mood, medication
-- **weight_log** - Weight tracking
-- **medications** - Medication management
-- **translations** - i18n overrides
-- **guest_tokens** - Temporary clinician access
+ComeCome uses SQLite with a clean, normalized schema (auto-migrated to **`schema_version` 6**):
+- **users** - Children and guardians (incl. `gender`, `date_of_birth` for percentiles)
+- **meals** / **foods** / **food_categories** - Meals + extensible food catalog
+- **food_log** - Daily intake tracking (incl. `med_window` medication-timing stamp)
+- **daily_checkin** - Appetite, mood, **sleep quality**, medication
+- **weight_log** / **height_log** - Weight + height for WHO growth percentiles
+- **medications** / **medication_schedules** - Medication management + dosing windows
+- **sleep_log** / **sleep_interruptions** - Detailed sleep tracking
+- **guest_tokens** - Temporary clinician access (revocable)
+- **login_attempts** - PIN brute-force throttling state
+- **settings** - Key/value feature toggles + config; **translations** - i18n overrides
 
 ## 🎨 Customization
 

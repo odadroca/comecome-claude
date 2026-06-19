@@ -8,16 +8,23 @@ Every sprint explicitly defines a **child boundary** — what the child sees (or
 
 ---
 
-## ▶ Plan of Record — updated 2026-06-19
+## ▶ Plan of Record — updated 2026-06-20
 
 > **This section is the current source of truth for sequencing and scope.** The detailed
 > "Sprint 0–5" write-ups further below are retained as **task-level reference**, but the
 > original Sprints 3–5 have been **re-sequenced and split** into the plan below, and five
 > open questions have been **decided** (see [`docs/roadmap/DECISIONS.md`](../docs/roadmap/DECISIONS.md)).
 
-### Shipped (v0.9.1, `schema_version = 2`)
-Sprints **0** (bug fixes), **1** (feature-visibility toggles), **2** (sleep tracking) are **done**.
-Footer is at **4 of max 5** items.
+### Status (as of 2026-06-20, staging `comecome-claude`)
+- **SHIPPED (live, v0.9.1):** Sprints **0–2** (bug fixes, feature toggles, sleep tracking).
+- **BUILT on staging (schema_version = 6), pending prod promotion + v0.10.0:**
+  - Sprints **3–10** — clinical-report correlations, `tests/run.php` harness, demographics
+    (gender/DOB), Growth page + `height_log`, WHO percentile engine + display, medication timing
+    (`med_window`), nutrition-intelligence discovery doc.
+  - The **Security sprint (6 phases)** — secure cookies/session/default-PIN guard, PIN throttling,
+    TLS/HSTS, CSRF, `.env`/secrets, opt-in libsodium field encryption. See `docs/roadmap/SPRINT-SECURITY.md`.
+- **PENDING:** promote staging→public `Come-come` + reconcile version to **v0.10.0**; then the
+  Backlog below (Sprint 11, follow-on 8b, height chart, per-child toggles). See `CHANGELOG.md`.
 
 ### Decisions locked (2026-06-19) — full rationale + citations in `docs/roadmap/DECISIONS.md`
 | # | Decision | Choice |

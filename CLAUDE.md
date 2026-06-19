@@ -4,87 +4,71 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ComeCome is an ADHD-friendly food and nutrition tracking PWA for neuro-divergent children, built with vanilla PHP + JavaScript and SQLite. No build step, no frameworks, no external dependencies beyond Pico CSS.
+ComeCome is an ADHD-friendly food and nutrition tracking PWA for neuro-divergent children, built with vanilla PHP + JavaScript and SQLite. No build step, no frameworks, no external runtime dependencies beyond Pico CSS (+ Chart.js via CDN). **Guiding principle:** the child interaction surface stays deliberately flat (emoji-first, tap-portion-celebrate, ≤5 footer items); all new depth goes to the guardian/clinician layers.
+
+> **Repo model:** this is **`comecome-claude` = STAGING** (deployed to Hostinger for live testing). The public **production** repo is **`Come-come`**. Land + test here; promote to public as a deliberate, reviewed step. Never push WIP to public.
 
 ## Development Server
 
 ```bash
 php -S localhost:8000
 ```
-
-PHP must have SQLite3 enabled. The database (`db/data.db`) auto-creates on first request using `db/schema.sql` and `db/seed.sql`.
-
-## Architecture
-
-**Routing**: `index.php` is the single entry point. Routes via `?page=` query parameter with a switch-case router. Pages are server-rendered PHP with `ob_start()` buffering via `renderLayout()`.
-
-**Auth**: PIN-based (4-digit, hashed). Two roles: `child` and `guardian`. Session-based with role middleware (`requireAuth()`, `requireGuardian()`). Guest tokens provide temporary clinician access.
-
-**Database**: SQLite3 via PDO with prepared statements everywhere. Key tables: `users`, `meals`, `foods`, `food_log`, `daily_checkin`, `weight_log`, `sleep_log`, `sleep_interruptions`, `settings` (key-value), `guest_tokens`, `translations`. Migrations run via `migrateDatabase()` using `schema_version` setting key.
-
-**API**: JSON endpoints in `api/` (food-log, check-in, weight, favorites, sleep). All require auth, support GET/POST/DELETE, enforce user ownership.
-
-**i18n**: Key-based translation from `locales/*.json` files (pt default, en available). Database `translations` table provides runtime overrides. Use `t('key', $params)` for all user-facing strings.
-
-**Frontend**: Vanilla JS (`assets/js/app.js`) handles AJAX food logging, theme switching, service worker updates, haptic feedback, and celebration animations. CSS in `assets/css/custom.css` uses Pico CSS base with ADHD-optimized large touch targets, animations, and dark mode via CSS variables.
-
-**PWA**: Service worker (`sw.js`) caches static assets (cache-first), pages (network-first), and skips API calls.
-
-## Feature Toggles
-
-Guardians can toggle child-facing features on/off via Settings. The `settings` table stores key-value pairs:
-
-| Setting key | Default | Controls |
-|---|---|---|
-| `show_food_journal` | `'1'` | Food logging + history pages |
-| `show_checkin` | `'1'` | Daily check-in page |
-| `show_weight_tracking` | `'1'` | Weight tracking page |
-| `show_sleep_tracking` | `'1'` | Sleep quality in daily check-in |
-| `show_medication_to_children` | `'1'` | Medication section within check-in |
-
-Read with `getSetting('key', 'default')`, write with `setSetting('key', 'value')`. Child routes in `index.php` enforce toggles via redirect. The shared footer partial (`pages/child/footer.php`) conditionally renders navigation buttons.
-
-When adding new child-facing features, follow the same pattern: add a setting, guard the route in `index.php`, and add the button to `footer.php`.
-
-## Key Conventions
-
-- **PHP functions**: camelCase (`getCurrentMeal`, `logFood`)
-- **DB columns/tables**: snake_case, plural table names (`food_log`, `daily_checkin`)
-- **Translation keys**: section_descriptor (`meal_breakfast`, `food_apple`, `portion_little`)
-- **CSS classes**: kebab-case (`meal-btn`, `user-card`)
-- Logic in `includes/`, presentation in `pages/`, config constants in `config.php`
-- Meals auto-detect by current time (`getCurrentMeal()` in `db.php`)
-- Portion sizes are relative labels (little/some/lot/all), not calorie-based
-
-## Page Organization
-
-- `pages/child/` — Food logging, check-in, weight, history (own data only). Shared footer in `footer.php`
-- `pages/guardian/` — Dashboard analytics, user/meal/food/medication/sleep management, export (HTML/CSV/JSON), settings, database backup/restore
-- `pages/login.php` — Public auth page
-- `pages/guest-report.php` — Token-validated clinician reports
-
-## Timezone & Locale
-
-App timezone is `Europe/Lisbon`. Default locale is Portuguese (`pt`). Date display format is dd-mm-yyyy throughout.
+PHP needs **SQLite3**, and (only for at-rest encryption) the **`sodium`** extension. The DB auto-creates/migrates on first request. The DB path is `DB_PATH` from `config.php`, overridable per-deployment via a **git-ignored `config.local.php`** (or the `COMECOME_DB_PATH` env var) — used in production to keep `data.db` above the web root. Template: `config.local.php.example`.
 
 ## Testing
-
-Single regression command (dependency-free — no Composer, no PHPUnit, honoring the no-build-step ethos):
 
 ```bash
 php tests/run.php
 ```
+The **single dependency-free regression entry point** (no Composer/PHPUnit). Runs only against throwaway temp DBs (never `db/data.db`); exits non-zero on failure. Covers initialize / migrate-idempotency / backup-restore, the cumulative smoke (`tests/smoke.php`), the **HTTP-behavior smokes** (`tests/http_*_smoke.php` — cookies, TLS/HSTS, CSRF incl. the child flow, throttle lockout, field encryption, secrets), a negative self-test, and per-feature phases (percentiles, med-timing, security 0–5). See `tests/README.md`.
 
-`tests/run.php` is the **single regression entry point**. It runs entirely against **throwaway temp SQLite DBs** (never `db/data.db`) and exits non-zero on any failure. It covers:
+## Architecture
 
-- **initialize**: `initializeDatabase()` on a fresh DB — every expected table exists and `schema_version` reaches 2.
-- **migrate + idempotency**: `migrateDatabase()` forward from a synthetic v1 fixture (asserts `daily_checkin.sleep_quality`, `sleep_log`, `sleep_interruptions` appear and pre-existing rows survive), then re-runs migrate and asserts it is a no-op.
-- **backup/restore**: file-copy round-trip via `backupDatabase()` / `restoreDatabase()` (write → backup → mutate → restore → assert match).
-- **cumulative Sprint 0–3 smoke**: folds in `tests/smoke.php` (auth, feature toggles, sleep, page renders, clinical-report correlations, JSON-export pin whitelist, pt/en i18n parity) and `tests/migration_idempotency.php` as orchestrated sub-runners.
-- **negative self-test**: re-invokes itself in a deliberately-broken mode and asserts a non-zero exit, proving the runner actually catches failures.
+**Routing**: `index.php` is the single entry point. Routes via `?page=` (switch-case router); server-rendered PHP buffered through `renderLayout()` (which also injects the CSRF meta token). A router gate redirects a still-default-`0000` guardian to change their PIN.
 
-The individual sub-runners (`tests/smoke.php`, `tests/migration_idempotency.php`) can still be run directly. See `tests/README.md` — this harness is the **'tests' prerequisite** the deferred SQLCipher at-rest encryption review requires (decision v) before encryption is scheduled.
+**Auth & sessions**: PIN-based (4-digit, hashed). Roles `child`/`guardian` with `requireAuth()`/`requireGuardian()`. `includes/session.php` hardens cookies (HttpOnly / SameSite / env-gated Secure) via `configureSessionCookieParams()` and enforces TLS + HSTS; login calls `session_regenerate_id()`; idle timeout uses `SESSION_LIFETIME`. PIN brute-force is throttled in `includes/throttle.php` (single aggregated `login_attempts` row; per-user primary + loose per-IP). Guest tokens (now **revocable**) give time-limited clinician access.
 
-## Roadmap
+**CSRF**: `includes/csrf.php` — every state-changing POST (all guardian forms + the 6 `api/` endpoints) requires a token (`hash_equals`); child-page inline `fetch()` calls attach `X-CSRF-Token`.
 
-Canonical sprint plan: `.claude/SPRINT-PLAN_reconciled.md`. Source planning/review docs (sprints 3–5, DB encryption) live in `docs/roadmap/`.
+**Database**: SQLite3 via PDO, prepared statements everywhere, `PRAGMA busy_timeout`. **`schema_version` = 6**, migrated additively by `migrateDatabase()`. Tables: `users` (incl. `gender`, `date_of_birth`), `meals`, `food_categories`, `meal_categories`, `foods`, `user_favorites`, `food_log` (incl. `med_window`), `medications`, `user_medications`, `medication_schedules`, `daily_checkin` (incl. `sleep_quality`), `weight_log`, `height_log`, `settings` (key/value), `guest_tokens` (incl. `is_revoked`), `translations`, `login_attempts`, `sleep_log`, `sleep_interruptions`.
+
+**At-rest encryption (opt-in)**: `includes/crypto.php` — libsodium `enc:v1:` envelope on **scoped sensitive columns** (`users.name`, `daily_checkin.notes`, `medications.name`/`dose`) **when a key is configured** (`includes/secrets.php` + `config.local.php`). With no key, those columns stay plaintext (zero-config). Fails **closed** on tamper / wrong key / missing sodium. `gender`/`date_of_birth` and all numeric/date/coded columns stay cleartext (the percentile engine + dashboard aggregations depend on them). Backfill: `scripts/encrypt-backfill.php` (verify-first, idempotent).
+
+**Growth & percentiles**: `includes/growth-standards.php` (WHO 2006 + 2007 LMS reference data) + `includes/percentiles.php` (z-score → percentile engine; **WHO-first**, CDC 2–19y is a planned additive follow-on). Surfaced in the **guardian dashboard + clinician reports only** — the child "Growth" chart stays an encouraging line with no clinical bands. Gated by `show_percentiles` (needs gender + DOB; graceful prompt otherwise).
+
+**Medication timing**: `includes/medication.php` — `medication_schedules` + `computeMedWindow()` stamps `food_log.med_window` (pre_med/onset/mid_med/post_med) **server-side at insert**, invisible to the child; feeds clinician nutrition analysis.
+
+**API**: JSON endpoints in `api/` (food-log, check-in, weight, height, favorites, sleep). Auth + per-user ownership enforced; CSRF-required on writes.
+
+**i18n**: key-based from `locales/{pt,en}.json` (pt canonical + default). DB `translations` table overrides at runtime. Use `t('key', $params)`. pt/en key parity is asserted by the harness.
+
+**Frontend / PWA**: vanilla JS (`assets/js/app.js`); Pico CSS + `assets/css/custom.css` (ADHD-optimized). Service worker `sw.js` (cache-first assets, network-first pages).
+
+## Feature Toggles
+Guardian Settings toggles (key/value in `settings`, via `getSetting('key','default')`): `show_food_journal`, `show_checkin`, `show_weight_tracking`, `show_sleep_tracking`, `show_medication_to_children`, **`show_percentiles`** (default `'0'`). Child routes in `index.php` enforce them; the shared footer (`pages/child/footer.php`) renders ≤5 buttons conditionally. New child feature → add a setting, guard the route, add the footer button.
+
+## Scripts (CLI-only, filesystem-run)
+- `scripts/gen-key.php` — generate the field-encryption key container (above docroot, `0400`).
+- `scripts/encrypt-backfill.php` — verify-first, idempotent backfill of the scoped encrypted columns.
+- `scripts/reset-pin.php` — sole-guardian PIN recovery from the server filesystem.
+- `db/seed-demo.php` — 3-month demo dataset (anonymized children) for live testing; `--reset` to re-seed.
+
+## Key Conventions
+- PHP fns **camelCase**; DB columns/tables **snake_case** (plural tables); translation keys `section_descriptor`; CSS **kebab-case**.
+- Logic in `includes/`, presentation in `pages/`, constants in `config.php`.
+- **Every schema change** = an additive, version-gated `migrateDatabase()` block **mirrored in `db/schema.sql`**, and update the `tests/run.php` `schema_version` + exact-table-set asserts.
+- **Bump `sw.js CACHE_NAME`** on any child-page/asset change. Keep the four export surfaces (HTML/CSV/JSON/guest-report) in parity; whitelist the JSON projection (never emit `pin`/raw `date_of_birth`).
+
+## Page Organization
+- `pages/child/` — log-food, check-in, weight (becomes "Growth" when `show_percentiles` on), history. Own data only; shared footer.
+- `pages/guardian/` — dashboard, manage-children/users/foods/meals/medications/sleep/logs, settings, exports, database backup/restore.
+- `pages/login.php` (public auth), `pages/guest-report.php` (token-validated clinician report).
+
+## Timezone & Locale
+App timezone `Europe/Lisbon`; default locale `pt`; date display dd-mm-yyyy.
+
+## Roadmap & Status
+Canonical plan: `.claude/SPRINT-PLAN_reconciled.md`. Decisions: `docs/roadmap/DECISIONS.md`. Specs: `docs/roadmap/SPRINT-{03,10,11,SECURITY}.md`. `CHANGELOG.md` records the cycle. **As of 2026-06-20:** Sprints 3–10 + the Security sprint are **built (schema v6)**; pending = **promote staging→prod + reconcile version to v0.10.0** (`config.php` still `0.9.1`, `sw.js` `comecome-v0.9.2`), plus backlog (Sprint 11 nutrition intelligence — build-ready; follow-on 8b CDC; height chart; per-child toggles).
+
+## Production Hardening
+See `README.md` → "Production Hardening" and `docs/roadmap/SPRINT-SECURITY.md`: HTTPS/HSTS, DB above docroot via `config.local.php`, off-host encrypted backups, opt-in field encryption (needs `sodium`). **SQLCipher is deferred (VPS-only)** — infeasible on shared hosting (a `PRAGMA key` on stock SQLite is a silent plaintext no-op).
