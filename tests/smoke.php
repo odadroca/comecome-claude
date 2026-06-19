@@ -35,6 +35,13 @@
  *            api/height.php enforces auth + 30-220 range; sw.js CACHE_NAME
  *            bumped past the pre-Sprint-6 value; the six Sprint-6 i18n keys hold
  *            pt/en parity.
+ *   Sprint 7 (percentiles engine, NO UI/schema): includes/percentiles.php +
+ *            includes/growth-standards.php load cleanly alongside the running app;
+ *            provider-independent CDF math holds (Phi(0)=.5, Phi(1.96)=.975);
+ *            a WHO data-fidelity anchor reproduces (boys length-for-age 0mo P50
+ *            ~49.9cm -> ~50th pct) to catch fabricated LMS; out-of-coverage age
+ *            returns null (graceful, no crash); schema_version STILL 4 (no
+ *            migration) and show_percentiles STILL defaults OFF (no UI change).
  * -------------------------------------------------------------------------
  */
 
@@ -469,6 +476,72 @@ foreach ($s6Keys as $k) {
             && trim((string)$ptS6[$k]) !== '' && trim((string)$enS6[$k]) !== '';
 }
 ok($s6Ok, "Sprint 6 i18n keys present + non-empty in BOTH pt and en");
+
+// --- 4d. SPRINT 7 ACCEPTANCE (Percentiles Engine + WHO Reference Data) -------
+// Scope: PURE library code — NO UI, NO schema change, NO migration. WHO-ONLY
+// provider (WHO 2006 0-60mo + WHO 2007 61-228mo), single +/-2 SD convention.
+// The deep engine/CDF/anchor validation lives in tests/run.php PHASE D; here in
+// the cumulative smoke we confirm the engine LOADS cleanly alongside the running
+// app, the provider-independent math holds, a real WHO anchor reproduces (catching
+// fabricated LMS), out-of-coverage degrades to null, and — critically for "no UI /
+// no schema change" — schema_version is STILL 4 and show_percentiles STILL defaults
+// OFF on a freshly-initialised DB.
+echo "\n-- Sprint 7 acceptance (percentiles engine + WHO data; no UI/schema) --\n";
+
+// (a) The engine + WHO reference data include cleanly next to the live app
+//     includes (no redeclare, no parse/fatal). growth-standards.php is required
+//     lazily by percentiles.php via getGrowthStandards().
+require_once $ROOT . '/includes/percentiles.php';
+ok(function_exists('calculateZScore')
+   && function_exists('zScoreToPercentile')
+   && function_exists('calculateWeightForAgePercentile')
+   && function_exists('calculateHeightForAgePercentile')
+   && function_exists('calculateBMIForAgePercentile'),
+   "Sprint 7: percentiles engine functions load alongside the app (no fatal/redeclare)");
+
+// (b) NO schema change / NO migration: Sprint 7 is library-only, so the freshly
+//     initialised DB must still be at schema_version 4 (unchanged from Sprint 6).
+ok((int) getSetting('schema_version', '0') === 4,
+   "Sprint 7: schema_version still 4 (engine adds NO migration / NO schema change)");
+
+// (c) NO UI change: the Sprint-6 show_percentiles toggle exists and stays OFF by
+//     default — Sprint 7 does not surface percentiles anywhere yet.
+ok(getSetting('show_percentiles', '0') === '0',
+   "Sprint 7: show_percentiles still defaults OFF (engine wires NO UI)");
+
+// (d) Provider-independent CDF math (does not depend on any reference table).
+$phi0  = zScoreToPercentile(0);
+$phi196 = zScoreToPercentile(1.96);
+ok($phi0 !== null && abs($phi0 - 0.5) <= 0.001,
+   "Sprint 7: zScoreToPercentile(0) = 0.500 (A&S normal CDF) [got " . round((float)$phi0, 5) . "]");
+ok($phi196 !== null && abs($phi196 - 0.975) <= 0.002,
+   "Sprint 7: zScoreToPercentile(1.96) = 0.975 [got " . round((float)$phi196, 5) . "]");
+// calculateZScore is exactly 0 when value == M.
+ok(calculateZScore(8.0, 0.0645, 9.646, 0.10925) !== null
+   && abs(calculateZScore(9.646, 0.0645, 9.646, 0.10925)) < 1e-9,
+   "Sprint 7: calculateZScore = 0 when value == M");
+
+// (e) WHO DATA-FIDELITY anchor (catches fabricated LMS): the engine, fed the real
+//     WHO median, must put it at ~50th percentile. boys length-for-age 0mo P50 is
+//     ~49.9cm (WHO 2006). A fabricated table would drift off 50 here.
+$anchor = calculateHeightForAgePercentile(49.9, 0, 'boys');
+ok($anchor !== null && abs($anchor - 50.0) <= 2.0,
+   "Sprint 7: WHO anchor boys length-for-age 0mo ~49.9cm -> ~50th pct [got "
+   . ($anchor === null ? 'null' : round((float)$anchor, 2)) . "]");
+// A second anchor on the weight axis (girls 12mo P50 ~8.9kg).
+$anchorW = calculateWeightForAgePercentile(8.9, 12, 'girls');
+ok($anchorW !== null && abs($anchorW - 50.0) <= 5.0,
+   "Sprint 7: WHO anchor girls weight-for-age 12mo ~8.9kg -> ~50th pct [got "
+   . ($anchorW === null ? 'null' : round((float)$anchorW, 2)) . "]");
+
+// (f) Graceful degradation: out-of-coverage age / unknown sex / bad value -> null
+//     (never crash).
+ok(calculateWeightForAgePercentile(15, 200, 'boys') === null,
+   "Sprint 7: out-of-coverage age returns null (graceful, no crash)");
+ok(calculateWeightForAgePercentile(15, 36, 'unknown') === null,
+   "Sprint 7: unknown sex returns null");
+ok(calculateHeightForAgePercentile(100, 36, 'boys') !== null,
+   "Sprint 7: in-coverage height-for-age resolves to a percentile");
 
 // --- 5. i18n key parity sanity (pt canonical) -------------------------------
 echo "\n-- i18n parity (pt canonical) --\n";
