@@ -47,6 +47,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $medication = (int) ($_POST['medication'] ?? 0);
         $notes = $_POST['notes'] ?? '';
         if ($checkinId && $appetite >= 1 && $appetite <= 5 && $mood >= 1 && $mood <= 5) {
+            // Sprint security Phase 5 — encrypt the scoped notes on this direct UPDATE
+            // (this guardian edit path bypasses saveCheckIn(), so encrypt here too).
+            $notes = function_exists('encryptField') ? encryptField($notes) : $notes;
             $stmt = $db->prepare("UPDATE daily_checkin SET appetite_level = ?, mood_level = ?, medication_taken = ?, notes = ? WHERE id = ?");
             $stmt->execute([$appetite, $mood, $medication, $notes, $checkinId]);
             $message = t('changes_saved');
@@ -74,7 +77,10 @@ if ($selectedChild) {
 
     $stmt = $db->prepare("SELECT * FROM daily_checkin WHERE user_id = ? AND check_date = ?");
     $stmt->execute([$selectedChild, $selectedDate]);
-    $checkIn = $stmt->fetch();
+    // Sprint security Phase 5 — decrypt-on-read so the edit form pre-fills plaintext notes.
+    $checkIn = function_exists('decryptRowFields')
+        ? decryptRowFields($stmt->fetch(), ['notes'])
+        : $stmt->fetch();
 
     $stmt = $db->prepare("SELECT * FROM weight_log WHERE user_id = ? AND log_date = ?");
     $stmt->execute([$selectedChild, $selectedDate]);

@@ -14,6 +14,15 @@ require_once __DIR__ . '/medication.php';
 // when the auth path calls them. cleanExpiredTokens() piggybacks its self-prune.
 require_once __DIR__ . '/throttle.php';
 
+// Sprint security Phase 5 — scoped libsodium field encryption. Side-effect free to
+// include (defines functions only; reads NO key at include time). encryptField()/
+// decryptField() are strictly OPT-IN: with no key configured they pass values
+// through unchanged (plaintext columns), so the data layer is zero-config safe.
+// secrets.php (the key container) is required by config.php before this; require it
+// here too so includes/db.php works when pulled in by the test harness directly.
+require_once __DIR__ . '/secrets.php';
+require_once __DIR__ . '/crypto.php';
+
 /**
  * Get database connection
  */
@@ -57,9 +66,11 @@ function initializeDatabase() {
     $seed = file_get_contents(DB_SEED);
     $db->exec($seed);
 
-    // Create default guardian user
+    // Create default guardian user. Sprint security Phase 5 — encrypt the seeded
+    // name when a key is configured (encryptField is a no-op passthrough with no
+    // key, so the zero-config seed stays the literal 'Guardião').
     $stmt = $db->prepare("INSERT OR IGNORE INTO users (id, name, type, pin) VALUES (?, ?, ?, ?)");
-    $stmt->execute([1, 'Guardião', 'guardian', password_hash('0000', PASSWORD_DEFAULT)]);
+    $stmt->execute([1, encryptField('Guardião'), 'guardian', password_hash('0000', PASSWORD_DEFAULT)]);
 
     // Run migrations for existing databases
     migrateDatabase($db);
@@ -359,10 +370,37 @@ function migrateDatabase($db) {
 }
 
 /**
- * Backup database
+ * Backup database.
+ *
+ * Sprint security Phase 5 (cheap win — at-rest data protection): the backup target
+ * is now configurable so an operator can write backups ABOVE public_html rather
+ * than into the web tree. The critique flagged that the old hard-coded
+ * `__DIR__/../db/backup_*.db` writes a full PLAINTEXT copy of the DB inside the
+ * served tree, protected only by the `.htaccess` FilesMatch deny — which evaporates
+ * under nginx/litespeed. Resolution order:
+ *
+ *   1. define('BACKUP_DIR', '/abs/above/docroot/backups')  (config.local.php / the
+ *      above-docroot COMECOME_CONFIG file) — RECOMMENDED for production.
+ *   2. getenv('COMECOME_BACKUP_DIR') — same, via the environment.
+ *   3. the in-tree db/ dir — the zero-config default (unchanged behaviour for a
+ *      fresh download; the deploy doc tells operators to move it out + encrypt
+ *      off-host).
+ *
+ * The directory is created if missing. Returns the backup path, or false on failure.
  */
 function backupDatabase() {
-    $backupPath = __DIR__ . '/../db/backup_' . date('Y-m-d_H-i-s') . '.db';
+    $dir = null;
+    if (defined('BACKUP_DIR') && BACKUP_DIR !== '') {
+        $dir = BACKUP_DIR;
+    } else {
+        $envDir = getenv('COMECOME_BACKUP_DIR');
+        $dir = ($envDir !== false && $envDir !== '') ? $envDir : (__DIR__ . '/../db');
+    }
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+
+    $backupPath = rtrim($dir, "/\\") . '/backup_' . date('Y-m-d_H-i-s') . '.db';
     if (copy(DB_PATH, $backupPath)) {
         return $backupPath;
     }
@@ -568,6 +606,11 @@ function getFoodLogByDate($userId, $date) {
 function saveCheckIn($userId, $date, $appetite, $mood, $medication, $notes = null, $sleepQuality = null) {
     $db = getDB();
 
+    // Sprint security Phase 5 — encrypt the free-text notes on write (no-op
+    // passthrough when no key is configured). appetite/mood/medication/sleep stay
+    // cleartext: they are numeric/coded and feed dashboard aggregations/correlations.
+    $notes = encryptField($notes);
+
     $stmt = $db->prepare("
         INSERT OR REPLACE INTO daily_checkin
         (user_id, check_date, appetite_level, mood_level, medication_taken, notes, sleep_quality)
@@ -589,7 +632,11 @@ function getCheckIn($userId, $date) {
     ");
     $stmt->execute([$userId, $date]);
 
-    return $stmt->fetch();
+    // Sprint security Phase 5 — decrypt-on-read: transparently returns plaintext
+    // for not-yet-backfilled rows (no sentinel) AND decrypted text for encrypted
+    // rows. This is the central accessor the child check-in + history pages use, so
+    // the child sees their own notes with ZERO visible change.
+    return decryptRowFields($stmt->fetch(), ['notes']);
 }
 
 /**

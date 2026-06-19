@@ -162,7 +162,12 @@ function getDashboardData($userId, $startDate, $endDate) {
         ORDER BY check_date DESC
     ");
     $stmt->execute([$userId, $startDate, $endDate]);
-    $checkIns = $stmt->fetchAll();
+    // Sprint security Phase 5 — decrypt-on-read of the scoped notes column for the
+    // dashboard check-in table (no-op passthrough with no key / plaintext rows).
+    // appetite/mood/sleep_quality stay cleartext and feed the aggregations.
+    $checkIns = function_exists('decryptRowsFields')
+        ? decryptRowsFields($stmt->fetchAll(), ['notes'])
+        : $stmt->fetchAll();
 
     // Most eaten foods
     $stmt = $db->prepare("
@@ -257,7 +262,12 @@ function getReportData($userId, $startDate, $endDate) {
         GROUP BY m.id, m.name, m.dose
     ");
     $stmt->execute([$startDate, $endDate, $userId]);
-    $medications = $stmt->fetchAll();
+    // Sprint security Phase 5 — decrypt-on-read of the scoped medication name/dose for
+    // the report/export surfaces. The GROUP BY m.id, m.name, m.dose groups correctly
+    // because each medication's blob is consistent per row; we decrypt AFTER fetch.
+    $medications = function_exists('decryptRowsFields')
+        ? decryptRowsFields($stmt->fetchAll(), ['name', 'dose'])
+        : $stmt->fetchAll();
 
     // Daily meal count
     $stmt = $db->prepare("

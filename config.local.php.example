@@ -38,6 +38,26 @@
 // Or, relative to a config.php that sits in public_html:
 // define('ENCRYPTION_KEY_FILE', dirname(__DIR__) . '/private/encryption-key.php');
 
+// REQUIREMENT for field encryption: the PHP `sodium` extension must be loaded
+// (bundled with PHP 7.2+; on shared hosting enable `extension=sodium` in the host's
+// php.ini). Verify on your host with:   php -m | grep sodium
+// If a key is configured but sodium is MISSING, the app FAILS CLOSED (it refuses to
+// write plaintext under a configured key) rather than silently storing plaintext.
+
+/* -------------------------------------------------------------------------
+ * Database BACKUP directory (Sprint security Phase 5 cheap win) — OPTIONAL.
+ *
+ * backupDatabase() writes a full copy of the SQLite DB. By default it lands in the
+ * in-tree db/ folder (zero-config). For production, point it ABOVE public_html so a
+ * plaintext DB copy is never inside the served tree (the .htaccess deny evaporates
+ * under nginx/litespeed). Then sync those backups OFF-HOST, ENCRYPTED (age/gpg), and
+ * NEVER in the same archive as the encryption key file.
+ * ---------------------------------------------------------------------- */
+
+// define('BACKUP_DIR', '/home/uXXXXXXXX/private/backups');
+// Or, relative to a config.php that sits in public_html:
+// define('BACKUP_DIR', dirname(__DIR__) . '/private/backups');
+
 /* -------------------------------------------------------------------------
  * Tip: for the strongest separation, put your secrets in a PHP file ABOVE the
  * web root and point the COMECOME_CONFIG env var at it (e.g. in .htaccess:

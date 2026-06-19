@@ -18,7 +18,13 @@ $stmt = $db->prepare("
     WHERE um.user_id = ? AND m.active = 1
 ");
 $stmt->execute([$user['id']]);
-$medications = $stmt->fetchAll();
+// Sprint security Phase 5 — decrypt the scoped medication name/dose on read (no-op
+// with no key / plaintext rows). This child page only uses count($medications), so
+// there is ZERO child-visible change; decrypting keeps the rows consistent for any
+// future display and avoids leaking ciphertext if the markup ever shows the name.
+$medications = function_exists('decryptRowsFields')
+    ? decryptRowsFields($stmt->fetchAll(), ['name', 'dose'])
+    : $stmt->fetchAll();
 
 // Random encouragement for success
 $encouragementKey = getRandomEncouragementKey('checkin');

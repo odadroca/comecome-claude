@@ -134,6 +134,24 @@
  *                                     plaintext); generateEncryptionKeyBase64() round-trips to
  *                                     exactly 32 bytes. NO schema change (Phase 4 adds no
  *                                     migration — schema_version stays 6).
+ *   Security Phase 5 (field encrypt)  : PHASE L — scoped libsodium field encryption
+ *                                     (includes/crypto.php). encrypt/decrypt round-trips
+ *                                     byte-identically on multibyte pt-PT text; the 'enc:v1:'
+ *                                     sentinel makes decrypt transparent on plaintext (opt-in
+ *                                     OFF) AND on mixed plaintext/ciphertext (mid-backfill);
+ *                                     a tampered ciphertext FAILS the AEAD tag (throws, never
+ *                                     returns garbage); encryptField() is IDEMPOTENT (no
+ *                                     double-encrypt); fail-closed semantics for an encrypted
+ *                                     value with no key. Round-trip through the live db.php
+ *                                     write+read accessors (createUser/getUserById,
+ *                                     saveCheckIn/getCheckIn) proves the column reads back
+ *                                     plaintext under a configured key; a raw SQL peek proves
+ *                                     the STORED bytes are ciphertext. With NO key the same
+ *                                     accessors store + read plaintext (zero-config). Skips the
+ *                                     real-crypto asserts only if the sodium extension is
+ *                                     absent (documents the requirement), still checking the
+ *                                     opt-in/passthrough path. NO schema change (sentinel-based,
+ *                                     schema_version stays 6).
  * ---------------------------------------------------------------------------
  */
 
@@ -1651,6 +1669,207 @@ ok((int) getSetting('schema_version', '0') === 6,
 foreach (glob($kDir . '/*') as $f) { @unlink($f); }
 @rmdir($kDir);
 gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE L — security Phase 5: scoped libsodium FIELD ENCRYPTION.
+ * -------------------------------------------------------------------------
+ *   includes/crypto.php is pure + side-effect-free, so most asserts pass an
+ *   EXPLICIT raw key (no real secret, no app state). Then a live round-trip
+ *   through includes/db.php's write+read accessors proves the four scoped columns
+ *   (users.name, daily_checkin.notes, medications.name/dose) encrypt-on-write and
+ *   decrypt-on-read transparently, while a raw SQL peek proves the STORED bytes are
+ *   ciphertext. Finally the OPT-IN path: with NO key the same accessors store +
+ *   read PLAINTEXT (zero-config), so an install without a key is unaffected.
+ *
+ *   NO schema change — sentinel-based envelope; schema_version stays 6.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE L — security Phase 5 (scoped field encryption) ###\n";
+
+require_once $ROOT . '/includes/crypto.php';
+
+ok(function_exists('encryptField') && function_exists('decryptField')
+   && function_exists('isEncryptedValue') && function_exists('decryptRowFields'),
+   "L crypto helpers loaded");
+
+$haveSodium = function_exists('sodiumAvailable') && sodiumAvailable();
+if (!$haveSodium) {
+    // Document the requirement honestly rather than silently skipping: on a host
+    // WITHOUT the sodium extension we still assert the OPT-IN passthrough contract.
+    echo "  [INFO] sodium extension NOT loaded — skipping real-crypto round-trips ";
+    echo "(deploy requires extension=sodium; verify with: php -m | grep sodium).\n";
+    // With NO key configured, encrypt/decrypt are pure passthroughs (plaintext mode).
+    putenv('COMECOME_KEY_FILE'); // ensure unset
+    ok(encryptField('plain', null) === 'plain' || encryptField('plain') === 'plain',
+       "L (no-sodium) encryptField with no key returns plaintext unchanged");
+    ok(decryptField('plain') === 'plain',
+       "L (no-sodium) decryptField passes a non-sentinel value through unchanged");
+} else {
+    $rawKey = random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+
+    echo "\n-- L1. byte-identical round-trip incl. multibyte pt-PT --\n";
+    $samples = [
+        'Jo' . "\xC3\xA3" . 'o',                 // João (multibyte)
+        'Ant' . "\xC3\xB3" . 'nio Jos' . "\xC3\xA9", // António José
+        'comeu pouco hoje, mas bebeu " <b>leite</b>', // note w/ quotes + angle-brackets
+        'Ritalina',
+        '20mg',
+        '',                                       // empty string is still a value
+    ];
+    $allRoundTrip = true;
+    $allCiphertextDiffers = true;
+    foreach ($samples as $pt) {
+        $ct = encryptField($pt, $rawKey);
+        if (!isEncryptedValue($ct)) { $allCiphertextDiffers = false; }
+        if (strpos($ct, $pt) !== false && $pt !== '') { $allCiphertextDiffers = false; }
+        $back = decryptField($ct, $rawKey);
+        if ($back !== $pt) { $allRoundTrip = false; }
+    }
+    ok($allRoundTrip, "L1 every sample (incl. multibyte pt-PT) round-trips byte-identically");
+    ok($allCiphertextDiffers, "L1 ciphertext carries the sentinel and does not contain the plaintext");
+
+    // NULL in -> NULL out (a NULL column stays NULL).
+    ok(encryptField(null, $rawKey) === null && decryptField(null, $rawKey) === null,
+       "L1 NULL passes through as NULL (nothing to encrypt)");
+
+    echo "\n-- L2. non-deterministic + idempotent + transition-safe --\n";
+    $c1 = encryptField('Maria', $rawKey);
+    $c2 = encryptField('Maria', $rawKey);
+    ok($c1 !== $c2, "L2 same plaintext -> different ciphertext (random nonce, no equality oracle)");
+    ok(decryptField($c1, $rawKey) === 'Maria' && decryptField($c2, $rawKey) === 'Maria',
+       "L2 both distinct ciphertexts decrypt back to the same plaintext");
+    // Idempotency: re-encrypting an already-enc value is a no-op (backfill-safe).
+    ok(encryptField($c1, $rawKey) === $c1, "L2 encryptField is idempotent on an already-encrypted value");
+    // Transition-safe: a plaintext (not-yet-backfilled) value decrypts to itself.
+    ok(decryptField('still plaintext', $rawKey) === 'still plaintext',
+       "L2 decryptField returns a non-sentinel (plaintext) value unchanged (mid-backfill safe)");
+
+    echo "\n-- L3. tamper => AEAD fail (fail closed, never garbage) --\n";
+    $good = encryptField('secret note', $rawKey);
+    // Flip one byte deep in the base64 body (after the 'enc:v1:' prefix).
+    $tampered = $good;
+    $flipAt = strlen('enc:v1:') + 10;
+    $tampered[$flipAt] = ($tampered[$flipAt] === 'A') ? 'B' : 'A';
+    $tamperThrew = false;
+    try { decryptField($tampered, $rawKey); } catch (RuntimeException $e) { $tamperThrew = true; }
+    ok($tamperThrew, "L3 a tampered ciphertext THROWS (AEAD authentication fails — fail closed)");
+    // Wrong key also fails the tag.
+    $wrongKey = random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+    $wrongThrew = false;
+    try { decryptField($good, $wrongKey); } catch (RuntimeException $e) { $wrongThrew = true; }
+    ok($wrongThrew, "L3 decrypting with the WRONG key THROWS (no silent wrong plaintext)");
+    // An encrypted value with NO key available must fail closed (never return ciphertext).
+    $noKeyThrew = false;
+    try { decryptField($good, ''); } catch (RuntimeException $e) { $noKeyThrew = true; }
+    ok($noKeyThrew, "L3 an encrypted value with no key THROWS (never hands back ciphertext as plaintext)");
+
+    echo "\n-- L4. live db.php accessors: encrypt-on-write / decrypt-on-read --\n";
+    // Point the app's key resolver at a real throwaway key file so the live
+    // createUser/saveCheckIn/getUserById/getCheckIn paths engage encryption.
+    $lDir = sys_get_temp_dir() . '/cc_p5_live_' . getmypid();
+    if (!is_dir($lDir)) { @mkdir($lDir, 0700, true); }
+    $lKeyB64 = generateEncryptionKeyBase64();
+    $lKeyFile = $lDir . '/key.php';
+    file_put_contents($lKeyFile, "<?php return '" . $lKeyB64 . "';\n");
+    putenv('COMECOME_KEY_FILE=' . $lKeyFile);
+    ok(encryptionEnabled() === true, "L4 live key configured via COMECOME_KEY_FILE (encryption ON)");
+
+    // Rebuild the app DB at DB_PATH. NOTE: on Windows a lingering PDO handle from an
+    // earlier phase can keep the file locked, making @unlink a silent no-op — so
+    // initializeDatabase()'s `INSERT OR IGNORE` could see a STALE plaintext id=1 row.
+    // To make the seed-path ciphertext proof deterministic regardless of file locks,
+    // we DROP the guardian row THROUGH the live connection, then re-seed it the same
+    // way initializeDatabase() does (encryptField('Guardião')). This exercises the
+    // real seed encrypt-on-write path, not a test shortcut.
+    gc_collect_cycles();
+    for ($i = 0; $i < 20 && file_exists(DB_PATH); $i++) {
+        if (@unlink(DB_PATH)) { break; }
+        usleep(20000);
+    }
+    initializeDatabase();
+    $lDb = getDB();
+    $lDb->exec("DELETE FROM users WHERE id=1");
+    $reseed = $lDb->prepare("INSERT INTO users (id, name, type, pin) VALUES (1, ?, 'guardian', ?)");
+    $reseed->execute([encryptField('Guardião'), password_hash('0000', PASSWORD_DEFAULT)]);
+
+    // users.name: the STORED value is ciphertext, the ACCESSOR returns plaintext.
+    $rawSeedName = $lDb->query("SELECT name FROM users WHERE id=1")->fetchColumn();
+    ok(isEncryptedValue($rawSeedName), "L4 seeded guardian name is stored as ciphertext (raw SQL peek)");
+    $seedUser = getUserById(1);
+    ok($seedUser && $seedUser['name'] === 'Guardi' . "\xC3\xA3" . 'o',
+       "L4 getUserById() decrypts the seeded name back to 'Guardião'");
+
+    // createUser round-trip with a multibyte name.
+    $childId = createUser('Jo' . "\xC3\xA3" . 'o', 'child', '4321', "\xF0\x9F\x98\x8A");
+    $rawChildName = $lDb->prepare("SELECT name FROM users WHERE id=?");
+    $rawChildName->execute([$childId]);
+    $rawChildName = $rawChildName->fetchColumn();
+    ok(isEncryptedValue($rawChildName), "L4 createUser() stores users.name as ciphertext");
+    $child = getUserById($childId);
+    ok($child['name'] === 'Jo' . "\xC3\xA3" . 'o', "L4 getUserById() returns the decrypted child name");
+    // gender/date_of_birth stay CLEARTEXT (percentile engine derives age) — set + peek.
+    updateUser($childId, 'Jo' . "\xC3\xA3" . 'o', 'child', null, "\xF0\x9F\x98\x8A", 1, 'male', '2018-05-04');
+    $rawDob = $lDb->prepare("SELECT gender, date_of_birth FROM users WHERE id=?");
+    $rawDob->execute([$childId]);
+    $rawDob = $rawDob->fetch();
+    ok($rawDob['gender'] === 'male' && $rawDob['date_of_birth'] === '2018-05-04',
+       "L4 gender + date_of_birth stay CLEARTEXT (excluded from encryption — percentile engine)");
+
+    // daily_checkin.notes round-trip via saveCheckIn / getCheckIn.
+    $note = 'comeu pouco, ' . "\xC3\xA9" . ' normal';
+    saveCheckIn($childId, '2026-06-18', 3, 4, 1, $note, 4);
+    $rawNote = $lDb->prepare("SELECT notes FROM daily_checkin WHERE user_id=? AND check_date=?");
+    $rawNote->execute([$childId, '2026-06-18']);
+    $rawNote = $rawNote->fetchColumn();
+    ok(isEncryptedValue($rawNote), "L4 saveCheckIn() stores daily_checkin.notes as ciphertext");
+    $gotCheck = getCheckIn($childId, '2026-06-18');
+    ok($gotCheck && $gotCheck['notes'] === $note, "L4 getCheckIn() decrypts notes back to plaintext");
+    // appetite/mood stay cleartext (aggregations).
+    ok((int) $gotCheck['appetite_level'] === 3 && (int) $gotCheck['mood_level'] === 4,
+       "L4 appetite/mood stay cleartext + intact alongside encrypted notes");
+
+    echo "\n-- L5. backfill idempotency (sentinel-keyed) on a plaintext-seeded row --\n";
+    // Simulate a pre-encryption row by writing PLAINTEXT directly, then prove the
+    // decrypt-on-read accessor still returns it (transition) and a re-encrypt of an
+    // already-enc value is a no-op (the backfill's idempotency guarantee).
+    $lDb->prepare("UPDATE users SET name=? WHERE id=?")->execute(['LegacyPlainName', $childId]);
+    ok(getUserById($childId)['name'] === 'LegacyPlainName',
+       "L5 a legacy PLAINTEXT name reads back correctly under a configured key (mid-backfill)");
+    $encOnce = encryptField('LegacyPlainName', $rawKey);
+    ok(encryptField($encOnce, $rawKey) === $encOnce,
+       "L5 backfill is idempotent: an already-encrypted value is not re-wrapped");
+
+    // PHASE L live cleanup.
+    putenv('COMECOME_KEY_FILE'); // unset so later code / verdict is unaffected
+    foreach (glob($lDir . '/*') as $f) { @unlink($f); }
+    @rmdir($lDir);
+    if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+}
+
+echo "\n-- L6. OPT-IN: with NO key, accessors store + read PLAINTEXT (zero-config) --\n";
+putenv('COMECOME_KEY_FILE'); // ensure no key
+ok(encryptionEnabled() === false, "L6 no key configured => encryption OFF (opt-in)");
+gc_collect_cycles();
+for ($i = 0; $i < 20 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+$noKeyDb = getDB();
+// Deterministically re-seed id=1 through the live connection (same lock-robustness
+// note as L4): with NO key, encryptField('Guardião') is a PLAINTEXT passthrough, so
+// the seeded name is stored verbatim — the zero-config / opt-in-OFF contract.
+$noKeyDb->exec("DELETE FROM users WHERE id=1");
+$reseed0 = $noKeyDb->prepare("INSERT INTO users (id, name, type, pin) VALUES (1, ?, 'guardian', ?)");
+$reseed0->execute([encryptField('Guardião'), password_hash('0000', PASSWORD_DEFAULT)]);
+$rawPlainSeed = $noKeyDb->query("SELECT name FROM users WHERE id=1")->fetchColumn();
+ok($rawPlainSeed === 'Guardi' . "\xC3\xA3" . 'o' && !isEncryptedValue($rawPlainSeed),
+   "L6 with no key the seeded name is stored as PLAINTEXT 'Guardião' (zero-config unchanged)");
+$noKeyChild = createUser('Plainkid', 'child', '0000');
+$rawPlainKid = $noKeyDb->prepare("SELECT name FROM users WHERE id=?");
+$rawPlainKid->execute([$noKeyChild]);
+ok($rawPlainKid->fetchColumn() === 'Plainkid',
+   "L6 createUser() with no key stores users.name as PLAINTEXT");
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------

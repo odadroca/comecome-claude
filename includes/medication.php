@@ -140,6 +140,12 @@ function getMedicationSchedules($userId) {
         ORDER BY ms.active DESC, ms.dose_time
     ");
     $stmt->execute([(int) $userId]);
+    // Sprint security Phase 5 — decrypt the joined scoped medication name/dose for
+    // display (no-op passthrough with no key / plaintext rows). The ORDER BY is on
+    // schedule fields, not the encrypted columns, so sort order is unaffected.
+    if (function_exists('decryptRowsFields')) {
+        return decryptRowsFields($stmt->fetchAll(), ['medication_name', 'medication_dose']);
+    }
     return $stmt->fetchAll();
 }
 

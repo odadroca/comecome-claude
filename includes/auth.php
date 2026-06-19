@@ -11,9 +11,26 @@ function getCurrentUser() {
         $db = getDB();
         $stmt = $db->prepare("SELECT * FROM users WHERE id = ? AND active = 1");
         $stmt->execute([$_SESSION['user_id']]);
-        return $stmt->fetch();
+        // Sprint security Phase 5 — decrypt-on-read: users.name is a scoped encrypted
+        // column. decryptUserName() is a no-op passthrough with no key / plaintext rows.
+        return decryptUserName($stmt->fetch());
     }
     return null;
+}
+
+/**
+ * Sprint security Phase 5 — decrypt the scoped users.name column on a fetched user
+ * row (or list of rows). Centralizes the decrypt-on-read so every user accessor
+ * shares one transition-safe path: a not-yet-backfilled (plaintext) name and an
+ * encrypted name both come back as readable text; with no key configured it is a
+ * pure passthrough. Guarded with function_exists so this file still loads in any
+ * partial-include order before includes/crypto.php is available.
+ */
+function decryptUserName($row) {
+    if (function_exists('decryptRowFields')) {
+        return decryptRowFields($row, ['name']);
+    }
+    return $row;
 }
 
 /**
@@ -109,6 +126,10 @@ function authenticateUser($userId, $pin, $ip = null) {
     $user = $stmt->fetch();
 
     if ($user && password_verify($pin, $user['pin'])) {
+        // Sprint security Phase 5 — decrypt the scoped name BEFORE it is cached in the
+        // session (so $_SESSION['user_name'] holds readable text, not ciphertext).
+        // PIN verify above used the cleartext hash column, which is NOT encrypted.
+        $user = decryptUserName($user);
         // Sprint security Phase 1 — successful auth clears the user's throttle counter.
         if (function_exists('clearFailedLogins')) {
             clearFailedLogins($db, $userId);
@@ -192,6 +213,15 @@ function getAllUsers($type = null) {
         $stmt = $db->query("SELECT * FROM users ORDER BY name");
     }
 
+    // Sprint security Phase 5 — decrypt-on-read for each row's scoped name. NOTE the
+    // ORDER BY name sorts on the STORED value: with encryption ON that is ciphertext,
+    // so the list order is no longer alphabetical. That is the accepted trade-off of
+    // encrypting an identity column (it is never aggregated/filtered, only listed) and
+    // is invisible to children (guardian-only screens). With encryption OFF the sort
+    // is unchanged.
+    if (function_exists('decryptRowsFields')) {
+        return decryptRowsFields($stmt->fetchAll(), ['name']);
+    }
     return $stmt->fetchAll();
 }
 
@@ -202,7 +232,8 @@ function getUserById($id) {
     $db = getDB();
     $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
     $stmt->execute([$id]);
-    return $stmt->fetch();
+    // Sprint security Phase 5 — decrypt-on-read of the scoped name.
+    return decryptUserName($stmt->fetch());
 }
 
 /**
@@ -219,6 +250,11 @@ function createUser($name, $type, $pin, $avatarEmoji = '😊', $gender = null, $
     $hashedPin = password_hash($pin, PASSWORD_DEFAULT);
     $gender = normalizeGender($gender);
     $dateOfBirth = normalizeDateOfBirth($dateOfBirth);
+
+    // Sprint security Phase 5 — encrypt the scoped identity name on write (no-op
+    // passthrough with no key). gender/date_of_birth stay CLEARTEXT: the WHO
+    // percentile engine derives age from them (excluded from encryption this sprint).
+    $name = function_exists('encryptField') ? encryptField($name) : $name;
 
     $stmt = $db->prepare("
         INSERT INTO users (name, type, pin, avatar_emoji, gender, date_of_birth)
@@ -262,6 +298,11 @@ function normalizeDateOfBirth($dateOfBirth) {
 function updateUser($id, $name, $type, $pin = null, $avatarEmoji = null, $active = 1,
                     $gender = '__keep__', $dateOfBirth = '__keep__') {
     $db = getDB();
+
+    // Sprint security Phase 5 — encrypt the scoped name on write (no-op passthrough
+    // with no key). Applied once here so both the with-PIN and without-PIN UPDATE
+    // branches below bind the encrypted value.
+    $name = function_exists('encryptField') ? encryptField($name) : $name;
 
     // Build the optional demographic SET clause only when the caller opted in.
     $demoSet = '';

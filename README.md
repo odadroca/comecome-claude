@@ -148,22 +148,53 @@ deployment, harden it via a **git-ignored** `config.local.php` (copy `config.loc
    `config.php` loads, in order, an **above-docroot** config file pointed at by the
    `COMECOME_CONFIG` env var (recommended for secrets — it sits outside `public_html`), then
    the in-tree git-ignored `config.local.php`. A fresh download has neither and runs zero-config.
-5. **Field-encryption key container** (optional; powers Phase 5 at-rest field encryption):
-   - generate a key file (a 32-byte base64 key in a PHP `return` file — *not* an `.ini`):
+5. **Scoped at-rest field encryption** (optional; protects identity/free-text columns):
+   ComeCome can encrypt the four high-sensitivity columns — `users.name`,
+   `daily_checkin.notes`, `medications.name`, `medications.dose` — at rest with **stock
+   libsodium** (`sodium_crypto_secretbox` / XChaCha20-Poly1305, no Composer, no build). It is
+   **strictly opt-in**: with no key the columns stay plaintext and the app runs zero-config.
+   `gender` and `date_of_birth` are deliberately **left cleartext** (the WHO percentile engine
+   derives age from them); all numeric/ordinal/date/coded columns stay cleartext too, so the
+   dashboard aggregations/correlations keep working.
+   - **Requirement:** the PHP **`sodium`** extension must be loaded (bundled with PHP 7.2+; on
+     shared hosting enable `extension=sodium`). Verify on your host:
+     ```bash
+     php -m | grep sodium
+     ```
+     If a key is configured but sodium is missing, the app **fails closed** (refuses to write
+     plaintext under a configured key) — it never silently stores plaintext.
+   - **Generate the key** (a 32-byte base64 key in a PHP `return` file — *not* an `.ini`):
      `php scripts/gen-key.php /home/uXXXXXXXX/private/encryption-key.php`;
    - `chmod 0400` it and keep it **above** `public_html`;
    - point the app at it: `define('ENCRYPTION_KEY_FILE', '/abs/path/encryption-key.php');`
      in `config.local.php` (or the `COMECOME_CONFIG` file), or set `COMECOME_KEY_FILE`;
    - `includes/secrets.php` validates the decoded key is exactly 32 bytes and **fails closed**
-     on a missing/malformed/wrong-length key; with **no** key configured, encryption is simply
-     **off** (plaintext, zero-config). **Never** store the key in the same backup archive as the
-     database, and never commit it (the real `encryption-key.php` is git-ignored; only the
+     on a missing/malformed/wrong-length key. **Never** store the key in the same backup archive
+     as the database, and never commit it (the real `encryption-key.php` is git-ignored; only the
      `.example` template is tracked).
+   - **Back-fill existing data** once a key is configured (encrypt rows that predate the key).
+     The migration is **verify-first** (a dry run decrypts every value back and asserts a
+     byte-identical round-trip before writing) and **idempotent** (already-encrypted values are
+     skipped, so a half-run is safely resumable and a re-run is a no-op):
+     ```bash
+     php scripts/encrypt-backfill.php          # DRY RUN — verify round-trips, write nothing
+     php scripts/encrypt-backfill.php --apply   # encrypt in place after the verify passes
+     ```
+     New writes encrypt automatically; reads decrypt transparently, so plaintext (not-yet-backfilled)
+     and encrypted rows coexist during the transition. Take an encrypted, off-host backup
+     **before** applying if you want a rollback point.
+   - **Honest ceiling (shared hosting):** a leaked `.db` still exposes the schema, row ownership,
+     and all numeric/date data; only the four scoped free-text/identity columns are ciphertext.
+     Whole-file encryption (SQLCipher) is **infeasible on stock shared hosting** and is deferred to
+     a VPS/Docker future — see `docs/roadmap/SPRINT-SECURITY.md`.
+6. **Keep backups out of the web tree and encrypt them off-host:** `backupDatabase()` writes a
+   full DB copy. Point it above `public_html` with `define('BACKUP_DIR', '/abs/path/private/backups');`
+   (or `COMECOME_BACKUP_DIR`), then sync those copies **off-host, encrypted** (e.g. `age`/`gpg`) —
+   and **never** in the same archive as the encryption key file.
 
 `config.local.php` / the key file are per-deployment and never committed; the override mechanism
-itself lives in `config.php`, so the procedure is reproducible across installs. (Broader
-auth/transport hardening + at-rest field encryption are planned — see
-`docs/roadmap/SPRINT-SECURITY.md`.)
+itself lives in `config.php`, so the procedure is reproducible across installs. See the full
+threat-ordered plan in `docs/roadmap/SPRINT-SECURITY.md`.
 
 ## 🗄️ Database Schema
 

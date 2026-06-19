@@ -189,6 +189,27 @@ of perimeter-first is unchanged):
 - **Full spec:** [`SPRINT-SECURITY.md`](SPRINT-SECURITY.md) — one threat-ordered sprint
   ("Security & Deployment Foundations — Pt 2", Pt 1 = the Sprint-4 harness).
 
+### GO decision (2026-06-19) — Phase 5 at-rest field encryption is GREEN-LIT
+
+The Phase 5 GO gate (this amendment merged + a written go decision before any
+encrypt-on-write code lands) is satisfied. **Decision: GO**, scoped exactly as the
+amendment specifies:
+
+- **Mechanism:** stock-libsodium `sodium_crypto_secretbox` (XChaCha20-Poly1305 AEAD),
+  per-value random 24-byte nonce, `enc:v1:` envelope sentinel. No Composer / no build.
+- **Scope:** encrypt-on-write + decrypt-on-read for `users.name`, `daily_checkin.notes`,
+  `medications.name`, `medications.dose` **only**. `gender`/`date_of_birth` and all
+  numeric/ordinal/date/coded columns stay cleartext (percentile engine + dashboard
+  aggregations depend on them).
+- **Opt-in + fail-closed:** active only when a key is configured; zero-config plaintext
+  with no key; fails closed (never writes plaintext under a configured key) if the
+  `sodium` extension is absent. Requires `extension=sodium` (`php -m | grep sodium`).
+- **Migration:** verify-first, idempotent one-time backfill (`scripts/encrypt-backfill.php`);
+  decrypt-on-read transparently handles mixed plaintext/ciphertext during transition.
+- **SQLCipher** remains deferred to a VPS/Docker future (infeasible on shared hosting).
+- **Follow-up (unchanged):** encrypting `date_of_birth` must first wire decrypt into the
+  WHO percentile read paths + re-run the percentile harness.
+
 ---
 
 ## Summary (at a glance)

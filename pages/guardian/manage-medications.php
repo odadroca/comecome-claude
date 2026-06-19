@@ -19,8 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = trim($_POST['name'] ?? '');
         $dose = trim($_POST['dose'] ?? '');
         if ($name) {
+            // Sprint security Phase 5 — encrypt the scoped medication name + dose on
+            // write (no-op passthrough with no key). active stays cleartext (filtered).
             $stmt = $db->prepare("INSERT INTO medications (name, dose) VALUES (?, ?)");
-            $stmt->execute([$name, $dose]);
+            $stmt->execute([encryptField($name), encryptField($dose)]);
         }
         header('Location: ?page=manage-medications&msg=saved');
         exit;
@@ -30,8 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dose = trim($_POST['dose'] ?? '');
         $active = (int) ($_POST['active'] ?? 1);
         if ($id && $name) {
+            // Sprint security Phase 5 — encrypt the scoped name + dose on write.
             $stmt = $db->prepare("UPDATE medications SET name = ?, dose = ?, active = ? WHERE id = ?");
-            $stmt->execute([$name, $dose, $active, $id]);
+            $stmt->execute([encryptField($name), encryptField($dose), $active, $id]);
         }
         header('Location: ?page=manage-medications&msg=saved');
         exit;
@@ -104,9 +107,16 @@ if (isset($_GET['msg'])) {
     $message = t('changes_saved');
 }
 
-// Get all medications (including inactive)
+// Get all medications (including inactive).
+// Sprint security Phase 5 — decrypt-on-read of the scoped name/dose for the whole
+// page (this $medications list backs the table, the assignment picker, and the
+// schedule dropdown). The ORDER BY active DESC, name sorts on the STORED value, so
+// with encryption ON the secondary name sort is by ciphertext, not alphabetical —
+// the accepted trade-off for encrypting an identity column; invisible to children.
 $stmt = $db->query("SELECT * FROM medications ORDER BY active DESC, name");
-$medications = $stmt->fetchAll();
+$medications = function_exists('decryptRowsFields')
+    ? decryptRowsFields($stmt->fetchAll(), ['name', 'dose'])
+    : $stmt->fetchAll();
 
 // Get medication-child assignments
 $medAssignments = [];
@@ -120,7 +130,10 @@ $editMed = null;
 if (isset($_GET['edit'])) {
     $stmt = $db->prepare("SELECT * FROM medications WHERE id = ?");
     $stmt->execute([$_GET['edit']]);
-    $editMed = $stmt->fetch();
+    // Sprint security Phase 5 — decrypt-on-read so the edit form pre-fills plaintext.
+    $editMed = function_exists('decryptRowFields')
+        ? decryptRowFields($stmt->fetch(), ['name', 'dose'])
+        : $stmt->fetch();
 }
 
 // Sprint 9: Medication Timing schedules, grouped per child for the config UI below.
