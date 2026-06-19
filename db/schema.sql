@@ -188,6 +188,25 @@ CREATE TABLE IF NOT EXISTS translations (
     PRIMARY KEY (locale, key)
 );
 
+-- Login throttling / lockout (Sprint security Phase 1: PIN brute-force defence).
+-- A single AGGREGATED row per (user_id, ip_bucket) — fail_count + window_start +
+-- locked_until — UPDATE-in-place (critique fix: NOT one insert per attempt, which
+-- would write-storm SQLite's single writer under the flood it defends against). The
+-- per-user row (primary, tight counter) uses ip_bucket=''; the loose per-IP ceiling
+-- is keyed user_id=0 so it never collides with a real user's row.
+-- UNIQUE(user_id, ip_bucket) backs the ON CONFLICT upsert. Mirrors the v6 migration
+-- in includes/db.php so a fresh DB matches a migrated one.
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    ip_bucket TEXT NOT NULL DEFAULT '',
+    fail_count INTEGER NOT NULL DEFAULT 0,
+    window_start INTEGER,
+    locked_until INTEGER,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, ip_bucket)
+);
+
 -- Sleep tracking
 CREATE TABLE IF NOT EXISTS sleep_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -225,3 +244,4 @@ CREATE INDEX IF NOT EXISTS idx_sleep_interruptions_log ON sleep_interruptions(sl
 CREATE INDEX IF NOT EXISTS idx_foods_category ON foods(category_id);
 CREATE INDEX IF NOT EXISTS idx_user_favorites_user ON user_favorites(user_id);
 CREATE INDEX IF NOT EXISTS idx_medication_schedules_user ON medication_schedules(user_id, active);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_locked ON login_attempts(locked_until);

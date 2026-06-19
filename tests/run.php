@@ -83,6 +83,18 @@
  *                                     non-stimulant NULL path, and logFood() stamping
  *                                     med_window at INSERT with the child payload
  *                                     unchanged (ZERO child-facing change).
+ *   Security Phase 0 (cookies/auth)  : PHASE G — configureSessionCookieParams() flags,
+ *                                     sessionIsExpired() idle math, default-PIN guard
+ *                                     lifecycle. (HTTP Set-Cookie via http_smoke.php.)
+ *   Security Phase 1 (throttle v5->v6): A1 fresh schema.sql carries login_attempts;
+ *                                     schema_version reaches 6. A2 v1->...->v6 forward
+ *                                     migrate adds login_attempts idempotently. PHASE H —
+ *                                     throttleComputeAfterFailure() backoff/lock math +
+ *                                     the authenticateUser() round-trip: scripted
+ *                                     wrong-PINs hit a DISTINCT locked state, a locked
+ *                                     account refuses verify, a correct PIN resets, the
+ *                                     storage stays ONE aggregated row (UPDATE-in-place),
+ *                                     unknown ids lock identically, self-prune works.
  * ---------------------------------------------------------------------------
  */
 
@@ -275,20 +287,20 @@ date_default_timezone_set('Europe/Lisbon');
 require_once $ROOT . '/includes/db.php';
 
 // --- A1. initializeDatabase() on a fresh temp DB ----------------------------
-echo "\n-- A1. initializeDatabase(): tables + schema_version=5 --\n";
+echo "\n-- A1. initializeDatabase(): tables + schema_version=6 --\n";
 ok(!file_exists($initDb), "A1 precondition: temp DB does not exist before init");
 initializeDatabase(); // DB_PATH = $initDb
 $a1 = getDB();
 
 // The full set of tables the shipped schema + migration must produce at the
-// current schema_version (5). Sprint 6 adds height_log; Sprint 9 adds
-// medication_schedules.
+// current schema_version (6). Sprint 6 adds height_log; Sprint 9 adds
+// medication_schedules; security Phase 1 adds login_attempts.
 $expectedTables = [
     'users', 'meals', 'food_categories', 'meal_categories', 'foods',
     'user_favorites', 'food_log', 'medications', 'user_medications',
     'medication_schedules',
     'daily_checkin', 'weight_log', 'height_log', 'settings', 'guest_tokens',
-    'translations', 'sleep_log', 'sleep_interruptions',
+    'translations', 'sleep_log', 'sleep_interruptions', 'login_attempts',
 ];
 $gotTables = listTables($a1);
 foreach ($expectedTables as $t) {
@@ -301,7 +313,7 @@ ok($expSorted === $gotSorted,
    "A1 table set exactly matches expected (" . count($expectedTables) . " tables)");
 
 $a1ver = readSchemaVersion($a1);
-ok($a1ver === 5, "A1 schema_version reaches 5 on fresh init [got " . var_export($a1ver, true) . "]");
+ok($a1ver === 6, "A1 schema_version reaches 6 on fresh init [got " . var_export($a1ver, true) . "]");
 
 // Default guardian seeded by initializeDatabase().
 $g = $a1->query("SELECT id,type FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
@@ -331,6 +343,15 @@ ok(columnExists($a1, 'medication_schedules', 'peak_end_offset'),
    "A1 medication_schedules.peak_end_offset column present on fresh schema.sql DB");
 ok(columnExists($a1, 'food_log', 'med_window'),
    "A1 food_log.med_window column present on fresh schema.sql DB");
+
+// Security Phase 1: a fresh DB from schema.sql must carry login_attempts with its
+// aggregated-counter columns (schema.sql and the v6 migration agree).
+ok(columnExists($a1, 'login_attempts', 'fail_count'),
+   "A1 login_attempts.fail_count column present on fresh schema.sql DB");
+ok(columnExists($a1, 'login_attempts', 'window_start'),
+   "A1 login_attempts.window_start column present on fresh schema.sql DB");
+ok(columnExists($a1, 'login_attempts', 'locked_until'),
+   "A1 login_attempts.locked_until column present on fresh schema.sql DB");
 $a1 = null;
 
 // --- A2. migrateDatabase() forward from synthetic v1 + idempotency ----------
@@ -366,16 +387,20 @@ ok(!in_array('medication_schedules', listTables($m), true),
    "A2 fixture lacks medication_schedules before migrate");
 ok(!columnExists($m, 'food_log', 'med_window'),
    "A2 fixture lacks food_log.med_window before migrate");
+// Security Phase 1 (v5->v6): the v1 fixture must also lack login_attempts so the
+// forward migration has real v6 work to do.
+ok(!in_array('login_attempts', listTables($m), true),
+   "A2 fixture lacks login_attempts before migrate");
 
 // Forward migrate.
 $threwFwd = false;
 try { migrateDatabase($m); } catch (Throwable $e) { $threwFwd = true; echo "    EXCEPTION: " . $e->getMessage() . "\n"; }
 ok(!$threwFwd, "A2 forward migrateDatabase() did not throw");
 
-// Post-state: the Sprint-2, Sprint-5, Sprint-6 AND Sprint-9 deliverables now exist.
-// The fixture migrates forward through every gated block (v1->v2->v3->v4->v5) in one
-// call.
-ok(readSchemaVersion($m) === 5, "A2 schema_version is 5 after forward migrate");
+// Post-state: the Sprint-2, Sprint-5, Sprint-6, Sprint-9 AND security-Phase-1
+// deliverables now exist. The fixture migrates forward through every gated block
+// (v1->v2->v3->v4->v5->v6) in one call.
+ok(readSchemaVersion($m) === 6, "A2 schema_version is 6 after forward migrate");
 ok(columnExists($m, 'daily_checkin', 'sleep_quality'),
    "A2 daily_checkin.sleep_quality exists after migrate");
 ok(in_array('sleep_log', listTables($m), true),
@@ -403,6 +428,13 @@ ok(columnExists($m, 'medication_schedules', 'peak_start_offset')
    "A2 medication_schedules has dose_time + offset columns after migrate (v5)");
 ok(columnExists($m, 'food_log', 'med_window'),
    "A2 food_log.med_window exists after migrate (v5)");
+// Security Phase 1 (v5->v6): login_attempts table appears with its counter columns.
+ok(in_array('login_attempts', listTables($m), true),
+   "A2 login_attempts exists after migrate (v6)");
+ok(columnExists($m, 'login_attempts', 'fail_count')
+   && columnExists($m, 'login_attempts', 'window_start')
+   && columnExists($m, 'login_attempts', 'locked_until'),
+   "A2 login_attempts has fail_count + window_start + locked_until after migrate (v6)");
 // The v5 food_log ALTER is non-destructive: the pre-existing row survives, with the
 // new med_window column defaulting NULL.
 $flRow = $m->query("SELECT portion, med_window FROM food_log WHERE id=1")->fetch(PDO::FETCH_ASSOC);
@@ -463,7 +495,7 @@ ok(!$threwAgain, "A2 re-running migrateDatabase() twice did not throw");
 $verAfter = readSchemaVersion($m);
 $tablesAfter = listTables($m); sort($tablesAfter);
 ok($verAfter === $verBefore, "A2 schema_version unchanged on re-run ($verBefore -> $verAfter)");
-ok($verAfter === 5, "A2 schema_version stays at 5 on idempotent re-run");
+ok($verAfter === 6, "A2 schema_version stays at 6 on idempotent re-run");
 ok($tablesAfter === $tablesBefore, "A2 table set unchanged on re-run (no-op migration)");
 $usersColsAfter = $m->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
 sort($usersColsAfter);
@@ -827,8 +859,8 @@ ok(($json['user']['age_months'] ?? null) !== null,
 ok(isset($json['percentiles']) && ($json['percentiles']['available'] ?? null) === true
    && isset($json['percentiles']['current']['weight']['rank']),
    "E3 JSON includes the whitelisted percentile block (ranks/zones/trends)");
-ok((int) getSetting('schema_version', '0') === 5,
-   "E3 schema_version at 5 after full init (Sprint 8 added no migration; Sprint 9 bumped 4->5)");
+ok((int) getSetting('schema_version', '0') === 6,
+   "E3 schema_version at 6 after full init (Sprint 8 added no migration; Sprint 9 bumped 4->5; security Phase 1 bumped 5->6)");
 
 // --- E4. FOUR-SURFACE PARITY: same current ranks everywhere ------------------
 echo "\n-- E4. four-surface parity (dashboard / html / csv / json) --\n";
@@ -1048,6 +1080,137 @@ ok($gResetFlag === '1',
    "G3 resetDatabase() re-arms the guard (re-seeded '0000' + flag refreshed)");
 
 // PHASE G cleanup.
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE H — Security Sprint Phase 1 (PIN brute-force throttling + lockout).
+ *
+ *   The #1 named threat. Throttling is woven into authenticateUser() (and the
+ *   manage-users current_pin re-auth). Two families of checks:
+ *
+ *     H1. PURE state-machine math (side-effect free, harness-assertable):
+ *         throttleComputeAfterFailure() backoff/window/lock transitions and
+ *         throttleIsLocked() — no DB.
+ *     H2. DB ROUND-TRIP against a throwaway DB: scripted wrong-PINs accrue and tip
+ *         into a DISTINCT locked state (loginIsLockedOut()=true, distinct from
+ *         "wrong PIN"); a locked account refuses verify WITHOUT incrementing; a
+ *         correct PIN RESETS the counter; the storage stays a SINGLE updated row
+ *         (UPDATE-in-place, not insert-per-attempt); an unknown user_id is throttled
+ *         identically (no user-existence oracle); the per-IP loose ceiling is far
+ *         higher than the per-user one; and the self-prune drops stale rows.
+ *
+ *   throttle.php is pulled in transitively by includes/db.php (loaded in PHASE A);
+ *   auth.php was loaded in PHASE G.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE H — security Phase 1 (PIN throttling + lockout) ###\n";
+
+ok(function_exists('throttleComputeAfterFailure')
+   && function_exists('loginIsLockedOut')
+   && function_exists('recordFailedLogin'),
+   "H throttle module loaded (pure state machine + DB record/lock/clear available)");
+
+echo "\n-- H1. throttleComputeAfterFailure(): backoff / window / lock math --\n";
+$T0 = 1000000000;
+// First failure: count=1, no lock yet (threshold 5), window starts now.
+$s1 = throttleComputeAfterFailure(0, null, null, $T0, 5, 900, 900);
+ok($s1['fail_count'] === 1 && $s1['locked'] === false && $s1['window_start'] === $T0,
+   "H1 first failure => count=1, not locked, window started");
+// Fourth failure (count was 4 -> 5) hits the threshold => locked.
+$s5 = throttleComputeAfterFailure(4, $T0, null, $T0 + 10, 5, 900, 900);
+ok($s5['fail_count'] === 5 && $s5['locked'] === true
+   && $s5['locked_until'] === ($T0 + 10) + 900,
+   "H1 reaching maxFails arms a lock for lockSeconds");
+// A failure arriving AFTER the window elapsed resets to a fresh count=1 window.
+$sReset = throttleComputeAfterFailure(4, $T0, null, $T0 + 901, 5, 900, 900);
+ok($sReset['fail_count'] === 1 && $sReset['locked'] === false
+   && $sReset['window_start'] === ($T0 + 901),
+   "H1 failure after the window elapses resets the counter (honest mistypes don't accrue)");
+// An ACTIVE lock holds: a failure during the lock does not extend it or bump count.
+$sHold = throttleComputeAfterFailure(5, $T0, $T0 + 900, $T0 + 100, 5, 900, 900);
+ok($sHold['locked'] === true && $sHold['locked_until'] === ($T0 + 900)
+   && $sHold['fail_count'] === 5,
+   "H1 a still-active lock is not extended by further failures (no infinite re-lock)");
+// throttleIsLocked predicate.
+ok(throttleIsLocked($T0 + 900, $T0 + 100) === true,  "H1 throttleIsLocked: future lock => locked");
+ok(throttleIsLocked($T0 + 900, $T0 + 901) === false, "H1 throttleIsLocked: expired lock => not locked");
+ok(throttleIsLocked(null, $T0) === false,            "H1 throttleIsLocked: no lock => not locked");
+
+echo "\n-- H2. authenticateUser() throttling round-trip (throwaway DB) --\n";
+// Fresh isolated app DB at DB_PATH. The default guardian (id=1, PIN 0000) is seeded.
+initializeDatabase();
+$ipH = '203.0.113.7'; // fixed test IP bucket (TEST-NET-3)
+
+// A scripted run of wrong PINs against guardian id=1 from one IP. With max=5, the
+// 5th wrong attempt must tip into the locked state. Each call returns strict false.
+$lockedAt = null;
+for ($i = 1; $i <= 5; $i++) {
+    $r = authenticateUser(1, '9999', $ipH); // wrong PIN
+    ok($r === false, "H2 wrong-PIN attempt #$i returns false");
+    if ($lockedAt === null && loginIsLockedOut(getDB(), 1, $ipH)) { $lockedAt = $i; }
+}
+ok($lockedAt === 5, "H2 account tips into a locked state exactly at the 5th wrong attempt [got " . var_export($lockedAt, true) . "]");
+ok(loginIsLockedOut(getDB(), 1, $ipH) === true,
+   "H2 loginIsLockedOut()=true after threshold (DISTINCT locked state, not 'wrong PIN')");
+
+// While locked, even the CORRECT PIN is refused (verify is gated before the hash).
+ok(authenticateUser(1, '0000', $ipH) === false,
+   "H2 correct PIN is refused while locked (pre-verify lockout gate)");
+
+// STORAGE INVARIANT: a single AGGREGATED per-user row (UPDATE-in-place), NOT one row
+// per attempt. After 5 wrong + 1 refused attempt the per-user row count is exactly 1.
+$hDb = getDB();
+$userRows = (int) $hDb->query("SELECT COUNT(*) FROM login_attempts WHERE user_id=1 AND ip_bucket=''")->fetchColumn();
+ok($userRows === 1, "H2 login_attempts holds a SINGLE aggregated per-user row (UPDATE-in-place) [got $userRows]");
+$failCount = (int) $hDb->query("SELECT fail_count FROM login_attempts WHERE user_id=1 AND ip_bucket=''")->fetchColumn();
+ok($failCount === 5, "H2 the aggregated row records fail_count=5 (not incremented by the refused correct-PIN attempt)");
+$hDb = null;
+
+// RESET PATH: clear the lock (simulate the window/lock elapsing) and confirm a
+// correct PIN both succeeds AND clears the counter to zero rows. We clear directly to
+// avoid a real 15-minute wait; the lifecycle (record->lock->clear) is what we assert.
+$cDb = getDB();
+$cDb->exec("DELETE FROM login_attempts"); // simulate full expiry/prune
+$cDb = null;
+ok(loginIsLockedOut(getDB(), 1, $ipH) === false,
+   "H2 after expiry the account is no longer locked");
+ok(authenticateUser(1, '0000', $ipH) === true,
+   "H2 correct PIN succeeds once unlocked (auth path intact)");
+$cDb = getDB();
+$afterSuccess = (int) $cDb->query("SELECT COUNT(*) FROM login_attempts WHERE user_id=1 AND ip_bucket=''")->fetchColumn();
+$cDb = null;
+ok($afterSuccess === 0, "H2 a successful auth CLEARS the per-user failure counter (0 rows)");
+
+// NO USER-EXISTENCE ORACLE: an UNKNOWN user_id is throttled identically — wrong-PIN
+// attempts against a non-existent id accrue and lock just like a real one.
+$ghostId = 99999;
+for ($i = 1; $i <= 5; $i++) { authenticateUser($ghostId, '1234', $ipH); }
+ok(loginIsLockedOut(getDB(), $ghostId, $ipH) === true,
+   "H2 an unknown user_id locks identically (failures don't reveal whether a user exists)");
+
+// PER-IP LOOSE CEILING is far higher than per-user: assert the constants encode the
+// household-NAT-safe policy (per-IP cap >> per-user cap).
+ok(THROTTLE_IP_MAX_FAILS > THROTTLE_USER_MAX_FAILS,
+   "H2 per-IP ceiling (" . THROTTLE_IP_MAX_FAILS . ") is looser than per-user (" . THROTTLE_USER_MAX_FAILS . ") — no shared-NAT self-DoS");
+
+// SELF-PRUNE: a stale row (window long elapsed, no active lock) is dropped by
+// pruneLoginAttempts(); a freshly-locked row is KEPT.
+$pDb = getDB();
+$pDb->exec("DELETE FROM login_attempts");
+// stale: window_start far in the past, no lock.
+$pDb->exec("INSERT INTO login_attempts (user_id, ip_bucket, fail_count, window_start, locked_until)
+            VALUES (1234, 'stale', 3, " . ($T0 - 100000) . ", NULL)");
+// active lock far in the future.
+$pDb->exec("INSERT INTO login_attempts (user_id, ip_bucket, fail_count, window_start, locked_until)
+            VALUES (5678, 'fresh', 5, " . (time()) . ", " . (time() + 900) . ")");
+$pruned = pruneLoginAttempts($pDb);
+$remain = (int) $pDb->query("SELECT COUNT(*) FROM login_attempts")->fetchColumn();
+$keptFresh = (int) $pDb->query("SELECT COUNT(*) FROM login_attempts WHERE ip_bucket='fresh'")->fetchColumn();
+$pDb = null;
+ok($pruned >= 1 && $keptFresh === 1 && $remain === 1,
+   "H2 self-prune drops stale rows but keeps an actively-locked one [pruned=$pruned, remain=$remain]");
+
+// PHASE H cleanup.
 gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 

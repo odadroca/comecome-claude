@@ -9,6 +9,11 @@
 // Side-effect free to include; the function bodies only touch the DB when called.
 require_once __DIR__ . '/medication.php';
 
+// Sprint security Phase 1 — PIN brute-force throttling/lockout. Side-effect free to
+// include (defines functions + constants only); the login_attempts UPSERTs only run
+// when the auth path calls them. cleanExpiredTokens() piggybacks its self-prune.
+require_once __DIR__ . '/throttle.php';
+
 /**
  * Get database connection
  */
@@ -261,6 +266,33 @@ function migrateDatabase($db) {
         }
 
         $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '5')");
+    }
+
+    if ($version < 6) {
+        // Sprint security Phase 1 — PIN brute-force throttling/lockout. ONE additive
+        // table: a single AGGREGATED row per (user_id, ip_bucket) holding fail_count
+        // + window_start + locked_until, UPDATE-in-place (critique fix: NOT one
+        // insert per attempt, which would write-storm SQLite's single writer under
+        // the very flood it defends against). The per-user row uses ip_bucket=''
+        // (primary, tight counter); the loose per-IP ceiling is keyed user_id=0 so
+        // it never collides with a real user's row. UNIQUE(user_id, ip_bucket) backs
+        // the ON CONFLICT upsert. Default-safe (brand-new table, no existing rows to
+        // migrate). Mirrored in db/schema.sql so a fresh DB matches a migrated one.
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS login_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                ip_bucket TEXT NOT NULL DEFAULT '',
+                fail_count INTEGER NOT NULL DEFAULT 0,
+                window_start INTEGER,
+                locked_until INTEGER,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, ip_bucket)
+            )
+        ");
+        $db->exec("CREATE INDEX IF NOT EXISTS idx_login_attempts_locked ON login_attempts(locked_until)");
+
+        $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '6')");
     }
 
     // Sprint security Phase 0 — one-time backfill of the default-'0000'-PIN guard
@@ -637,7 +669,17 @@ function validateGuestToken($token) {
 function cleanExpiredTokens() {
     $db = getDB();
     $stmt = $db->prepare("DELETE FROM guest_tokens WHERE expires_at < datetime('now')");
-    return $stmt->execute();
+    $result = $stmt->execute();
+
+    // Sprint security Phase 1 — piggyback the login_attempts self-prune here (no
+    // cron): drop rows whose window has fully elapsed and whose lock has expired, so
+    // the throttle table stays tiny. Guarded so an install mid-migration (table not
+    // yet created) never fatals the per-request cleanup.
+    if (function_exists('pruneLoginAttempts')) {
+        try { pruneLoginAttempts($db); } catch (Exception $e) { /* table may predate v6 */ }
+    }
+
+    return $result;
 }
 
 /**

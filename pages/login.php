@@ -14,7 +14,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: index.php');
             exit;
         } else {
-            $error = t('login_error');
+            // Sprint security Phase 1 — surface the DISTINCT `locked` state. If the
+            // throttle now holds this user/ip locked (either because this attempt
+            // tipped it over, or it was already locked and never verified), show the
+            // lockout message instead of "wrong PIN". The message never reveals
+            // whether the user_id exists — an unknown id locks identically.
+            if (function_exists('loginIsLockedOut') && loginIsLockedOut(getDB(), $userId)) {
+                $error = t('login_locked');
+            } else {
+                $error = t('login_error');
+            }
         }
     }
 }

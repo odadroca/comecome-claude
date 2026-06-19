@@ -74,11 +74,16 @@ $tables1 = tableList($db);
 echo "schema_version after first migrate: " . var_export($ver1, true) . "\n";
 echo "tables (" . count($tables1) . "): " . implode(', ', $tables1) . "\n";
 
-check($ver1 === 5, "schema_version is 5 after first migrate (Sprint 9 medication timing)");
-$mustHave = ['users','meals','foods','food_log','daily_checkin','weight_log','height_log','settings','guest_tokens','translations','sleep_log','sleep_interruptions','medication_schedules'];
+check($ver1 === 6, "schema_version is 6 after first migrate (security Phase 1 login_attempts)");
+$mustHave = ['users','meals','foods','food_log','daily_checkin','weight_log','height_log','settings','guest_tokens','translations','sleep_log','sleep_interruptions','medication_schedules','login_attempts'];
 foreach ($mustHave as $t) {
     check(in_array($t, $tables1, true), "table '$t' exists after first migrate");
 }
+// Sprint security Phase 1: login_attempts present with its aggregated-counter columns
+// after the v6 migration.
+$laCols1 = $db->query("PRAGMA table_info(login_attempts)")->fetchAll(PDO::FETCH_COLUMN, 1);
+check(in_array('fail_count', $laCols1, true), "login_attempts.fail_count exists after first migrate (v6)");
+check(in_array('locked_until', $laCols1, true), "login_attempts.locked_until exists after first migrate (v6)");
 // Sprint 5: demographics columns present after the v3 migration.
 $uCols1 = $db->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
 check(in_array('gender', $uCols1, true), "users.gender exists after first migrate (v3)");

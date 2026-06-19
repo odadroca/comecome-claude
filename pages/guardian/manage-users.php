@@ -49,14 +49,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $currentPin = $_POST['current_pin'] ?? '';
         $avatar = $_POST['avatar'] ?? $user['avatar_emoji'];
 
-        if ($name && $currentPin && password_verify($currentPin, $user['pin'])) {
+        // Sprint security Phase 1 — the current_pin re-auth is a password_verify call
+        // site too, so it must be throttled identically (critique fix: instrument
+        // EVERY verify site, not just login). A pre-existing lock refuses without
+        // verifying; a wrong current_pin records one aggregated failure; a correct
+        // one clears the user's counter.
+        $db = getDB();
+        $locked = function_exists('loginIsLockedOut') && loginIsLockedOut($db, $user['id']);
+        if ($locked) {
+            $message = t('login_locked');
+        } elseif ($name && $currentPin && password_verify($currentPin, $user['pin'])) {
+            if (function_exists('clearFailedLogins')) { clearFailedLogins($db, $user['id']); }
             updateUser($user['id'], $name, 'guardian', $pin ?: null, $avatar, 1);
             $_SESSION['user_name'] = $name;
             $message = t('changes_saved');
         } else {
-            $message = t('login_error');
+            if ($currentPin && function_exists('recordFailedLogin')) {
+                recordFailedLogin($db, $user['id']);
+                // Re-check: this failure may have just tipped the account into lockout.
+                if (loginIsLockedOut($db, $user['id'])) { $locked = true; }
+            }
+            $message = $locked ? t('login_locked') : t('login_error');
         }
-        header('Location: ?page=manage-users&msg=' . ($message === t('login_error') ? 'pin_error' : 'saved'));
+        $msgCode = ($message === t('login_locked')) ? 'locked'
+                 : (($message === t('login_error')) ? 'pin_error' : 'saved');
+        header('Location: ?page=manage-users&msg=' . $msgCode);
         exit;
     }
 }
@@ -64,6 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['msg'])) {
     if ($_GET['msg'] === 'pin_error') {
         $message = t('login_error');
+    } elseif ($_GET['msg'] === 'locked') {
+        // Sprint security Phase 1 — too many wrong current-PIN attempts.
+        $message = t('login_locked');
     } else {
         $message = t('changes_saved');
     }
@@ -98,8 +118,9 @@ ob_start();
         <?php endif; ?>
 
         <?php if ($message): ?>
-        <div class="alert <?php echo $message === t('login_error') ? 'alert-error' : 'alert-success'; ?>">
-            <?php echo $message === t('login_error') ? '❌' : '✅'; ?> <?php echo $message; ?>
+        <?php $isErrorMsg = ($message === t('login_error') || $message === t('login_locked')); ?>
+        <div class="alert <?php echo $isErrorMsg ? 'alert-error' : 'alert-success'; ?>">
+            <?php echo $isErrorMsg ? '❌' : '✅'; ?> <?php echo $message; ?>
         </div>
         <?php endif; ?>
 

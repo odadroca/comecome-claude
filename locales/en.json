@@ -81,6 +81,7 @@
   "login_submit": "Log In",
   "logout": "Log Out",
   "login_error": "Incorrect PIN",
+  "login_locked": "Too many attempts. Account temporarily locked. Please try again in a few minutes.",
 
   "_ui_child": "=== CHILD INTERFACE ===",
   "welcome": "Hello, {name}!",

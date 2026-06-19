@@ -78,15 +78,41 @@ function isChild() {
 }
 
 /**
- * Authenticate user with PIN
+ * Authenticate user with PIN.
+ *
+ * Sprint security Phase 1 — PIN brute-force throttling/lockout is woven in here, the
+ * primary verify site:
+ *   1. If the (user, ip) is ALREADY locked out, refuse WITHOUT running
+ *      password_verify and WITHOUT incrementing — hammering a locked account neither
+ *      extends the lock nor leaks timing. Returns false (the distinct `locked` state
+ *      is surfaced to the login page via loginIsLockedOut(), so the user sees a
+ *      lockout message, not "wrong PIN").
+ *   2. A correct PIN CLEARS the user's failure counter.
+ *   3. A wrong PIN (or unknown/inactive user_id) records ONE aggregated failure —
+ *      the same accounting for a non-existent id as a real one, so failures never
+ *      reveal whether a user exists.
+ *
+ * Return contract is UNCHANGED (strict bool) so existing call sites — including the
+ * smoke harness's `=== true/false` assertions — keep working. $ip is injectable for
+ * the CLI harness; it defaults to the request's REMOTE_ADDR bucket.
  */
-function authenticateUser($userId, $pin) {
+function authenticateUser($userId, $pin, $ip = null) {
     $db = getDB();
+
+    // Pre-verify lockout gate: if this user/ip is locked, do not even verify.
+    if (function_exists('loginIsLockedOut') && loginIsLockedOut($db, $userId, $ip)) {
+        return false;
+    }
+
     $stmt = $db->prepare("SELECT * FROM users WHERE id = ? AND active = 1");
     $stmt->execute([$userId]);
     $user = $stmt->fetch();
 
     if ($user && password_verify($pin, $user['pin'])) {
+        // Sprint security Phase 1 — successful auth clears the user's throttle counter.
+        if (function_exists('clearFailedLogins')) {
+            clearFailedLogins($db, $userId);
+        }
         // Sprint security Phase 0 — close session fixation: rotate the session id
         // on every successful authentication so a pre-login (attacker-fixed) id is
         // never elevated to an authenticated one. `true` deletes the old session
@@ -101,6 +127,13 @@ function authenticateUser($userId, $pin) {
         // isLoggedIn()/requireAuth() has a baseline from the moment of login.
         $_SESSION['last_activity'] = time();
         return true;
+    }
+
+    // Failed verify (wrong PIN, or unknown/inactive id) — record one aggregated
+    // failure against the per-user (primary) + per-IP (loose) buckets. The same
+    // accounting for an unknown id as a real one (no user-existence oracle).
+    if (function_exists('recordFailedLogin')) {
+        recordFailedLogin($db, $userId, $ip);
     }
 
     return false;
