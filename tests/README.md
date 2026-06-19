@@ -16,8 +16,8 @@ in the existing sub-runners so coverage stays cumulative across Sprints 0–4.
 
 | Phase | What it covers |
 |---|---|
-| A1 | `initializeDatabase()` on a fresh temp DB → all 16 expected tables exist, `schema_version` reaches 2, default guardian seeded. |
-| A2 | `migrateDatabase()` forward from a **synthetic v1 fixture** → `daily_checkin.sleep_quality` + `sleep_log` + `sleep_interruptions` appear, pre-existing rows survive; re-running migrate twice is a no-op (version unchanged, no error). |
+| A1 | `initializeDatabase()` on a fresh temp DB → all **19** expected tables exist, `schema_version` reaches **6**, default guardian seeded. Also asserts the additive columns each sprint added, incl. `guest_tokens.is_revoked` (Phase 3). |
+| A2 | `migrateDatabase()` forward from a **synthetic v1 fixture** → every v2→v6 table/column appears (`sleep_*`, demographics, `height_log`, `medication_schedules` + `food_log.med_window`, `login_attempts`, `guest_tokens.is_revoked`), pre-existing rows survive; re-running migrate twice is a no-op (version unchanged, no error). |
 | A3 | `backupDatabase()` / `restoreDatabase()` round-trip → write → backup → mutate → restore → assert original restored. |
 | B  | Orchestrates `tests/migration_idempotency.php` and `tests/smoke.php` as isolated child processes (each must exit 0). Smoke = cumulative Sprint 0–3 (auth, toggles, sleep, page renders, clinical-report correlations, JSON pin whitelist, pt/en i18n parity). |
 | C  | **Negative self-test** — re-invokes the runner in `--selftest-negative` mode (which fails by design) and asserts a non-zero exit, proving the harness catches a deliberately broken case. |
@@ -25,7 +25,8 @@ in the existing sub-runners so coverage stays cumulative across Sprints 0–4.
 | G  | **Security Phase 0** — `configureSessionCookieParams()` cookie-flag logic (HttpOnly + SameSite=Lax always; Secure env-gated on HTTPS / proxy / :443); `sessionIsExpired()` idle-timeout math (incl. legacy null-stamp backward compat); default-`0000`-PIN guard lifecycle (fresh init arms it; a PIN change off `0000` clears it; restore/reset of a `0000` DB re-arms it; a custom-PIN guardian is never flagged). All re-derived from the actual stored hash. |
 | H  | **Security Phase 1** — PIN brute-force throttling/lockout. `throttleComputeAfterFailure()` backoff/window/lock state machine + `throttleIsLocked()` (pure, no DB); `authenticateUser()` round-trip on a throwaway DB: scripted wrong-PINs tip into a **distinct** locked state, a locked account refuses even the correct PIN, a correct PIN resets the counter, storage stays **one** aggregated row (UPDATE-in-place), an unknown id locks identically (no existence oracle), self-prune drops stale rows. `schema_version` reaches **6** (`login_attempts`). |
 | I  | **Security Phase 2** — enforce TLS/HTTPS + HSTS. Pure transport-security decision logic (`includes/session.php`): `requestIsHttps()` (TLS / `X-Forwarded-Proto` / `:443`, matching Phase 0's Secure logic); `httpsEnforcementEnabled()` (only truthy `COMECOME_FORCE_HTTPS` arms it, so unset = dev-safe); `httpsRedirectTarget()` (301 to same-host `https://` preserving path+query **only** on plain HTTP + enforcement on; never an already-HTTPS request → no loop; never with the flag off; CR/LF stripped from a crafted Host → no header injection); `hstsHeaderValue()` (conservative `max-age=86400; includeSubDomains`, **no preload**, emitted **only** over HTTPS per RFC 6797). **No DB change** (no schema bump). |
-| B2 | **HTTP-level smokes** orchestrated as file-redirected sub-runners (spawn `php -S` + curl, each on a free ephemeral port, each exit 0): `tests/http_smoke.php` (Phase 0 cookie flags), `tests/http_throttle_smoke.php` (Phase 1 lockout message over real HTTP), and `tests/http_tls_smoke.php` (Phase 2 HTTP→HTTPS 301 + HSTS header over real HTTP). |
+| J  | **Security Phase 3** — CSRF + guest-token revocation. `verifyCsrfToken()` constant-time match (a blank expected OR candidate never validates — no skeleton key); the guest-token revocation round-trip on a throwaway DB (mint→validate→`revokeGuestToken()`→refuse-while-unexpired; `revokeAllGuestTokensForUser()`; `COALESCE(is_revoked,0)` legacy/NULL backward compat; `getGuestTokensForUser()` per-token state for the revoke UI). `schema_version` stays **6** (Phase 3 is additive to the v6 block — no second bump). |
+| B2 | **HTTP-level smokes** orchestrated as file-redirected sub-runners (spawn `php -S` + curl, each on a free ephemeral port, each exit 0): `tests/http_smoke.php` (Phase 0 cookie flags), `tests/http_throttle_smoke.php` (Phase 1 lockout message over real HTTP), `tests/http_tls_smoke.php` (Phase 2 HTTP→HTTPS 301 + HSTS header over real HTTP), `tests/http_csrf_smoke.php` (Phase 3 api 403-without-token / pass-with-token + a guardian POST bounce), and `tests/http_csrf_child_smoke.php` (Phase 3 **child log/celebrate flow**: child login → token injected into the child page → food-log POST 403 without / `{"success":true}` with the token). |
 
 ## Sub-runners (can also be run directly)
 
@@ -35,6 +36,9 @@ php tests/migration_idempotency.php  # migrate forward + idempotency
 php tests/http_smoke.php             # HTTP-level: php -S + Set-Cookie header flags (Phase 0)
 php tests/http_throttle_smoke.php    # HTTP-level: php -S + scripted wrong-PIN POSTs -> lockout (Phase 1)
 php tests/http_tls_smoke.php         # HTTP-level: php -S + HTTP->HTTPS 301 + HSTS header (Phase 2)
+php tests/http_csrf_smoke.php        # HTTP-level: php -S + api CSRF 403/200 reject (Phase 3)
+php tests/http_csrf_child_smoke.php  # HTTP-level: php -S + child log/celebrate flow CSRF reject/accept (Phase 3)
+php tests/migration_idempotency_check.php  # standalone: throwaway temp DB create+migrate, capture schema_version+table set, re-run no-op
 ```
 
 ### HTTP smoke (`tests/http_smoke.php`)

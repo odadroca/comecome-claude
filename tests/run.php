@@ -120,7 +120,10 @@
  *                                     revoke-all, NULL-is_revoked legacy backward compat).
  *                                     PHASE B2 — tests/http_csrf_smoke.php drives the real
  *                                     403-without-token / 200-with-token api reject + a
- *                                     guardian POST bounce over `php -S` + curl.
+ *                                     guardian POST bounce over `php -S` + curl, and
+ *                                     tests/http_csrf_child_smoke.php re-smokes the CHILD
+ *                                     log/celebrate flow (child login -> token injected ->
+ *                                     food-log 403 without / {"success":true} with token).
  * ---------------------------------------------------------------------------
  */
 
@@ -660,6 +663,11 @@ foreach ($subRunners as $rel) {
  *                                       403 invalid_csrf, the same POST with the token
  *                                       succeeds, and a guardian POST without a token
  *                                       is bounced (CSRF-reject over real HTTP).
+ *     - tests/http_csrf_child_smoke.php: Phase 3 CHILD log/celebrate flow — a child
+ *                                       logs in, the child page injects window.CSRF_TOKEN,
+ *                                       a food-log POST without the token is 403 and the
+ *                                       same POST with it returns {"success":true} (the
+ *                                       acceptance "child log/celebrate flow re-smoke").
  *   Each spawns its own server bound to a throwaway DB (COMECOME_DB_PATH) and must
  *   exit 0. They need a free TCP port + the `curl` binary; if a smoke cannot bind or
  *   curl is missing it FAILS loudly (honest) rather than being silently skipped.
@@ -702,6 +710,7 @@ $httpSmokes = [
     'tests/http_throttle_smoke.php',
     'tests/http_tls_smoke.php',
     'tests/http_csrf_smoke.php',
+    'tests/http_csrf_child_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;
