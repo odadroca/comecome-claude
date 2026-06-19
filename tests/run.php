@@ -45,6 +45,7 @@
  *            response behaviours the in-process harness cannot observe.
  *            - tests/http_smoke.php          (Phase 0 cookie flags over HTTP)
  *            - tests/http_throttle_smoke.php (Phase 1 lockout message over HTTP)
+ *            - tests/http_secrets_smoke.php  (Phase 4 .env override + secret privacy)
  *   PHASE C  Negative self-test: re-invoke THIS file in --selftest-negative mode
  *            (which deliberately fails an assertion) and assert it exits NON-zero.
  *            Proves the runner actually catches a broken case.
@@ -677,6 +678,11 @@ foreach ($subRunners as $rel) {
  *                                       a food-log POST without the token is 403 and the
  *                                       same POST with it returns {"success":true} (the
  *                                       acceptance "child log/celebrate flow re-smoke").
+ *     - tests/http_secrets_smoke.php  : Phase 4 an above-docroot COMECOME_CONFIG file
+ *                                       OVERRIDES a constant (observed via HSTS max-age),
+ *                                       absent config falls back to the hardcoded default
+ *                                       (zero-config intact), and a stray in-tree `*.php`
+ *                                       key container never leaks its base64 key over HTTP.
  *   Each spawns its own server bound to a throwaway DB (COMECOME_DB_PATH) and must
  *   exit 0. They need a free TCP port + the `curl` binary; if a smoke cannot bind or
  *   curl is missing it FAILS loudly (honest) rather than being silently skipped.
@@ -720,6 +726,7 @@ $httpSmokes = [
     'tests/http_tls_smoke.php',
     'tests/http_csrf_smoke.php',
     'tests/http_csrf_child_smoke.php',
+    'tests/http_secrets_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;
