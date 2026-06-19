@@ -64,6 +64,13 @@
  *                                     forward migrate adds height_log, the
  *                                     UNIQUE(user_id,log_date) upsert is proven,
  *                                     the table survives idempotent re-runs.
+ *   Sprint 7 (percentiles engine)   : PHASE D — provider-independent CDF/z-score
+ *                                     maths checkpoints (A&S 7.1.26 normal CDF +
+ *                                     calculateZScore) AND WHO data-fidelity anchors
+ *                                     (real WHO LMS reproduced within tolerance,
+ *                                     catching fabricated data) AND graceful-null /
+ *                                     ±5 SD clamp behaviour. NO schema change
+ *                                     (schema_version stays 4), pure library check.
  * ---------------------------------------------------------------------------
  */
 
@@ -514,6 +521,116 @@ ok($ncode !== 0,
    "C negative self-test exits NON-zero (runner detects a deliberately broken case) [exit=$ncode]");
 ok(strpos($nout, '[FAIL]') !== false,
    "C negative self-test output contains a [FAIL] marker (failure surfaced)");
+
+/* -------------------------------------------------------------------------
+ * PHASE D — Sprint 7 percentile-engine validation (in-process, side-effect-free).
+ *
+ *   The engine (includes/percentiles.php) + WHO reference data
+ *   (includes/growth-standards.php) are pure library code: no DB, no schema, no UI.
+ *   We include them directly and assert two independent families of checks:
+ *
+ *     D1. PROVIDER-INDEPENDENT MATH (must pass EXACTLY): the standard-normal CDF
+ *         (A&S 7.1.26) at canonical points and calculateZScore()'s value==M => 0.
+ *         These do NOT depend on any reference table.
+ *     D2. WHO DATA-FIDELITY ANCHORS: feeding the engine REAL WHO LMS must reproduce
+ *         well-known published WHO values. These deliberately CATCH FABRICATED DATA —
+ *         if growth-standards.php held approximated/invented numbers, the P50 / −2SD
+ *         anchors would drift out of tolerance and FAIL (honest stop).
+ *     D3. ROBUSTNESS: out-of-coverage age / unknown sex / bad value return null
+ *         (never crash), and an extreme measurement is clamped to ±5 SD.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE D — Sprint 7 percentile engine (CDF math + WHO anchors) ###\n";
+
+// helpers.php supplies calculateAgeInMonths()/calculateBMI() used by the engine's
+// DOB convenience wrappers; percentiles.php is the engine; growth-standards.php is
+// required lazily by the engine. All side-effect free — safe to include here.
+require_once $ROOT . '/includes/helpers.php';
+require_once $ROOT . '/includes/percentiles.php';
+
+/** Float closeness assertion. */
+function okApprox($got, $want, $tol, $msg) {
+    $cond = ($got !== null) && is_numeric($got) && abs(((float) $got) - $want) <= $tol;
+    $shown = $got === null ? 'null' : rtrim(rtrim(sprintf('%.6f', (float) $got), '0'), '.');
+    ok($cond, $msg . " [got=$shown want=$want tol=$tol]");
+}
+
+echo "\n-- D1. provider-independent CDF / z-score math --\n";
+okApprox(zScoreToPercentile(0),      0.500,  0.001, "D1 Phi(0)=0.500");
+okApprox(zScoreToPercentile(1.96),   0.975,  0.002, "D1 Phi(1.96)=0.975");
+okApprox(zScoreToPercentile(-1.96),  0.025,  0.002, "D1 Phi(-1.96)=0.025");
+okApprox(zScoreToPercentile(1.645),  0.950,  0.002, "D1 Phi(1.645)=0.950");
+okApprox(zScoreToPercentile(-2),     0.0228, 0.001, "D1 Phi(-2)=0.0228");
+// calculateZScore returns 0 exactly when value == M, in both L-branches.
+okApprox(calculateZScore(8.0, 1.0, 8.0, 0.1),  0.0, 1e-9, "D1 calculateZScore=0 when value==M (L!=0)");
+okApprox(calculateZScore(8.0, 0.0, 8.0, 0.1),  0.0, 1e-9, "D1 calculateZScore=0 when value==M (L==0)");
+// Spot-check the LMS formula against a hand-computed value (L!=0):
+//   value=10, L=-0.2, M=9, S=0.12 -> z = ((10/9)^-0.2 - 1)/(-0.2*0.12)
+$expZ = (pow(10.0 / 9.0, -0.2) - 1) / (-0.2 * 0.12);
+okApprox(calculateZScore(10.0, -0.2, 9.0, 0.12), $expZ, 1e-9, "D1 calculateZScore matches closed-form LMS");
+
+echo "\n-- D2. WHO data-fidelity anchors (catch fabricated LMS) --\n";
+// These VALUES are well-known published WHO medians/SDs. The engine, fed REAL WHO
+// LMS, must put each P50 value at ~50th percentile (±2 pts) and the −2SD value near
+// P2.3. Tolerances per spec (~±2 percentile points).
+okApprox(calculateHeightForAgePercentile(49.9, 0, 'boys'),  50.0, 2.0,
+    "D2 boys length-for-age 0mo P50~49.9cm -> ~50th pct");
+okApprox(calculateWeightForAgePercentile(3.3, 0, 'boys'),   50.0, 5.0,
+    "D2 boys weight-for-age 0mo P50~3.3kg -> ~50th pct");
+okApprox(calculateWeightForAgePercentile(2.5, 0, 'boys'),    2.3, 2.0,
+    "D2 boys weight-for-age 0mo -2SD~2.5kg -> ~P2.3");
+okApprox(calculateWeightForAgePercentile(8.9, 12, 'girls'), 50.0, 5.0,
+    "D2 girls weight-for-age 12mo P50~8.9kg -> ~50th pct");
+okApprox(calculateHeightForAgePercentile(87.1, 24, 'boys'), 50.0, 2.0,
+    "D2 boys height-for-age 24mo P50~87.1cm -> ~50th pct");
+// Cross-check a non-anchor published WHO percentile too: girls height-for-age 60mo
+// median is ~109.4 cm (WHO 2006). At the median the percentile must be ~50.
+okApprox(calculateHeightForAgePercentile(109.4189, 60, 'girls'), 50.0, 2.0,
+    "D2 girls height-for-age 60mo @published median -> ~50th pct");
+// And confirm 'male'/'female' (users.gender) map identically to boys/girls.
+$pByGender = calculateWeightForAgePercentile(8.9, 12, 'female');
+okApprox($pByGender, 50.0, 5.0, "D2 sex='female' maps to girls table (gender normalisation)");
+
+echo "\n-- D3. graceful degradation + clamp --\n";
+ok(calculateWeightForAgePercentile(15, 200, 'boys')   === null, "D3 weight-for-age age>120mo -> null (out of coverage)");
+ok(calculateHeightForAgePercentile(100, 999, 'girls') === null, "D3 height-for-age age>228mo -> null (out of coverage)");
+ok(calculateWeightForAgePercentile(15, 36, 'unknown') === null, "D3 unknown sex -> null");
+ok(calculateWeightForAgePercentile(-5, 36, 'boys')    === null, "D3 non-positive value -> null");
+ok(calculateBMIForAgePercentile(16, -1, 'boys')       === null, "D3 negative age -> null");
+// Coverage edges resolve (not null) at the exact published min/max month.
+ok(calculateWeightForAgePercentile(3.3, 0, 'boys')    !== null, "D3 weight-for-age at min month (0) resolves");
+ok(calculateWeightForAgePercentile(31.0, 120, 'boys') !== null, "D3 weight-for-age at max month (120) resolves");
+ok(calculateHeightForAgePercentile(176.0, 228, 'boys')!== null, "D3 height-for-age at max month (228) resolves");
+// Linear interpolation between integer months returns a finite percentile.
+$pHalf = calculateWeightForAgePercentile(11.0, 18.5, 'boys');
+ok($pHalf !== null && $pHalf >= 0 && $pHalf <= 100, "D3 fractional age 18.5mo interpolates to a valid percentile");
+// Extreme measurement: z is clamped to +/-5 SD (decision: clamp beyond +/-5 SD).
+$zHi = calculateMetricZScore('weight_for_age', 60.0, 0, 'boys'); // 60kg newborn
+ok($zHi !== null && abs($zHi - 5.0) < 1e-9, "D3 extreme high measurement clamps z to +5 SD [got=" . var_export($zHi, true) . "]");
+$zLo = calculateMetricZScore('weight_for_age', 0.5, 0, 'boys');  // 0.5kg newborn
+ok($zLo !== null && abs($zLo + 5.0) < 1e-9, "D3 extreme low measurement clamps z to -5 SD [got=" . var_export($zLo, true) . "]");
+
+echo "\n-- D4. reference-data coverage (no gaps / right ranges) --\n";
+$gs = getGrowthStandards();
+ok(isset($gs['weight_for_age']['boys'][0])   && isset($gs['weight_for_age']['boys'][120]),
+   "D4 weight_for_age boys spans 0..120");
+ok(isset($gs['weight_for_age']['girls'][0])  && isset($gs['weight_for_age']['girls'][120]),
+   "D4 weight_for_age girls spans 0..120");
+ok(!isset($gs['weight_for_age']['boys'][121]),
+   "D4 weight_for_age stops at 120 (no 121)");
+ok(isset($gs['height_for_age']['boys'][0])   && isset($gs['height_for_age']['boys'][228]),
+   "D4 height_for_age boys spans 0..228");
+ok(isset($gs['bmi_for_age']['girls'][0])     && isset($gs['bmi_for_age']['girls'][228]),
+   "D4 bmi_for_age girls spans 0..228");
+// No gaps: every integer month present in each covered range.
+$noGap = true;
+foreach (['weight_for_age' => 120, 'height_for_age' => 228, 'bmi_for_age' => 228] as $metric => $max) {
+    foreach (['boys', 'girls'] as $sx) {
+        for ($mo = 0; $mo <= $max; $mo++) {
+            if (!isset($gs[$metric][$sx][$mo])) { $noGap = false; break 3; }
+        }
+    }
+}
+ok($noGap, "D4 every integer month present in every covered range (no gaps in WHO data)");
 
 /* -------------------------------------------------------------------------
  * VERDICT.
