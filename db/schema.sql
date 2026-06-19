@@ -134,6 +134,9 @@ CREATE TABLE IF NOT EXISTS daily_checkin (
     mood_level INTEGER CHECK(mood_level BETWEEN 1 AND 5),
     medication_taken INTEGER DEFAULT 0, -- 0=no, 1=yes
     notes TEXT,
+    -- Sprint 2: sleep quality 1–5. Mirrors the v2 migration so a fresh DB
+    -- matches a migrated one (see includes/db.php migrateDatabase v<2 block).
+    sleep_quality INTEGER CHECK(sleep_quality BETWEEN 1 AND 5),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, check_date),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

@@ -61,8 +61,8 @@ Guardian Settings toggles (key/value in `settings`, via `getSetting('key','defau
 
 ## Page Organization
 - `pages/child/` — log-food, check-in, weight (becomes "Growth" when `show_percentiles` on), history. Own data only; shared footer.
-- `pages/guardian/` — dashboard, manage-children/users/foods/meals/medications/sleep/logs, settings, exports, database backup/restore.
-- `pages/login.php` (public auth), `pages/guest-report.php` (token-validated clinician report).
+- `pages/guardian/` — dashboard, manage-children/users/foods/meals/medications/sleep/logs, settings, exports, database backup/restore; shared `nav.php`. Exports split across `export.php` (coordinator) + `export-csv.php` + `export-html.php` (keep the four export surfaces in parity).
+- `pages/translations.php` (guardian-accessible runtime translation overrides), `pages/login.php` (public auth), `pages/guest-report.php` (token-validated clinician report).
 
 ## Timezone & Locale
 App timezone `Europe/Lisbon`; default locale `pt`; date display dd-mm-yyyy.

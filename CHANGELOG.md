@@ -44,6 +44,12 @@ Built and verified on staging (`schema_version` 5 → **6**); **not yet promoted
 - `migrateDatabase()` advances to `schema_version` 6 (additive only; existing installs migrate cleanly).
 - `sw.js` cache → `comecome-v0.9.2`.
 
+### Fixed
+- **schema.sql ↔ migration parity** — `db/schema.sql` now carries `daily_checkin.sleep_quality`
+  so a fresh DB matches a v2-migrated one (it was previously only added by the migration). No
+  functional change — fresh installs already gained the column via `migrateDatabase()`. Added the
+  matching A1 parity assertion in `tests/run.php`.
+
 ### Pending
 - **Version reconcile** (`config.php` 0.9.1 / `sw.js` 0.9.2 → **v0.10.0**) at production promotion.
 - Decisions i–v in `docs/roadmap/DECISIONS.md`; backlog in `.claude/SPRINT-PLAN_reconciled.md`.
