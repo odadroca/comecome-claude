@@ -54,6 +54,19 @@
  *            parity); the CHILD growth page carries NO WHO overlay / NO clinical
  *            percentile flags; schema_version STILL 4 (display-only, NO migration);
  *            the Sprint-8 i18n keys hold pt/en parity.
+ *   Sprint 9 (med timing v4->v5): the classifier + schedule CRUD load alongside
+ *            the app; med-type default offsets; logFood() stamps med_window
+ *            server-side; child log-food page never references med_window (ZERO
+ *            child-facing change); Sprint-9 i18n keys hold pt/en parity.
+ *   Sprint 10 (nutrition DISCOVERY spike, NO schema/NO UI): a docs-only spike.
+ *            schema_version STILL 5 (no migration); the decision doc
+ *            docs/roadmap/SPRINT-10-nutrition-discovery.md exists and concretely
+ *            resolves items (1)-(5) — the 8-rule recommendation set with explicit
+ *            thresholds + copy templates, growth-tag maintenance UX (no auto-tag),
+ *            SQLite read-only-connection concurrency approach, the Sprint-9
+ *            med_window storage-model confirmation, and the rule-based-first /
+ *            LLM-opt-in-only boundary; and the spike stayed docs-only (NO
+ *            food_growth_tags table, NO getReadOnlyDB(), NO includes/nutrition.php yet).
  * -------------------------------------------------------------------------
  */
 
@@ -763,6 +776,87 @@ foreach ($s9Keys as $k) {
             && trim((string) $ptS9[$k]) !== '' && trim((string) $enS9[$k]) !== '';
 }
 ok($s9Ok, "Sprint 9: i18n keys present + non-empty in BOTH pt and en");
+
+// --- Sprint 10 acceptance (Nutrition Intelligence DISCOVERY spike) ----------
+// Sprint 10 is a DISCOVERY SPIKE, not a feature build: the deliverable is a
+// DECISION DOCUMENT (docs/roadmap/SPRINT-10-nutrition-discovery.md) that resolves
+// the open concept-only items blocking Sprint 11. NO schema change, NO migration
+// (schema_version stays 5), ZERO UI change, NO new locale keys (the Sprint-11 keys
+// are SPECIFIED here but created in Sprint 11). So the cumulative assertion is:
+// (a) the running app is still at schema_version 5 (this spike added no migration);
+// (b) the decision doc exists and concretely resolves items (1)-(5) with specific
+//     rules/thresholds/copy; (c) no Sprint-11 app code leaked in (food_growth_tags
+//     table is NOT created, getReadOnlyDB() / includes/nutrition.php do NOT exist yet),
+//     proving the spike stayed docs-only.
+echo "\n-- Sprint 10 acceptance (nutrition intelligence DISCOVERY spike; docs-only) --\n";
+
+// (a) NO migration: a discovery spike touches no schema. The running DB is STILL 5.
+ok((int) getSetting('schema_version', '0') === 5,
+   "Sprint 10: schema_version STILL 5 (discovery spike added NO migration / NO schema change)");
+
+// (b) The decision document exists and concretely resolves items (1)-(5).
+$s10doc = @file_get_contents($ROOT . '/docs/roadmap/SPRINT-10-nutrition-discovery.md');
+ok(is_string($s10doc) && strlen($s10doc) > 4000,
+   "Sprint 10: docs/roadmap/SPRINT-10-nutrition-discovery.md exists and is substantive");
+// (b1) Item (1): a CONCRETE, TESTABLE rule set with explicit numeric thresholds and
+//      copy templates (not prose). Assert the rule ids, literal thresholds, and the
+//      med_window x tag x percentile x sleep cross-reference are all present.
+$s10ruleIds = ['R1_post_med_heavy','R2_pre_med_skipped','R3_mid_med_dominant',
+               'R4_tag_underserved','R5_tag_declined','R6_growth_plus_timing',
+               'R7_sleep_appetite','R8_protein_low'];
+$s10rulesOk = is_string($s10doc);
+foreach ($s10ruleIds as $rid) { $s10rulesOk = $s10rulesOk && strpos($s10doc, $rid) !== false; }
+ok($s10rulesOk, "Sprint 10 (1): the 8-rule strategic-recommendation set is enumerated by id");
+ok(is_string($s10doc)
+   && strpos($s10doc, '0.50') !== false && strpos($s10doc, '0.40') !== false
+   && strpos($s10doc, 'windowShare') !== false && strpos($s10doc, 'tagServings') !== false
+   && strpos($s10doc, 'med_window') !== false && strpos($s10doc, 'pctTrend') !== false
+   && (strpos($s10doc, 'avgSleep') !== false || stripos($s10doc, 'sleep quality') !== false),
+   "Sprint 10 (1): rules carry explicit thresholds (0.50/0.40) and the med_window x tag x percentile x sleep cross-reference");
+ok(is_string($s10doc) && preg_match('/\{pct\}|\{N\}|\{tag\}|\{count\}/', $s10doc) === 1,
+   "Sprint 10 (1): rule copy uses interpolated message templates (testable phrasing)");
+// (b2) Item (2): growth-tag maintenance UX for guardian-added foods, NO auto-tagging.
+ok(is_string($s10doc) && stripos($s10doc, 'manage-foods.php') !== false
+   && (stripos($s10doc, 'auto-tag') !== false || stripos($s10doc, 'auto-tagging') !== false)
+   && (stripos($s10doc, 'coverage') !== false || stripos($s10doc, 'nudge') !== false),
+   "Sprint 10 (2): growth-tag maintenance UX (coverage/nudge in manage-foods.php, NO auto-tagging)");
+// (b3) Item (3): SQLite analytics concurrency approach (read-only vs caching) + busy_timeout note.
+ok(is_string($s10doc)
+   && (stripos($s10doc, 'read-only') !== false || stripos($s10doc, 'READONLY') !== false)
+   && stripos($s10doc, 'busy_timeout') !== false
+   && (stripos($s10doc, 'cach') !== false || stripos($s10doc, 'memoiz') !== false),
+   "Sprint 10 (3): SQLite concurrency decided (read-only connection + caching rationale; busy_timeout noted)");
+// (b4) Item (4): confirms the Sprint-9 med_window storage model + how Sprint 11 reads it.
+ok(is_string($s10doc)
+   && stripos($s10doc, 'medication_schedules') !== false
+   && stripos($s10doc, 'CHECK') !== false
+   && (stripos($s10doc, 'stamped') !== false || stripos($s10doc, 'INSERT') !== false),
+   "Sprint 10 (4): med_window storage model confirmed (CHECK'd column + medication_schedules, stamped at INSERT)");
+// (b5) Item (5): restates the AI/LLM boundary (rule-based FIRST; LLM opt-in/narrative-only).
+ok(is_string($s10doc)
+   && (stripos($s10doc, 'LLM') !== false || stripos($s10doc, 'AI') !== false)
+   && (stripos($s10doc, 'rule-based') !== false || stripos($s10doc, 'deterministic') !== false)
+   && (stripos($s10doc, 'opt-in') !== false || stripos($s10doc, 'narrative-only') !== false
+       || stripos($s10doc, 'narrative only') !== false),
+   "Sprint 10 (5): AI/LLM boundary restated (rule-based FIRST; LLM opt-in, de-identified, narrative-only)");
+ok(is_string($s10doc)
+   && (stripos($s10doc, 'no external dependency') !== false
+       || stripos($s10doc, 'no LLM') !== false
+       || stripos($s10doc, 'NO external API') !== false),
+   "Sprint 10 (5): this sprint introduces NO LLM / NO external dependency");
+
+// (c) Spike stayed docs-only: no Sprint-11 app code leaked into the tree.
+//     food_growth_tags is a Sprint-11 deliverable and must NOT exist yet.
+$s10db = getDB();
+$s10hasTagTable = $s10db->query(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='food_growth_tags'"
+)->fetchColumn();
+ok($s10hasTagTable === false,
+   "Sprint 10: food_growth_tags table is NOT created (it is a Sprint-11 deliverable)");
+ok(!function_exists('getReadOnlyDB'),
+   "Sprint 10: getReadOnlyDB() NOT added yet (specced for Sprint 11, not built in this spike)");
+ok(!file_exists($ROOT . '/includes/nutrition.php'),
+   "Sprint 10: includes/nutrition.php NOT created (Sprint-11 analyzers; spike is docs-only)");
 
 // --- 5. i18n key parity sanity (pt canonical) -------------------------------
 echo "\n-- i18n parity (pt canonical) --\n";
