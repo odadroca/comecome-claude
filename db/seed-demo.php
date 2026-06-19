@@ -8,8 +8,8 @@
  *
  * WHAT IT CREATES (alongside the existing guardian — NEVER touches it):
  *   - TWO demo children, both marked "(demo)" in their name:
- *       * Eduardo (demo) — BOY, gender male,   ~7 years old, PIN 1111
- *       * Sofia (demo)   — GIRL, gender female, ~9 years old, PIN 2222
+ *       * Boy (demo) — BOY, gender male,   ~7 years old, PIN 1111
+ *       * Girl (demo)   — GIRL, gender female, ~9 years old, PIN 2222
  *   - ~weekly weight_log + height_log with a gentle upward trajectory, sized so
  *     WHO weight/height-for-age percentiles land in a believable ~P30–P65 band.
  *   - food_log on most days (several varied meals/day), with the log TIME varied
@@ -85,8 +85,8 @@ require_once $ROOT . '/includes/helpers.php';   // calculateAgeInMonths, compute
 
 const DEMO_MARKER = '(demo)';                 // name marker that identifies demo children
 const DEMO_DAYS   = 90;                        // ~3 months ending today
-const BOY_NAME    = 'Eduardo (demo)';
-const GIRL_NAME   = 'Sofia (demo)';
+const BOY_NAME    = 'Boy (demo)';
+const GIRL_NAME   = 'Girl (demo)';
 const BOY_PIN     = '1111';
 const GIRL_PIN    = '2222';
 
