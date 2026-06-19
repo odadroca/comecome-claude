@@ -144,10 +144,26 @@ deployment, harden it via a **git-ignored** `config.local.php` (copy `config.loc
    - create a `private/` folder **above** `public_html` and place `data.db` inside it;
    - copy `config.local.php.example` → `config.local.php` and set
      `define('DB_PATH', '/absolute/path/to/private/data.db');`.
+4. **Secrets / `.env` pattern** (per-deployment config out of the tracked `config.php`):
+   `config.php` loads, in order, an **above-docroot** config file pointed at by the
+   `COMECOME_CONFIG` env var (recommended for secrets — it sits outside `public_html`), then
+   the in-tree git-ignored `config.local.php`. A fresh download has neither and runs zero-config.
+5. **Field-encryption key container** (optional; powers Phase 5 at-rest field encryption):
+   - generate a key file (a 32-byte base64 key in a PHP `return` file — *not* an `.ini`):
+     `php scripts/gen-key.php /home/uXXXXXXXX/private/encryption-key.php`;
+   - `chmod 0400` it and keep it **above** `public_html`;
+   - point the app at it: `define('ENCRYPTION_KEY_FILE', '/abs/path/encryption-key.php');`
+     in `config.local.php` (or the `COMECOME_CONFIG` file), or set `COMECOME_KEY_FILE`;
+   - `includes/secrets.php` validates the decoded key is exactly 32 bytes and **fails closed**
+     on a missing/malformed/wrong-length key; with **no** key configured, encryption is simply
+     **off** (plaintext, zero-config). **Never** store the key in the same backup archive as the
+     database, and never commit it (the real `encryption-key.php` is git-ignored; only the
+     `.example` template is tracked).
 
-`config.local.php` is per-deployment and never committed; the override mechanism itself lives
-in `config.php`, so the procedure is reproducible across installs. (Broader auth/transport
-hardening + at-rest field encryption are planned — see `docs/roadmap/SPRINT-SECURITY.md`.)
+`config.local.php` / the key file are per-deployment and never committed; the override mechanism
+itself lives in `config.php`, so the procedure is reproducible across installs. (Broader
+auth/transport hardening + at-rest field encryption are planned — see
+`docs/roadmap/SPRINT-SECURITY.md`.)
 
 ## 🗄️ Database Schema
 

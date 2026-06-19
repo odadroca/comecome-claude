@@ -48,6 +48,17 @@ Options -Indexes
     Deny from all
 </FilesMatch>
 
+# Protect secrets (Sprint security Phase 4). The encryption key + per-deployment
+# config belong ABOVE public_html; this is defense-in-depth for the case where a
+# key/config file mistakenly lands inside the web root. A .php secret would already
+# EXECUTE (and print nothing) rather than be served as text, but deny it outright
+# too. NOTE: like all .htaccess rules this evaporates under nginx/litespeed — it is
+# NOT a substitute for keeping the key out of the web root.
+<FilesMatch "(config\.local\.php|encryption-key\.php|.*-encryption-key\.php|\.key)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
 # UTF-8 encoding
 AddDefaultCharset UTF-8
 

@@ -124,6 +124,15 @@
  *                                     tests/http_csrf_child_smoke.php re-smokes the CHILD
  *                                     log/celebrate flow (child login -> token injected ->
  *                                     food-log 403 without / {"success":true} with token).
+ *   Security Phase 4 (.env/secrets)  : PHASE K — the field-encryption KEY CONTAINER loader
+ *                                     (includes/secrets.php). A valid 32-byte base64 key file
+ *                                     loads + decodes; a wrong-length / malformed / empty /
+ *                                     missing-file container FAILS CLOSED (encryptionKey()
+ *                                     returns null, strict mode throws); an UNCONFIGURED key
+ *                                     yields null so encryption stays OPT-IN (zero-config
+ *                                     plaintext); generateEncryptionKeyBase64() round-trips to
+ *                                     exactly 32 bytes. NO schema change (Phase 4 adds no
+ *                                     migration — schema_version stays 6).
  * ---------------------------------------------------------------------------
  */
 
@@ -1517,6 +1526,123 @@ ok((int) getSetting('schema_version', '0') === 6,
    "J2 schema_version stays at 6 (Phase 3 is additive to the v6 block, no new bump)");
 
 // PHASE J cleanup.
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE K — Security Sprint Phase 4 (.env / secrets — key container loader).
+ *
+ *   The field-encryption KEY CONTAINER (includes/secrets.php) is pure + side-
+ *   effect-free, so the harness asserts every validation branch directly by
+ *   passing EXPLICIT throwaway key-file paths (no real secret, no app state):
+ *
+ *     K1. A valid 32-byte base64 key file loads, decodes to EXACTLY 32 raw bytes,
+ *         and encryptionKey()/encryptionEnabled() report it usable.
+ *     K2. FAIL-CLOSED on every misconfiguration: wrong decoded length, non-base64,
+ *         empty string, non-string return, and a missing file all yield ok=false
+ *         with encryptionKey(false) === null; encryptionKey(true) THROWS on a
+ *         configured-but-broken container (Phase 5 must never write under a bad key).
+ *     K3. UNCONFIGURED (no path) → configured=false, key=null: encryption is OPT-IN,
+ *         so the app stays zero-config plaintext with no key present.
+ *     K4. generateEncryptionKeyBase64() round-trips: its output base64-decodes back
+ *         to exactly 32 bytes (the secretbox key size).
+ *
+ *   NO schema change — Phase 4 adds no migration; schema_version is unaffected.
+ *   These run on a PHP build WITHOUT the sodium extension (this dev binary) because
+ *   the container validation is pure base64 + length math.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE K — security Phase 4 (.env / secrets key container) ###\n";
+
+require_once $ROOT . '/includes/secrets.php';
+
+ok(function_exists('loadEncryptionKeyContainer')
+   && function_exists('encryptionKey')
+   && function_exists('encryptionEnabled')
+   && function_exists('generateEncryptionKeyBase64'),
+   "K secrets / key-container helpers loaded");
+
+// A private scratch dir for throwaway key files (under the system temp dir).
+$kDir = sys_get_temp_dir() . '/cc_p4_keys_' . getmypid();
+if (!is_dir($kDir)) { @mkdir($kDir, 0700, true); }
+$kWrite = function ($name, $body) use ($kDir) {
+    $p = $kDir . '/' . $name;
+    file_put_contents($p, $body);
+    return $p;
+};
+
+echo "\n-- K1. a valid 32-byte base64 key loads + validates --\n";
+$kGoodB64 = generateEncryptionKeyBase64();
+$kGood = $kWrite('good-key.php', "<?php return '" . $kGoodB64 . "';\n");
+$kGoodC = loadEncryptionKeyContainer($kGood);
+ok($kGoodC['configured'] === true && $kGoodC['ok'] === true,
+   "K1 valid key container reports configured + ok");
+ok(is_string($kGoodC['key']) && strlen($kGoodC['key']) === 32,
+   "K1 decoded key is exactly 32 raw bytes [got " . (is_string($kGoodC['key']) ? strlen($kGoodC['key']) : 'non-string') . "]");
+ok(encryptionKey(false, $kGood) === $kGoodC['key'],
+   "K1 encryptionKey() returns the same raw 32-byte key");
+ok(encryptionKey(true, $kGood) !== null,
+   "K1 strict encryptionKey() returns the key for a valid container (no throw)");
+
+echo "\n-- K2. fail-closed on every misconfiguration --\n";
+// Wrong decoded length (16 bytes).
+$kShort = $kWrite('short-key.php', "<?php return '" . base64_encode(random_bytes(16)) . "';\n");
+$kShortC = loadEncryptionKeyContainer($kShort);
+ok($kShortC['ok'] === false && strpos((string) $kShortC['error'], '16 bytes') !== false,
+   "K2 wrong-length (16B) key fails closed [" . $kShortC['error'] . "]");
+ok(encryptionKey(false, $kShort) === null,
+   "K2 encryptionKey(false) returns null for a wrong-length key");
+$kThrew = false;
+try { encryptionKey(true, $kShort); } catch (RuntimeException $e) { $kThrew = true; }
+ok($kThrew === true,
+   "K2 encryptionKey(true) THROWS for a configured-but-broken key (fail loud)");
+
+// Not valid base64.
+$kBad = $kWrite('bad-key.php', "<?php return '!!! not base64 !!!';\n");
+ok(loadEncryptionKeyContainer($kBad)['ok'] === false,
+   "K2 non-base64 key fails closed");
+
+// Empty string returned.
+$kEmpty = $kWrite('empty-key.php', "<?php return '';\n");
+ok(loadEncryptionKeyContainer($kEmpty)['ok'] === false,
+   "K2 empty-string key fails closed");
+
+// Non-string return (an int) — container must reject, not coerce.
+$kInt = $kWrite('int-key.php', "<?php return 12345;\n");
+ok(loadEncryptionKeyContainer($kInt)['ok'] === false,
+   "K2 non-string return fails closed");
+
+// Configured path that does not exist.
+$kMissing = loadEncryptionKeyContainer($kDir . '/does-not-exist.php');
+ok($kMissing['configured'] === true && $kMissing['ok'] === false
+   && strpos((string) $kMissing['error'], 'not found') !== false,
+   "K2 missing key file is configured-but-not-ok (not found)");
+ok(encryptionKey(false, $kDir . '/does-not-exist.php') === null,
+   "K2 encryptionKey(false) returns null for a missing key file");
+
+echo "\n-- K3. UNCONFIGURED => opt-in plaintext (no key, no error) --\n";
+$kNone = loadEncryptionKeyContainer(null);
+ok($kNone['configured'] === false && $kNone['ok'] === false && $kNone['key'] === null,
+   "K3 no configured path => unconfigured, key null (zero-config plaintext)");
+ok(encryptionKey(false, null) === null,
+   "K3 encryptionKey() is null when no key is configured (encryption opt-in)");
+
+echo "\n-- K4. generateEncryptionKeyBase64() round-trips to 32 bytes --\n";
+$kGen = generateEncryptionKeyBase64();
+$kGenRaw = base64_decode($kGen, true);
+ok($kGenRaw !== false && strlen($kGenRaw) === 32,
+   "K4 generated key decodes back to exactly 32 bytes [got " . ($kGenRaw === false ? 'BADB64' : strlen($kGenRaw)) . "]");
+ok($kGen !== generateEncryptionKeyBase64(),
+   "K4 two generated keys differ (CSPRNG, not a constant)");
+
+// schema_version is irrelevant to Phase 4 (no migration) — assert it on a fresh
+// app DB so the "Phase 4 adds no schema change" claim is concretely checked.
+initializeDatabase();
+ok((int) getSetting('schema_version', '0') === 6,
+   "K schema_version stays at 6 (Phase 4 adds no migration)");
+
+// PHASE K cleanup (throwaway key files + scratch dir + the app DB).
+foreach (glob($kDir . '/*') as $f) { @unlink($f); }
+@rmdir($kDir);
 gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 

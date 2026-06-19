@@ -1,0 +1,50 @@
+<?php
+/**
+ * encryption-key.php.example — field-encryption KEY CONTAINER template
+ * (Sprint security Phase 4).
+ *
+ * DO NOT keep this file inside the web root in production, and DO NOT commit a
+ * real key. This `.example` is a tracked template only; the REAL file is
+ * git-ignored (see .gitignore: `encryption-key.php`).
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT IT IS
+ *   The 32-byte (XChaCha20-Poly1305 / sodium_crypto_secretbox) field-encryption
+ *   key for Phase 5 at-rest field encryption, stored BASE64-ENCODED and returned
+ *   from this PHP file. The app `require`s it and base64-decodes back to 32 raw
+ *   bytes; includes/secrets.php validates the length and fails closed otherwise.
+ *
+ * WHY A PHP `return` FILE (not .ini / .txt)
+ *   - A stray HTTP request to a `.php` file EXECUTES it (prints nothing) instead
+ *     of serving the secret as readable text.
+ *   - parse_ini_file() mangles base64 padding (`=`) and reserved tokens; a PHP
+ *     `return` hands the string back verbatim.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * HOW TO DEPLOY (production hardening — OPTIONAL; the app runs zero-config without it)
+ *
+ *   1. Generate a key file (writes a fresh random key, never prints it):
+ *          php scripts/gen-key.php /home/uXXXXXXXX/private/encryption-key.php
+ *
+ *   2. Lock it down to read-only for the owner ONLY:
+ *          chmod 0400 /home/uXXXXXXXX/private/encryption-key.php
+ *
+ *   3. Point the app at it from config.local.php (git-ignored) — or the
+ *      above-docroot COMECOME_CONFIG file:
+ *          define('ENCRYPTION_KEY_FILE', '/home/uXXXXXXXX/private/encryption-key.php');
+ *      (Or set the COMECOME_KEY_FILE env var to the same absolute path.)
+ *
+ *   4. Keep this file ABOVE public_html, and NEVER place it in the same backup
+ *      archive as the database — a backup that contains both the encrypted DB and
+ *      its key protects nothing. Back the key up separately, offline.
+ *
+ *   LOSING THE KEY = losing the ENCRYPTED FIELDS only (not the whole DB): the
+ *   plaintext/coded columns the percentile engine needs stay readable.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The value below is a DUMMY all-zero key for illustration. Replace it (the
+ * generator does this for you). secrets.php will accept any correctly-sized key,
+ * so do NOT ship the zero key to production.
+ */
+
+return 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';

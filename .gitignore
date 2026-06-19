@@ -4,3 +4,10 @@ db/*.db-shm
 
 # Per-deployment local overrides (DB path above docroot, secrets) — never commit
 config.local.php
+
+# Sprint security Phase 4 — field-encryption key container. The REAL key file is
+# never committed (the .example template IS tracked). Match the recommended name
+# and any *-key.php container so a stray in-tree copy can't be pushed by accident.
+encryption-key.php
+*-encryption-key.php
+*.key
