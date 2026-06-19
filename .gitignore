@@ -1,2 +1,3 @@
-db/data.db
-db/backup_*.db
+db/*.db
+db/*.db-wal
+db/*.db-shm
