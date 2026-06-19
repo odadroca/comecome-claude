@@ -701,6 +701,13 @@ foreach ($subRunners as $rel) {
  *                                       absent config falls back to the hardcoded default
  *                                       (zero-config intact), and a stray in-tree `*.php`
  *                                       key container never leaks its base64 key over HTTP.
+ *     - tests/http_field_encryption_smoke.php : Phase 5 with a key configured
+ *                                       (COMECOME_KEY_FILE) the real HTTP boot path seeds
+ *                                       users.name as enc:v1: CIPHERTEXT on disk (raw SQL
+ *                                       peek) while GET / stays 200 + HttpOnly/SameSite=Lax;
+ *                                       with NO key the seeded name is stored PLAINTEXT
+ *                                       'Guardião' (opt-in OFF / zero-config); gender/DOB
+ *                                       stay cleartext by design.
  *   Each spawns its own server bound to a throwaway DB (COMECOME_DB_PATH) and must
  *   exit 0. They need a free TCP port + the `curl` binary; if a smoke cannot bind or
  *   curl is missing it FAILS loudly (honest) rather than being silently skipped.
@@ -745,6 +752,7 @@ $httpSmokes = [
     'tests/http_csrf_smoke.php',
     'tests/http_csrf_child_smoke.php',
     'tests/http_secrets_smoke.php',
+    'tests/http_field_encryption_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;
