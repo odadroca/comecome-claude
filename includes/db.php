@@ -103,6 +103,27 @@ function migrateDatabase($db) {
 
         $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '2')");
     }
+
+    if ($version < 3) {
+        // Sprint 5: Demographics Foundation — guardian-entered identity fields on
+        // the users row. Both NULLABLE so existing children keep working untouched
+        // (graceful degradation, decision iv). Privacy: guardian/clinician-side only,
+        // never shown on any child page (decision iii). Each ALTER is wrapped in
+        // try/catch like the Sprint-2 sleep_quality ALTER so a partially-migrated DB
+        // (column already present) re-runs idempotently without throwing.
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN gender TEXT CHECK(gender IN ('male', 'female'))");
+        } catch (Exception $e) {
+            // Column may already exist
+        }
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN date_of_birth DATE");
+        } catch (Exception $e) {
+            // Column may already exist
+        }
+
+        $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '3')");
+    }
 }
 
 /**

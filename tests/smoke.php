@@ -166,7 +166,7 @@ require_once $ROOT . '/includes/auth.php';
 require_once $ROOT . '/includes/helpers.php';
 
 $ver = (int) getSetting('schema_version', '0');
-ok($ver === 2, "schema_version reaches 2 (shipped v0.9.1) [got " . var_export($ver, true) . "]");
+ok($ver === 3, "schema_version reaches 3 (Sprint 5 demographics) [got " . var_export($ver, true) . "]");
 
 // --- 2. Guardian id=1 / pin=0000 auth path (Sprint 0+) ----------------------
 echo "\n-- Auth path (guardian id=1 / pin=0000) --\n";
@@ -270,9 +270,17 @@ echo "\n-- Sprint 3 acceptance (clinical report + correlations) --\n";
 $s3start = date('Y-m-d', strtotime('-30 days'));
 $s3end   = date('Y-m-d');
 
-// (a) No-schema invariant: Sprint 3 must NOT bump schema_version past 2.
-ok((int)getSetting('schema_version', '0') === 2,
-   "Sprint 3 invariant: schema_version still 2 (no schema/no migration)");
+// (a) Sprint 3 added NO migration (it was schema_version 2 at the time). Sprint 5
+//     later bumped the shipped version to 3 (demographics). We assert the current
+//     shipped version (3) here; the Sprint-3 "no new schema" property is preserved
+//     historically — Sprint 3 itself contributed none of these columns/tables.
+ok((int)getSetting('schema_version', '0') === 3,
+   "shipped schema_version is 3 (Sprint 5 demographics; Sprint 3 added no schema)");
+// (a2) Sprint 5 positive check: demographics columns exist on the running DB.
+$smokeDb = getDB();
+$userCols = $smokeDb->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
+ok(in_array('gender', $userCols, true), "Sprint 5: users.gender column present on running DB");
+ok(in_array('date_of_birth', $userCols, true), "Sprint 5: users.date_of_birth column present on running DB");
 
 // (b) Correlation engine: sparse data must report enough=false (graceful), and
 //     with >=5 paired days it must return the documented lag-1 structure.

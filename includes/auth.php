@@ -126,41 +126,89 @@ function getUserById($id) {
 
 /**
  * Create user
+ *
+ * Sprint 5: gender + dateOfBirth are OPTIONAL, NULLABLE demographic fields
+ * appended at the end so existing call sites (which pass only name/type/pin/
+ * avatar) keep working unchanged. Blank strings are normalized to NULL so a
+ * fresh DB and a migrated DB behave identically. These are guardian-entered,
+ * guardian/clinician-side only (decision iii) — never shown on a child page.
  */
-function createUser($name, $type, $pin, $avatarEmoji = '😊') {
+function createUser($name, $type, $pin, $avatarEmoji = '😊', $gender = null, $dateOfBirth = null) {
     $db = getDB();
     $hashedPin = password_hash($pin, PASSWORD_DEFAULT);
+    $gender = normalizeGender($gender);
+    $dateOfBirth = normalizeDateOfBirth($dateOfBirth);
 
     $stmt = $db->prepare("
-        INSERT INTO users (name, type, pin, avatar_emoji)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO users (name, type, pin, avatar_emoji, gender, date_of_birth)
+        VALUES (?, ?, ?, ?, ?, ?)
     ");
 
-    $stmt->execute([$name, $type, $hashedPin, $avatarEmoji]);
+    $stmt->execute([$name, $type, $hashedPin, $avatarEmoji, $gender, $dateOfBirth]);
     return $db->lastInsertId();
 }
 
 /**
- * Update user
+ * Normalize a gender input to a valid stored value or NULL.
+ * Only 'male'/'female' are accepted (matches the CHECK constraint); anything
+ * else (blank, unset, unexpected) becomes NULL rather than risking a constraint
+ * violation.
  */
-function updateUser($id, $name, $type, $pin = null, $avatarEmoji = null, $active = 1) {
+function normalizeGender($gender) {
+    return in_array($gender, ['male', 'female'], true) ? $gender : null;
+}
+
+/**
+ * Normalize a date_of_birth input to a YYYY-MM-DD string or NULL.
+ * Blank/whitespace becomes NULL. Anything non-empty is stored as-is (the
+ * date input already emits YYYY-MM-DD); helpers null-guard malformed values.
+ */
+function normalizeDateOfBirth($dateOfBirth) {
+    if ($dateOfBirth === null) return null;
+    $dateOfBirth = trim((string) $dateOfBirth);
+    return $dateOfBirth === '' ? null : $dateOfBirth;
+}
+
+/**
+ * Update user
+ *
+ * Sprint 5: gender + dateOfBirth are OPTIONAL, NULLABLE demographic fields
+ * appended at the end. They use a sentinel default (the string '__keep__') so
+ * existing call sites that don't pass them leave the stored values UNTOUCHED —
+ * persisting them only when a caller explicitly supplies a value (including an
+ * explicit null/blank to clear). Guardian/clinician-side only (decision iii).
+ */
+function updateUser($id, $name, $type, $pin = null, $avatarEmoji = null, $active = 1,
+                    $gender = '__keep__', $dateOfBirth = '__keep__') {
     $db = getDB();
+
+    // Build the optional demographic SET clause only when the caller opted in.
+    $demoSet = '';
+    $demoParams = [];
+    if ($gender !== '__keep__') {
+        $demoSet .= ', gender = ?';
+        $demoParams[] = normalizeGender($gender);
+    }
+    if ($dateOfBirth !== '__keep__') {
+        $demoSet .= ', date_of_birth = ?';
+        $demoParams[] = normalizeDateOfBirth($dateOfBirth);
+    }
 
     if ($pin) {
         $hashedPin = password_hash($pin, PASSWORD_DEFAULT);
         $stmt = $db->prepare("
             UPDATE users
-            SET name = ?, type = ?, pin = ?, avatar_emoji = ?, active = ?
+            SET name = ?, type = ?, pin = ?, avatar_emoji = ?, active = ?" . $demoSet . "
             WHERE id = ?
         ");
-        $stmt->execute([$name, $type, $hashedPin, $avatarEmoji, $active, $id]);
+        $stmt->execute(array_merge([$name, $type, $hashedPin, $avatarEmoji, $active], $demoParams, [$id]));
     } else {
         $stmt = $db->prepare("
             UPDATE users
-            SET name = ?, type = ?, avatar_emoji = ?, active = ?
+            SET name = ?, type = ?, avatar_emoji = ?, active = ?" . $demoSet . "
             WHERE id = ?
         ");
-        $stmt->execute([$name, $type, $avatarEmoji, $active, $id]);
+        $stmt->execute(array_merge([$name, $type, $avatarEmoji, $active], $demoParams, [$id]));
     }
 
     return $stmt->rowCount() > 0;

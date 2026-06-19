@@ -14,9 +14,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = $_POST['name'] ?? '';
         $pin = $_POST['pin'] ?? '';
         $avatar = $_POST['avatar'] ?? '😊';
+        // Sprint 5: optional guardian-entered demographics (decision iii).
+        $gender = $_POST['gender'] ?? null;
+        $dateOfBirth = $_POST['date_of_birth'] ?? null;
 
         if ($name && $pin) {
-            createUser($name, 'child', $pin, $avatar);
+            createUser($name, 'child', $pin, $avatar, $gender, $dateOfBirth);
             header('Location: ?page=manage-children');
             exit;
         }
@@ -26,9 +29,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pin = $_POST['pin'] ?? '';
         $avatar = $_POST['avatar'] ?? '😊';
         $active = $_POST['active'] ?? 1;
+        // Sprint 5: optional guardian-entered demographics (decision iii).
+        // Always passed (blank clears the field) since the form always submits them.
+        $gender = $_POST['gender'] ?? '';
+        $dateOfBirth = $_POST['date_of_birth'] ?? '';
 
         if ($id && $name) {
-            updateUser($id, $name, 'child', $pin ?: null, $avatar, $active);
+            updateUser($id, $name, 'child', $pin ?: null, $avatar, $active, $gender, $dateOfBirth);
             header('Location: ?page=manage-children');
             exit;
         }
@@ -82,6 +89,32 @@ ob_start();
                     <label>
                         <?php echo t('avatar'); ?>
                         <input type="text" name="avatar" value="<?php echo $editChild ? $editChild['avatar_emoji'] : '😊'; ?>" maxlength="2" required>
+                    </label>
+
+                    <?php
+                    // Sprint 5: optional guardian-entered demographics. OPTIONAL at
+                    // this stage (required-enforcement arrives with the Sprint 6
+                    // percentiles toggle). Guardian/clinician-side only — these
+                    // inputs never appear on any child page (decision iii).
+                    $childGender = $editChild['gender'] ?? '';
+                    $childDob = $editChild['date_of_birth'] ?? '';
+                    ?>
+                    <fieldset>
+                        <legend><?php echo t('gender'); ?></legend>
+                        <label style="display:inline-flex;align-items:center;gap:0.35rem;margin-right:1.25rem;">
+                            <input type="radio" name="gender" value="male" <?php echo $childGender === 'male' ? 'checked' : ''; ?>>
+                            <?php echo t('gender_male'); ?>
+                        </label>
+                        <label style="display:inline-flex;align-items:center;gap:0.35rem;">
+                            <input type="radio" name="gender" value="female" <?php echo $childGender === 'female' ? 'checked' : ''; ?>>
+                            <?php echo t('gender_female'); ?>
+                        </label>
+                    </fieldset>
+
+                    <label>
+                        <?php echo t('date_of_birth'); ?>
+                        <input type="date" name="date_of_birth" value="<?php echo sanitize($childDob); ?>" max="<?php echo date('Y-m-d'); ?>">
+                        <small><?php echo t('dob_optional_hint'); ?></small>
                     </label>
 
                     <?php if ($editChild): ?>

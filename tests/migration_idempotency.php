@@ -74,11 +74,15 @@ $tables1 = tableList($db);
 echo "schema_version after first migrate: " . var_export($ver1, true) . "\n";
 echo "tables (" . count($tables1) . "): " . implode(', ', $tables1) . "\n";
 
-check($ver1 === 2, "schema_version is 2 after first migrate (shipped v0.9.1)");
+check($ver1 === 3, "schema_version is 3 after first migrate (Sprint 5 demographics)");
 $mustHave = ['users','meals','foods','food_log','daily_checkin','weight_log','settings','guest_tokens','translations','sleep_log','sleep_interruptions'];
 foreach ($mustHave as $t) {
     check(in_array($t, $tables1, true), "table '$t' exists after first migrate");
 }
+// Sprint 5: demographics columns present after the v3 migration.
+$uCols1 = $db->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
+check(in_array('gender', $uCols1, true), "users.gender exists after first migrate (v3)");
+check(in_array('date_of_birth', $uCols1, true), "users.date_of_birth exists after first migrate (v3)");
 // Default guardian present
 $g = $db->query("SELECT id, name, type FROM users WHERE id = 1")->fetch();
 check($g && $g['type'] === 'guardian', "default guardian id=1 created");

@@ -54,6 +54,11 @@
  *   Sprint 2 (sleep tracking)       : A1 tables + A2 forward migration columns.
  *   Sprint 3 (clinical report)      : via smoke.php correlations + JSON whitelist.
  *   Sprint 4 (this safety net)      : A1/A2/A3 + B1/B2 orchestration + C negative.
+ *   Sprint 5 (demographics v2->v3)  : A1 fresh schema.sql carries gender +
+ *                                     date_of_birth; A2 v1->...->v3 forward
+ *                                     migrate adds both columns (nullable),
+ *                                     preserves pre-existing user rows, and is
+ *                                     idempotent on re-run.
  * ---------------------------------------------------------------------------
  */
 
@@ -231,7 +236,7 @@ date_default_timezone_set('Europe/Lisbon');
 require_once $ROOT . '/includes/db.php';
 
 // --- A1. initializeDatabase() on a fresh temp DB ----------------------------
-echo "\n-- A1. initializeDatabase(): tables + schema_version=2 --\n";
+echo "\n-- A1. initializeDatabase(): tables + schema_version=3 --\n";
 ok(!file_exists($initDb), "A1 precondition: temp DB does not exist before init");
 initializeDatabase(); // DB_PATH = $initDb
 $a1 = getDB();
@@ -254,11 +259,18 @@ ok($expSorted === $gotSorted,
    "A1 table set exactly matches expected (" . count($expectedTables) . " tables)");
 
 $a1ver = readSchemaVersion($a1);
-ok($a1ver === 2, "A1 schema_version reaches 2 on fresh init [got " . var_export($a1ver, true) . "]");
+ok($a1ver === 3, "A1 schema_version reaches 3 on fresh init [got " . var_export($a1ver, true) . "]");
 
 // Default guardian seeded by initializeDatabase().
 $g = $a1->query("SELECT id,type FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
 ok($g && $g['type'] === 'guardian', "A1 default guardian id=1 created by init");
+
+// Sprint 5: a fresh DB built from schema.sql must already carry the demographics
+// columns (schema.sql and the v3 migration agree). Both are NULLABLE.
+ok(columnExists($a1, 'users', 'gender'),
+   "A1 users.gender column present on fresh schema.sql DB");
+ok(columnExists($a1, 'users', 'date_of_birth'),
+   "A1 users.date_of_birth column present on fresh schema.sql DB");
 $a1 = null;
 
 // --- A2. migrateDatabase() forward from synthetic v1 + idempotency ----------
@@ -278,28 +290,58 @@ ok(!in_array('sleep_log', listTables($m), true),
    "A2 fixture lacks sleep_log before migrate");
 ok(!in_array('sleep_interruptions', listTables($m), true),
    "A2 fixture lacks sleep_interruptions before migrate");
+// Sprint 5 (v2->v3): the v1 fixture must also lack the demographics columns so
+// the forward migration has real work to do for v3 as well as v2.
+ok(!columnExists($m, 'users', 'gender'),
+   "A2 fixture lacks users.gender before migrate");
+ok(!columnExists($m, 'users', 'date_of_birth'),
+   "A2 fixture lacks users.date_of_birth before migrate");
 
 // Forward migrate.
 $threwFwd = false;
 try { migrateDatabase($m); } catch (Throwable $e) { $threwFwd = true; echo "    EXCEPTION: " . $e->getMessage() . "\n"; }
 ok(!$threwFwd, "A2 forward migrateDatabase() did not throw");
 
-// Post-state: the Sprint-2 deliverables now exist.
-ok(readSchemaVersion($m) === 2, "A2 schema_version is 2 after forward migrate");
+// Post-state: the Sprint-2 AND Sprint-5 deliverables now exist. The fixture
+// migrates forward through every gated block (v1->v2->v3) in one call.
+ok(readSchemaVersion($m) === 3, "A2 schema_version is 3 after forward migrate");
 ok(columnExists($m, 'daily_checkin', 'sleep_quality'),
    "A2 daily_checkin.sleep_quality exists after migrate");
 ok(in_array('sleep_log', listTables($m), true),
    "A2 sleep_log exists after migrate");
 ok(in_array('sleep_interruptions', listTables($m), true),
    "A2 sleep_interruptions exists after migrate");
+// Sprint 5 (v2->v3): demographics columns appear, both NULLABLE.
+ok(columnExists($m, 'users', 'gender'),
+   "A2 users.gender exists after migrate (v3)");
+ok(columnExists($m, 'users', 'date_of_birth'),
+   "A2 users.date_of_birth exists after migrate (v3)");
+// Existing user rows survive the v3 ALTERs with the new columns defaulting NULL.
+$urow = $m->query("SELECT name,type,gender,date_of_birth FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
+ok($urow && $urow['name'] === 'Fixture' && $urow['type'] === 'guardian',
+   "A2 pre-existing users row preserved across v3 migration");
+ok($urow && $urow['gender'] === null && $urow['date_of_birth'] === null,
+   "A2 v3 ALTER leaves pre-existing user gender/date_of_birth NULL (additive, non-destructive)");
 // Pre-existing data survived the ALTER.
 $row = $m->query("SELECT appetite_level,mood_level FROM daily_checkin WHERE user_id=1 AND check_date='2026-01-01'")->fetch(PDO::FETCH_ASSOC);
 ok($row && (int)$row['appetite_level'] === 3 && (int)$row['mood_level'] === 4,
    "A2 pre-existing daily_checkin row preserved across migration");
 
+// Sprint 5: prove writes through the new columns round-trip (and the CHECK
+// constraint accepts the two valid genders). Then confirm idempotent re-run
+// preserves these values.
+$m->exec("UPDATE users SET gender='female', date_of_birth='2018-05-04' WHERE id=1");
+$wrote = $m->query("SELECT gender,date_of_birth FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
+ok($wrote && $wrote['gender'] === 'female' && $wrote['date_of_birth'] === '2018-05-04',
+   "A2 demographics values write+read back through v3 columns");
+
 // Idempotency: capture state, re-run twice, assert no change and no throw.
 $verBefore = readSchemaVersion($m);
 $tablesBefore = listTables($m); sort($tablesBefore);
+// Capture the users column set too — the v3 work is column-adds (not new tables),
+// so a no-op re-run must NOT duplicate or drop columns.
+$usersColsBefore = $m->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
+sort($usersColsBefore);
 $threwAgain = false;
 try { migrateDatabase($m); migrateDatabase($m); }
 catch (Throwable $e) { $threwAgain = true; echo "    EXCEPTION(re-run): " . $e->getMessage() . "\n"; }
@@ -307,7 +349,16 @@ ok(!$threwAgain, "A2 re-running migrateDatabase() twice did not throw");
 $verAfter = readSchemaVersion($m);
 $tablesAfter = listTables($m); sort($tablesAfter);
 ok($verAfter === $verBefore, "A2 schema_version unchanged on re-run ($verBefore -> $verAfter)");
+ok($verAfter === 3, "A2 schema_version stays at 3 on idempotent re-run");
 ok($tablesAfter === $tablesBefore, "A2 table set unchanged on re-run (no-op migration)");
+$usersColsAfter = $m->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
+sort($usersColsAfter);
+ok($usersColsAfter === $usersColsBefore,
+   "A2 users column set unchanged on re-run (v3 column-adds are idempotent)");
+// Demographics values written earlier survive the no-op re-runs.
+$keep = $m->query("SELECT gender,date_of_birth FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
+ok($keep && $keep['gender'] === 'female' && $keep['date_of_birth'] === '2018-05-04',
+   "A2 demographics values preserved across idempotent migrate re-runs");
 $m = null;
 
 // --- A3. backup / restore round-trip ----------------------------------------

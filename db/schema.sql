@@ -8,6 +8,12 @@ CREATE TABLE IF NOT EXISTS users (
     type TEXT NOT NULL CHECK(type IN ('child', 'guardian')),
     pin TEXT, -- Simple 4-digit PIN for child authentication
     avatar_emoji TEXT DEFAULT '😊',
+    -- Sprint 5: Demographics Foundation. Guardian-entered identity fields, both
+    -- NULLABLE. Mirrors the v3 migration so a fresh DB matches a migrated one.
+    -- Privacy (decision iii): guardian/clinician-side only — never shown on any
+    -- child page.
+    gender TEXT CHECK(gender IN ('male', 'female')),
+    date_of_birth DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     active INTEGER DEFAULT 1
 );

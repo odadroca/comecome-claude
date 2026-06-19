@@ -11,6 +11,13 @@ $period = $_GET['period'] ?? '7';
 [$startDate, $endDate] = getDateRangeForPeriod($period);
 $data = $selectedChild ? getDashboardData($selectedChild, $startDate, $endDate) : null;
 
+// Sprint 5: derive the selected child's age (in months) from DOB when set.
+// Guardian/clinician-side only (decision iii) — this never reaches a child page.
+$selectedChildRecord = $selectedChild ? getUserById($selectedChild) : null;
+$childAgeMonths = $selectedChildRecord
+    ? calculateAgeInMonths($selectedChildRecord['date_of_birth'] ?? null)
+    : null;
+
 ob_start();
 ?>
 
@@ -19,6 +26,23 @@ ob_start();
 
     <main class="container">
         <h1><?php echo t('guardian_dashboard'); ?></h1>
+
+        <?php if ($childAgeMonths !== null): ?>
+        <!-- Sprint 5: child age (from DOB). Guardian-side only. -->
+        <p class="child-age" style="opacity:0.8;margin-top:-0.5rem;">
+            🎂 <strong><?php echo t('age'); ?>:</strong>
+            <?php
+            $years = intdiv($childAgeMonths, 12);
+            $months = $childAgeMonths % 12;
+            $parts = [];
+            if ($years > 0) {
+                $parts[] = $years . ' ' . t($years === 1 ? 'year' : 'years');
+            }
+            $parts[] = $months . ' ' . t($months === 1 ? 'month' : 'months');
+            echo implode(', ', $parts);
+            ?>
+        </p>
+        <?php endif; ?>
 
         <!-- Filters -->
         <div class="dashboard-filters">

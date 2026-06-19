@@ -34,6 +34,35 @@ function formatDate($date, $format = 'd-m-Y') {
 }
 
 /**
+ * Sprint 5 — Demographics Foundation.
+ *
+ * Compute a child's age in WHOLE months from a date_of_birth (YYYY-MM-DD).
+ * Returns an integer number of completed months, or null when the DOB is
+ * blank/unparseable/in the future (graceful degradation — never throws, never
+ * returns a negative age). Uses DateTime::diff so month/year boundaries are
+ * handled correctly (no naive 30-day arithmetic).
+ *
+ * This is the building block for the dashboard age display and, later, the
+ * percentile engine (Sprints 7–8). Privacy (decision iii): the derived age is
+ * guardian/clinician-side context; the raw DOB never reaches a child page.
+ */
+function calculateAgeInMonths($dateOfBirth) {
+    if (empty($dateOfBirth)) return null;
+
+    try {
+        $dob = new DateTime($dateOfBirth);
+        $now = new DateTime('now');
+    } catch (Exception $e) {
+        return null; // unparseable DOB — degrade gracefully
+    }
+
+    if ($dob > $now) return null; // future DOB — guard against bad input
+
+    $diff = $dob->diff($now);
+    return ($diff->y * 12) + $diff->m;
+}
+
+/**
  * Get date range for period
  */
 function getDateRangeForPeriod($period) {
