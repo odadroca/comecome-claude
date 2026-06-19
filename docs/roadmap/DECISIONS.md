@@ -171,6 +171,24 @@ exact foundations encryption needs addresses both concerns in one coherent effor
 migration** (critic's ordering); the auth/`.env` hardening can run alongside or just after the
 percentile arc; **encryption stays DEFERRED** but now has a named predecessor track and revisit trigger.
 
+### Amendment (2026-06-19) — at-rest encryption mechanism, post-Hostinger assessment
+
+Deployment is **Hostinger shared hosting**, which changes the encryption mechanism (the *priority*
+of perimeter-first is unchanged):
+
+- **SQLCipher is INFEASIBLE on shared hosting** — it needs `libsqlcipher` at the system level + a
+  PHP `pdo_sqlite` linked against it; no root/apt/compiler/PHP-build control exists. **A `PRAGMA
+  key` against stock `libsqlite3` (`includes/db.php:17`) is a SILENT NO-OP** that leaves the DB
+  plaintext while *appearing* to work — strictly worse than nothing. SQLCipher is re-classified as a
+  **VPS-only future upgrade** (trigger: migration to a VPS/Docker the operator controls).
+- **Deployable mechanism instead:** DB + key **above `public_html`**, **encrypted off-host backups**,
+  and **scoped libsodium field encryption** (stock PHP 7.2+, no deps) on free-text/identity columns
+  (`users.name`, `daily_checkin.notes`, `medications.name`/`dose`). **`gender`/`date_of_birth` stay
+  cleartext** this sprint — the WHO percentile engine derives age from them; encrypting them is a
+  follow-up that must wire decrypt into the percentile read paths.
+- **Full spec:** [`SPRINT-SECURITY.md`](SPRINT-SECURITY.md) — one threat-ordered sprint
+  ("Security & Deployment Foundations — Pt 2", Pt 1 = the Sprint-4 harness).
+
 ---
 
 ## Summary (at a glance)
@@ -181,4 +199,4 @@ percentile arc; **encryption stays DEFERRED** but now has a named predecessor tr
 | ii | Height capture UX | **Fold into child weight page → "Growth"**, toggle-gated, no new footer item |
 | iii | Privacy posture (gender/DOB) | **Balanced** — gender+age+percentiles in clinician outputs; exact DOB guardian-side only; JSON whitelisted |
 | iv | Missing-demographics UX | **Graceful degradation + soft-warn**; never blocks the toggle |
-| v | Security priority | **Security & Deployment Foundations track** (auth/TLS + .env + tests) that also unblocks deferred encryption |
+| v | Security priority | **Security & Deployment Foundations track** (auth/TLS + .env + tests). Pt 2 specced in `SPRINT-SECURITY.md` (threat-ordered). **Amended:** SQLCipher infeasible on shared hosting → **libsodium field encryption**; SQLCipher is VPS-only. |

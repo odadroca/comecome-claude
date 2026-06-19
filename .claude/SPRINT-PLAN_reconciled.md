@@ -45,8 +45,11 @@ Footer is at **4 of max 5** items.
 **Security & Deployment Foundations track (decision v):** Sprint 4 is its first deliverable.
 Its remaining parts — PIN brute-force lockout/throttling, `Secure`/`HttpOnly`/`SameSite` cookies,
 session regeneration, deployment TLS guidance, and the `.env`/secrets pattern — form a parallel
-workstream that can land any time after Sprint 4 and **unblocks** the still-**deferred** SQLCipher
-at-rest encryption (scheduled only after this track + an explicit go decision).
+workstream now **fully specced** in [`docs/roadmap/SPRINT-SECURITY.md`](../docs/roadmap/SPRINT-SECURITY.md)
+as one threat-ordered sprint ("Pt 2"). Per the Hostinger assessment, **SQLCipher is infeasible on
+shared hosting** (a `PRAGMA key` on stock SQLite is a silent plaintext no-op); the deployable at-rest
+mechanism is **libsodium field encryption** + DB-above-docroot + encrypted backups, with SQLCipher
+re-classified VPS-only (see `DECISIONS.md` decision-v amendment).
 
 ### Cross-cutting rules (apply to every sprint — from the roadmap critique)
 - Every `ALTER` in a version-gated `migrateDatabase()` block **and** mirrored in `db/schema.sql`.
