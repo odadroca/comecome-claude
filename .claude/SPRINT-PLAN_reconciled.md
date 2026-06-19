@@ -55,6 +55,34 @@ at-rest encryption (scheduled only after this track + an explicit go decision).
 - `pt.json` is **canonical** — real Portuguese clinical strings, key-parity with `en.json` verified each sprint.
 - State the **child boundary** per sprint; footer ≤ 5 items.
 
+### Backlog (booked, unscheduled)
+
+Features/improvements captured but not yet sequenced into a sprint:
+
+- **Height chart on the Growth page (motivational).** Add a height-over-time line chart to the
+  child's Growth page, mirroring the existing weight chart. Framed **purely as encouragement** —
+  a child is only expected to grow taller, so it's a "look how much you've grown!" celebration:
+  **no percentile bands/zones/clinical flags on the child surface** (clinical growth context stays
+  guardian/clinician-only, per the child boundary). Reuses the existing Chart.js pattern;
+  complements Sprint 6 (height input) and Sprint 8 (guardian-side percentiles). Effort ~S.
+
+- **Per-child feature toggles ("All" vs per registered child).** Today the child-feature
+  visibility toggles (`show_food_journal` / `show_checkin` / `show_weight_tracking` /
+  `show_sleep_tracking` / `show_percentiles` / `show_nutrition_insights` /
+  `show_medication_to_children`) are **global** — one value applies to every child. Allow each
+  toggle to be set either globally (**"All children"**) **or overridden per registered child**
+  (e.g. a younger child sees fewer features than an older sibling). Implementation: a per-child
+  override layer over the settings key/value model — e.g. a `user_settings(user_id, key, value)`
+  table read by an extended `getSetting($key, $default, $childId)` resolving **per-child override →
+  global → default**; the guardian Settings page gains a features × children matrix defaulting to
+  "All"; the `index.php` route guards must resolve the toggle for the logged-in child. Effort ~M–L;
+  builds directly on Sprint 1's toggle foundation.
+
+Also tracked (quality / cleanup / product):
+- BMI percentile **trajectory** (needs a same-date weight+height pairing rule; Sprint 8 ships current-rank only).
+- Production-shaped `data.db` migration test; sleep `DATETIME`/`TEXT` normalization on migrated installs; i18n clinical-quality pass; WHO/CDC attribution (revisit with 8b).
+- Product/positioning re: ADHD-as-a-label (deferred "thinking exercise"); demo-seeder anonymization (**done 2026-06-19**); child-UX footer budget (merge concepts before a 6th item).
+
 ---
 
 ## Sprint 0 — Bug Fixes
