@@ -23,6 +23,8 @@ in the existing sub-runners so coverage stays cumulative across Sprints 0–4.
 | C  | **Negative self-test** — re-invokes the runner in `--selftest-negative` mode (which fails by design) and asserts a non-zero exit, proving the harness catches a deliberately broken case. |
 | E/F | Sprint 5/6/8/9 percentile + medication-timing coverage (`schema_version` reaches 5). |
 | G  | **Security Phase 0** — `configureSessionCookieParams()` cookie-flag logic (HttpOnly + SameSite=Lax always; Secure env-gated on HTTPS / proxy / :443); `sessionIsExpired()` idle-timeout math (incl. legacy null-stamp backward compat); default-`0000`-PIN guard lifecycle (fresh init arms it; a PIN change off `0000` clears it; restore/reset of a `0000` DB re-arms it; a custom-PIN guardian is never flagged). All re-derived from the actual stored hash. |
+| H  | **Security Phase 1** — PIN brute-force throttling/lockout. `throttleComputeAfterFailure()` backoff/window/lock state machine + `throttleIsLocked()` (pure, no DB); `authenticateUser()` round-trip on a throwaway DB: scripted wrong-PINs tip into a **distinct** locked state, a locked account refuses even the correct PIN, a correct PIN resets the counter, storage stays **one** aggregated row (UPDATE-in-place), an unknown id locks identically (no existence oracle), self-prune drops stale rows. `schema_version` reaches **6** (`login_attempts`). |
+| B2 | **HTTP-level smokes** orchestrated as file-redirected sub-runners (spawn `php -S` + curl, each on a free ephemeral port, each exit 0): `tests/http_smoke.php` (Phase 0 cookie flags) and `tests/http_throttle_smoke.php` (Phase 1 lockout message over real HTTP). |
 
 ## Sub-runners (can also be run directly)
 
@@ -30,6 +32,7 @@ in the existing sub-runners so coverage stays cumulative across Sprints 0–4.
 php tests/smoke.php                  # cumulative smoke (Sprints 0–3)
 php tests/migration_idempotency.php  # migrate forward + idempotency
 php tests/http_smoke.php             # HTTP-level: php -S + Set-Cookie header flags (Phase 0)
+php tests/http_throttle_smoke.php    # HTTP-level: php -S + scripted wrong-PIN POSTs -> lockout (Phase 1)
 ```
 
 ### HTTP smoke (`tests/http_smoke.php`)
@@ -41,6 +44,18 @@ inspects the real response headers, asserting the session cookie carries
 `HttpOnly` + `SameSite=Lax` and — over plain HTTP dev — **no** `Secure` flag (so
 local `php -S` is never broken; Secure auto-enables under TLS in Phase 2). Exit
 `0` = pass.
+
+### HTTP throttle smoke (`tests/http_throttle_smoke.php`)
+
+The in-process runner (PHASE H) drives the throttle state machine + DB round-trip
+directly, but cannot observe the wired-up **login page** surfacing the distinct
+`locked` state over real HTTP. This smoke boots `php -S` against a **throwaway DB**
+(`COMECOME_DB_PATH`, asserted non-empty so it never falls back to the real
+`db/data.db`) and POSTs scripted wrong PINs to `?page=login`: attempts under the
+threshold return the **wrong-PIN** message, the threshold attempt tips into the
+**distinct** `login_locked` message, and even the correct PIN is then refused
+(the pre-verify lockout gate holds end-to-end). Binds a **free ephemeral port** so
+overlapping runs / orphaned servers never collide. Exit `0` = pass.
 
 ## Honesty policy
 

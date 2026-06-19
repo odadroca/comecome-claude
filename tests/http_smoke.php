@@ -50,9 +50,27 @@ if ($realDb !== false && realpath(dirname($tmpDb)) === false) {
     fwrite(STDERR, "ABORT: bad temp path\n"); exit(2);
 }
 
-// --- Pick a free-ish port ---------------------------------------------------
-$port = 8099;
+// --- Pick a FREE ephemeral port ---------------------------------------------
+// A fixed port collides when an earlier `php -S` orphan (or a parallel regression
+// run, e.g. run.php's PHASE B2 orchestrating both HTTP smokes) still holds it,
+// which would hang this smoke. Bind a throwaway socket to :0, read back the
+// OS-assigned port, close it, and hand that port to `php -S`.
 $host = '127.0.0.1';
+$pickSock = @stream_socket_server("tcp://$host:0", $pErrno, $pErrstr);
+if (!$pickSock) {
+    fwrite(STDERR, "ABORT: could not allocate a free port\n");
+    @unlink($tmpDb);
+    exit(2);
+}
+$pickName = stream_socket_get_name($pickSock, false); // "127.0.0.1:54321"
+fclose($pickSock);
+$pickPos = strrpos($pickName, ':');
+$port = ($pickPos === false) ? 0 : (int) substr($pickName, $pickPos + 1);
+if ($port <= 0) {
+    fwrite(STDERR, "ABORT: could not parse a free port\n");
+    @unlink($tmpDb);
+    exit(2);
+}
 
 // --- Spawn `php -S` with the throwaway DB path ------------------------------
 $phpBin = PHP_BINARY;

@@ -41,6 +41,10 @@
  *            B1. tests/migration_idempotency.php  (exit 0 expected)
  *            B2. tests/smoke.php                  (exit 0 expected; cumulative
  *                                                  Sprint 0–3 coverage)
+ *   PHASE B2 HTTP-level smoke sub-runners (spawn `php -S` + curl): assert the
+ *            response behaviours the in-process harness cannot observe.
+ *            - tests/http_smoke.php          (Phase 0 cookie flags over HTTP)
+ *            - tests/http_throttle_smoke.php (Phase 1 lockout message over HTTP)
  *   PHASE C  Negative self-test: re-invoke THIS file in --selftest-negative mode
  *            (which deliberately fails an assertion) and assert it exits NON-zero.
  *            Proves the runner actually catches a broken case.
@@ -95,6 +99,10 @@
  *                                     account refuses verify, a correct PIN resets, the
  *                                     storage stays ONE aggregated row (UPDATE-in-place),
  *                                     unknown ids lock identically, self-prune works.
+ *                                     PHASE B2 — tests/http_throttle_smoke.php drives the
+ *                                     wired-up login page over real HTTP (`php -S` + curl):
+ *                                     scripted wrong-PIN POSTs tip into the DISTINCT locked
+ *                                     message and a correct PIN is refused while locked.
  * ---------------------------------------------------------------------------
  */
 
@@ -608,6 +616,76 @@ foreach ($subRunners as $rel) {
         if (trim($err) !== '') { echo "    | stderr: " . trim($err) . "\n"; }
     }
     ok($clean, "B sub-runner passed (exit 0): $rel");
+}
+
+/* -------------------------------------------------------------------------
+ * PHASE B2 — HTTP-level smoke sub-runners (spawn `php -S` + curl).
+ *   The in-process unit harness deliberately CANNOT load config.php/start a
+ *   session or observe real response headers, cookies, redirects or the wired-up
+ *   login page. The Testability section of SPRINT-SECURITY.md therefore requires a
+ *   `php -S` + curl smoke for those behaviours. We orchestrate them HERE so
+ *   `php tests/run.php` stays the single cumulative regression command:
+ *     - tests/http_smoke.php          : Phase 0 Set-Cookie HttpOnly+SameSite=Lax,
+ *                                       no Secure over plain HTTP.
+ *     - tests/http_throttle_smoke.php : Phase 1 scripted wrong-PIN POSTs tip into
+ *                                       the DISTINCT locked message over HTTP, and a
+ *                                       correct PIN is refused while locked.
+ *   Each spawns its own server bound to a throwaway DB (COMECOME_DB_PATH) and must
+ *   exit 0. They need a free TCP port + the `curl` binary; if a smoke cannot bind or
+ *   curl is missing it FAILS loudly (honest) rather than being silently skipped.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE B2 — HTTP-level smoke sub-runners (php -S + curl) ###\n";
+
+/**
+ * Run a sub-runner that itself SPAWNS a `php -S` grandchild, capturing output via
+ * a TEMP FILE rather than inherited stdout/stderr PIPES.
+ *
+ * WHY NOT runSub(): runSub() captures the child's stdout/stderr through proc_open
+ * pipes and blocks on stream_get_contents() until EOF. An HTTP smoke spawns a
+ * `php -S` grandchild that INHERITS those pipe handles; on Windows the grandchild
+ * can keep the write end open past the child's exit, so the parent never sees EOF
+ * and DEADLOCKS. Redirecting the child to a file gives it private stdio the
+ * grandchild inherits instead — no parent-side pipe to hang on. We then read the
+ * file. This is the robust way to orchestrate a process-spawning sub-runner.
+ */
+function runSubToFile($php, $scriptPath) {
+    $outFile = tempnam(sys_get_temp_dir(), 'cc_b2_') . '.log';
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['file', $outFile, 'w'],
+        2 => ['file', $outFile, 'a'],
+    ];
+    $proc = proc_open(escapeshellarg($php) . ' ' . escapeshellarg($scriptPath), $descriptors, $pipes);
+    if (!is_resource($proc)) { return [127, "proc_open failed", $outFile]; }
+    if (isset($pipes[0]) && is_resource($pipes[0])) { fclose($pipes[0]); }
+    // Block on the child only (no pipe to read); the child reaps its own grandchild
+    // server in its cleanup(), so this returns once the smoke has finished + torn
+    // down its server.
+    $code = proc_close($proc);
+    $out = @file_get_contents($outFile);
+    if ($out === false) { $out = ''; }
+    return [$code, $out, $outFile];
+}
+
+$httpSmokes = [
+    'tests/http_smoke.php',
+    'tests/http_throttle_smoke.php',
+];
+foreach ($httpSmokes as $rel) {
+    $abs = $ROOT . '/' . $rel;
+    if (!file_exists($abs)) {
+        ok(false, "B2 HTTP smoke present: $rel (MISSING)");
+        continue;
+    }
+    [$code, $out, $outFile] = runSubToFile($php, $abs);
+    $clean = ($code === 0);
+    if (!$clean) {
+        echo "    ----- $rel output (exit=$code) -----\n";
+        $tail = array_slice(preg_split('/\r?\n/', rtrim($out)), -30);
+        foreach ($tail as $line) { echo "    | $line\n"; }
+    }
+    if ($outFile && file_exists($outFile)) { @unlink($outFile); }
+    ok($clean, "B2 HTTP smoke passed (exit 0): $rel");
 }
 
 /* -------------------------------------------------------------------------
