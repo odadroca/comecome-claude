@@ -32,6 +32,14 @@ define('SESSION_LIFETIME', 60 * 60 * 24); // 24 hours
 // Guest token configuration
 define('GUEST_TOKEN_LIFETIME', 60 * 60 * 24 * 7); // 7 days
 
+// Transport security (Sprint security Phase 2). HSTS max-age in SECONDS.
+// Conservative default = 1 day (no preload) so an operator can confirm TLS is
+// healthy before ratcheting it up; override in config.local.php once stable
+// (e.g. 31536000 = 1 year). Only emitted over HTTPS (see hstsHeaderValue()).
+if (!defined('HSTS_MAX_AGE')) {
+    define('HSTS_MAX_AGE', 60 * 60 * 24); // 86400 = 1 day
+}
+
 // Timezone
 date_default_timezone_set('Europe/Lisbon');
 
@@ -44,6 +52,15 @@ applySessionCookieParams();
 
 // Start session
 session_start();
+
+// Sprint security Phase 2 — enforce TLS/HTTPS + HSTS at the app level (backstop
+// for the .htaccess rule, which only runs under Apache). MUST come AFTER the
+// Phase 0 cookie bootstrap above so the env-gated Secure flag is set first and
+// local `php -S` HTTP dev is never broken (ordering invariant). On plain HTTP
+// with HTTPS enforcement off (the zero-config default) this is a silent no-op;
+// over HTTPS it adds the HSTS header; under COMECOME_FORCE_HTTPS it 301s
+// HTTP->HTTPS. See includes/session.php for the pure decision logic.
+enforceTransportSecurity();
 
 // Initialize database if it doesn't exist, otherwise run migrations
 if (!file_exists(DB_PATH)) {

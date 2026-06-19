@@ -103,6 +103,14 @@
  *                                     wired-up login page over real HTTP (`php -S` + curl):
  *                                     scripted wrong-PIN POSTs tip into the DISTINCT locked
  *                                     message and a correct PIN is refused while locked.
+ *   Security Phase 2 (TLS/HSTS)      : PHASE I — pure transport-security decision logic
+ *                                     (requestIsHttps / httpsRedirectTarget / hstsHeaderValue):
+ *                                     redirect ONLY plain HTTP with enforcement on, never an
+ *                                     already-HTTPS request (no loop) and never with the flag
+ *                                     off (local dev safe); HSTS conservative + HTTPS-only +
+ *                                     no preload. PHASE B2 — tests/http_tls_smoke.php drives the
+ *                                     real 301 + Strict-Transport-Security header over `php -S`.
+ *                                     No DB change (no schema bump).
  * ---------------------------------------------------------------------------
  */
 
@@ -630,6 +638,9 @@ foreach ($subRunners as $rel) {
  *     - tests/http_throttle_smoke.php : Phase 1 scripted wrong-PIN POSTs tip into
  *                                       the DISTINCT locked message over HTTP, and a
  *                                       correct PIN is refused while locked.
+ *     - tests/http_tls_smoke.php      : Phase 2 HTTP->HTTPS 301 fires under the TLS
+ *                                       env flag, HSTS emitted over (simulated) TLS,
+ *                                       and neither fires on plain-HTTP dev (no flag).
  *   Each spawns its own server bound to a throwaway DB (COMECOME_DB_PATH) and must
  *   exit 0. They need a free TCP port + the `curl` binary; if a smoke cannot bind or
  *   curl is missing it FAILS loudly (honest) rather than being silently skipped.
@@ -670,6 +681,7 @@ function runSubToFile($php, $scriptPath) {
 $httpSmokes = [
     'tests/http_smoke.php',
     'tests/http_throttle_smoke.php',
+    'tests/http_tls_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;
@@ -1291,6 +1303,82 @@ ok($pruned >= 1 && $keptFresh === 1 && $remain === 1,
 // PHASE H cleanup.
 gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE I — Security Sprint Phase 2 (enforce TLS/HTTPS + HSTS).
+ *
+ *   The CLI harness cannot load config.php / issue a real request, so it asserts
+ *   the PURE transport-security decision logic from includes/session.php (loaded
+ *   in PHASE G). The HTTP-observable side (real 301 + Set Strict-Transport-Security
+ *   header) is covered separately by tests/http_tls_smoke.php under `php -S`
+ *   (orchestrated in PHASE B2).
+ *
+ *     I1. requestIsHttps() — direct TLS / X-Forwarded-Proto / :443 detection
+ *         agrees with Phase 0's Secure-cookie detection.
+ *     I2. httpsEnforcementEnabled() — only truthy flag values turn enforcement on
+ *         (so an unset/blank flag leaves local `php -S` dev alone).
+ *     I3. httpsRedirectTarget() — redirects ONLY plain HTTP with enforcement on,
+ *         to the same-host https:// URL preserving path+query; never redirects an
+ *         already-HTTPS request (no proxy loop) and never with the flag off
+ *         (ordering invariant: dev untouched). Strips CR/LF from a crafted Host.
+ *     I4. hstsHeaderValue() — emits a conservative max-age + includeSubDomains and
+ *         NO preload ONLY over HTTPS; null over plain HTTP (RFC 6797).
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE I — security Phase 2 (enforce TLS/HTTPS + HSTS) ###\n";
+
+ok(function_exists('requestIsHttps')
+   && function_exists('httpsEnforcementEnabled')
+   && function_exists('httpsRedirectTarget')
+   && function_exists('hstsHeaderValue')
+   && function_exists('enforceTransportSecurity'),
+   "I transport-security helpers loaded (pure decision logic + side-effecting wrapper)");
+
+echo "\n-- I1. requestIsHttps(): TLS / proxy / :443 detection (matches Phase 0 Secure logic) --\n";
+ok(requestIsHttps(['HTTPS' => 'on']) === true,                         "I1 HTTPS=on => https");
+ok(requestIsHttps(['HTTPS' => 'off', 'SERVER_PORT' => 80]) === false,  "I1 HTTPS=off, :80 => not https");
+ok(requestIsHttps(['HTTP_X_FORWARDED_PROTO' => 'https']) === true,     "I1 X-Forwarded-Proto: https => https (proxy TLS)");
+ok(requestIsHttps(['SERVER_PORT' => 443]) === true,                    "I1 :443 server port => https");
+ok(requestIsHttps([]) === false,                                       "I1 bare HTTP request => not https");
+
+echo "\n-- I2. httpsEnforcementEnabled(): only truthy flags arm enforcement --\n";
+ok(httpsEnforcementEnabled('1') === true,    "I2 '1' arms enforcement");
+ok(httpsEnforcementEnabled('true') === true, "I2 'true' arms enforcement");
+ok(httpsEnforcementEnabled('on') === true,   "I2 'on' arms enforcement");
+ok(httpsEnforcementEnabled('') === false,    "I2 blank flag => OFF (zero-config dev untouched)");
+ok(httpsEnforcementEnabled('0') === false,   "I2 '0' => OFF");
+ok(httpsEnforcementEnabled('no') === false,  "I2 'no' => OFF");
+
+echo "\n-- I3. httpsRedirectTarget(): redirect ONLY plain HTTP + enforcement on --\n";
+$srvHttp = ['HTTP_HOST' => 'example.org', 'REQUEST_URI' => '/index.php?page=login', 'SERVER_PORT' => 80];
+ok(httpsRedirectTarget($srvHttp, '1') === 'https://example.org/index.php?page=login',
+   "I3 plain HTTP + flag on => 301 to same-host https:// preserving path+query");
+ok(httpsRedirectTarget($srvHttp, '') === null,
+   "I3 plain HTTP + flag OFF => no redirect (ordering invariant: local php -S dev safe)");
+ok(httpsRedirectTarget(['HTTPS' => 'on', 'HTTP_HOST' => 'example.org', 'REQUEST_URI' => '/'], '1') === null,
+   "I3 already HTTPS + flag on => no redirect (no loop)");
+ok(httpsRedirectTarget(['HTTP_X_FORWARDED_PROTO' => 'https', 'HTTP_HOST' => 'example.org', 'REQUEST_URI' => '/'], '1') === null,
+   "I3 proxy-TLS (X-Forwarded-Proto) + flag on => no redirect (no proxy loop)");
+ok(httpsRedirectTarget(['REQUEST_URI' => '/', 'SERVER_PORT' => 80], '1') === null,
+   "I3 missing Host + flag on => no redirect (fail safe, no header injection)");
+$injHost = ['HTTP_HOST' => "evil\r\nSet-Cookie: x=1", 'REQUEST_URI' => "/p\r\nX: y", 'SERVER_PORT' => 80];
+$injTarget = httpsRedirectTarget($injHost, '1');
+ok(is_string($injTarget) && strpos($injTarget, "\r") === false && strpos($injTarget, "\n") === false,
+   "I3 CR/LF stripped from a crafted Host/URI (no header-injection in Location)");
+
+echo "\n-- I4. hstsHeaderValue(): conservative HSTS, HTTPS-only, no preload --\n";
+$hstsHttps = hstsHeaderValue(['HTTPS' => 'on']);
+ok(is_string($hstsHttps) && preg_match('/^max-age=\d+/', $hstsHttps) === 1,
+   "I4 over HTTPS => 'max-age=<n>; includeSubDomains' [$hstsHttps]");
+ok(is_string($hstsHttps) && stripos($hstsHttps, 'includeSubDomains') !== false,
+   "I4 HSTS carries includeSubDomains");
+ok(is_string($hstsHttps) && stripos($hstsHttps, 'preload') === false,
+   "I4 HSTS has NO preload token (conservative posture, spec)");
+ok(is_string($hstsHttps) && preg_match('/max-age=86400\b/', $hstsHttps) === 1,
+   "I4 default max-age is the conservative 86400 (1 day) when HSTS_MAX_AGE undefined");
+ok(hstsHeaderValue(['HTTPS' => 'off', 'SERVER_PORT' => 80]) === null,
+   "I4 over plain HTTP => null (never assert HSTS over HTTP, RFC 6797)");
+ok(hstsHeaderValue([]) === null,
+   "I4 bare HTTP request => null HSTS");
 
 /* -------------------------------------------------------------------------
  * VERDICT.

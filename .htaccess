@@ -6,9 +6,15 @@
     RewriteEngine On
     RewriteBase /
 
-    # Redirect to HTTPS (uncomment if using HTTPS)
-    # RewriteCond %{HTTPS} off
-    # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    # Force HTTPS (Sprint security Phase 2). Enable a free Let's Encrypt SSL
+    # certificate in your host's control panel FIRST (Hostinger: hPanel ->
+    # Security -> SSL), then this 301 redirects every plain-HTTP request to the
+    # https:// equivalent. The %{HTTPS}=off guard avoids a redirect loop once
+    # TLS is live. Behind a TLS-terminating proxy that strips %{HTTPS}, also
+    # match X-Forwarded-Proto so the redirect still fires correctly.
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
     # Remove .php extension
     RewriteCond %{REQUEST_FILENAME} !-f
@@ -21,6 +27,16 @@
     Header set X-Frame-Options "SAMEORIGIN"
     Header set X-XSS-Protection "1; mode=block"
     Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # HSTS (Sprint security Phase 2). Tell browsers to use HTTPS for this site
+    # for the next max-age seconds. CONSERVATIVE default = 1 day (86400) and NO
+    # `preload` token on purpose: HSTS is sticky and preload is hard to reverse,
+    # so confirm TLS is healthy first, then ratchet max-age up (e.g. 31536000 =
+    # 1 year) and only consider preload once you are certain. `env=HTTPS` emits
+    # the header ONLY over TLS (per RFC 6797 a browser ignores HSTS sent over
+    # plain HTTP anyway). The PHP layer (includes/session.php) emits the same
+    # header as a backstop for non-Apache SAPIs (nginx/litespeed).
+    Header always set Strict-Transport-Security "max-age=86400; includeSubDomains" env=HTTPS
 </IfModule>
 
 # Prevent directory listing

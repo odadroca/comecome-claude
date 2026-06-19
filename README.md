@@ -121,8 +121,24 @@ Complete data structure for:
 A fresh install runs zero-config (DB at `db/data.db`). For an internet-reachable
 deployment, harden it via a **git-ignored** `config.local.php` (copy `config.local.php.example`):
 
-1. **Serve over HTTPS** — enable SSL (e.g. Hostinger hPanel → free Let's Encrypt) and force
-   HTTP→HTTPS in `.htaccess`.
+1. **Serve over HTTPS + enable HSTS** (Hostinger shared hosting — concrete steps):
+   1. In **hPanel → Security → SSL**, enable the **free Let's Encrypt** certificate for the
+      domain and wait until it shows **Active** (issuance is automatic, usually minutes).
+   2. The HTTP→HTTPS **301 redirect is already enabled** in `.htaccess` (the `RewriteCond
+      %{HTTPS} off` rule). It self-guards against a redirect loop, so once the certificate is
+      Active every `http://` request lands on `https://`. *(If you terminate TLS at a proxy,
+      the rule also honours `X-Forwarded-Proto`.)*
+   3. **Confirm HSTS:** load the site over `https://` and check the response headers — you
+      should see `Strict-Transport-Security: max-age=86400; includeSubDomains`. The `.htaccess`
+      `Header always set ... env=HTTPS` rule emits it over TLS; the PHP layer
+      (`includes/session.php`) emits the same header as a backstop on non-Apache hosts
+      (nginx/litespeed). It is **conservative on purpose** — 1 day, **no `preload`**. Once TLS
+      has been stable for a while, raise `max-age` (e.g. `31536000` = 1 year) in both `.htaccess`
+      and `config.local.php` (`define('HSTS_MAX_AGE', 31536000);`), and only then consider preload.
+   - **Optional app-level enforcement:** set `COMECOME_FORCE_HTTPS=1` (env var, or
+     `putenv('COMECOME_FORCE_HTTPS=1');` in `config.local.php`) to make PHP itself 301
+     HTTP→HTTPS even where `.htaccess` does not apply. Leave it **unset for local `php -S` dev**
+     so plain-HTTP development is never redirected.
 2. **Change the default guardian PIN** (seeded `0000`) on first login.
 3. **Move the database above the web root** so it can't be served over HTTP:
    - create a `private/` folder **above** `public_html` and place `data.db` inside it;
