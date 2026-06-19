@@ -4,8 +4,19 @@
  * ADHD-friendly food tracking application
  */
 
-// Database configuration
-define('DB_PATH', __DIR__ . '/db/data.db');
+// Per-deployment overrides (git-ignored; never committed). Lets a host point DB_PATH
+// outside the web root — or set any other constant — WITHOUT editing this tracked file.
+// Optional: absent by default, so a fresh download still runs zero-config (DB at db/data.db).
+if (is_file(__DIR__ . '/config.local.php')) {
+    require __DIR__ . '/config.local.php';
+}
+
+// Database configuration.
+// DB_PATH precedence: config.local.php define()  >  COMECOME_DB_PATH env var  >  in-tree default.
+if (!defined('DB_PATH')) {
+    $cc_env_db = getenv('COMECOME_DB_PATH');
+    define('DB_PATH', ($cc_env_db !== false && $cc_env_db !== '') ? $cc_env_db : __DIR__ . '/db/data.db');
+}
 define('DB_SCHEMA', __DIR__ . '/db/schema.sql');
 define('DB_SEED', __DIR__ . '/db/seed.sql');
 
