@@ -42,7 +42,7 @@ ob_start();
             <a href="?page=history&date=<?php echo $prevDate; ?>" class="date-nav-btn">◀</a>
             <div style="text-align:center;flex:1;">
                 <div style="font-weight:700;font-size:1.1rem;"><?php echo $dateLabel; ?></div>
-                <input type="date" id="dateInput" value="<?php echo $selectedDate; ?>" max="<?php echo date('Y-m-d'); ?>" style="font-size:0.85rem;border:none;background:transparent;text-align:center;color:#667eea;">
+                <input type="date" id="dateInput" value="<?php echo $selectedDate; ?>" max="<?php echo date('Y-m-d'); ?>" style="font-size:0.85rem;border:none;background:transparent;text-align:center;color:#7E3A5D;">
             </div>
             <?php if (!$isToday): ?>
             <a href="?page=history&date=<?php echo $nextDate; ?>" class="date-nav-btn">▶</a>
@@ -198,7 +198,7 @@ const mealLabels = Object.keys(mealData).map(k => {
     return translations[k] || k;
 });
 
-const mealColors = ['#667eea', '#764ba2', '#4CAF50', '#FF9800', '#E91E63', '#00BCD4'];
+const mealColors = ['#E8722C', '#7E3A5D', '#5E9A45', '#E0A02E', '#4C8FA6', '#A65C82'];
 
 const intakeCtx = document.getElementById('intakeChart');
 if (intakeCtx) {

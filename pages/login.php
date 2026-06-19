@@ -122,7 +122,7 @@ document.querySelectorAll('input[name="user_id"]').forEach(radio => {
 
         // Highlight the selected card
         document.querySelectorAll('.user-card').forEach(c => c.style.borderColor = '');
-        this.closest('.user-card').style.borderColor = '#4CAF50';
+        this.closest('.user-card').style.borderColor = '#E8722C';
     });
 });
 
@@ -163,7 +163,7 @@ function showGuardianLogin() {
             document.getElementById('pinSection').style.display = 'block';
             document.getElementById('pin').focus();
             document.querySelectorAll('.user-card').forEach(c => c.style.borderColor = '');
-            this.closest('.user-card').style.borderColor = '#4CAF50';
+            this.closest('.user-card').style.borderColor = '#E8722C';
         });
     });
 
