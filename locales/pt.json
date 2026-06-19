@@ -280,6 +280,15 @@
   "create_link": "Criar Link",
   "guest_link_created": "Link criado!",
   "copy_link": "Copiar Link",
+  "manage_guest_links": "Gerir Links Ativos",
+  "manage_guest_links_help": "Revoga um link partilhado antes de expirar, ou regenera todos os links de uma criança.",
+  "guest_link_revoke": "Revogar",
+  "guest_link_revoke_confirm": "Revogar este link? Deixará de funcionar imediatamente.",
+  "guest_link_regenerate": "Regenerar",
+  "guest_link_regenerate_confirm": "Regenerar? Todos os links atuais desta criança serão revogados e será criado um novo.",
+  "guest_link_revoked": "Link revogado.",
+  "guest_link_regenerated": "Links regenerados. Foi criado um novo link.",
+  "guest_link_none_active": "Sem links ativos.",
 
   "_ui_settings": "=== DEFINIÇÕES ===",
   "system_settings": "Definições do Sistema",
@@ -399,6 +408,7 @@
   "error_not_found": "Não encontrado",
   "error_unauthorized": "Não autorizado",
   "error_expired": "Link expirado",
+  "error_invalid_request": "Pedido inválido. Atualiza a página e tenta novamente.",
 
   "_greetings": "=== SAUDAÇÕES POR HORA ===",
   "greeting_morning": "Bom dia! Pronto para um novo dia?",

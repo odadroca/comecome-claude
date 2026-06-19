@@ -175,6 +175,10 @@ CREATE TABLE IF NOT EXISTS guest_tokens (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
     expires_at TIMESTAMP NOT NULL,
+    -- Sprint security Phase 3: guest-token revocation. is_revoked=1 invalidates a
+    -- shared clinician link before it naturally expires. Default 0 (active) so
+    -- existing tokens keep working. Mirrors the v6 ALTER in includes/db.php.
+    is_revoked INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

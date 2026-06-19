@@ -129,6 +129,10 @@ if ($renderArg !== null) {
     require_once $root . '/includes/i18n.php';
     require_once $root . '/includes/auth.php';
     require_once $root . '/includes/helpers.php';
+    // Sprint security Phase 3 — the router loads csrf.php before including any page,
+    // and pages now call csrfField()/csrfMetaTag(); mirror that here so the render
+    // harness matches the real include chain (a session is active above).
+    require_once $root . '/includes/csrf.php';
 
     // Establish identity exactly as the router would, then include the page
     // with CWD at repo root (mirrors index.php's include resolution).

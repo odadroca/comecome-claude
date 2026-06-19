@@ -280,6 +280,15 @@
   "create_link": "Create Link",
   "guest_link_created": "Link created!",
   "copy_link": "Copy Link",
+  "manage_guest_links": "Manage Active Links",
+  "manage_guest_links_help": "Revoke a shared link before it expires, or regenerate all of a child's links.",
+  "guest_link_revoke": "Revoke",
+  "guest_link_revoke_confirm": "Revoke this link? It will stop working immediately.",
+  "guest_link_regenerate": "Regenerate",
+  "guest_link_regenerate_confirm": "Regenerate? All current links for this child will be revoked and a new one created.",
+  "guest_link_revoked": "Link revoked.",
+  "guest_link_regenerated": "Links regenerated. A new link was created.",
+  "guest_link_none_active": "No active links.",
 
   "_ui_settings": "=== SETTINGS ===",
   "system_settings": "System Settings",
@@ -399,6 +408,7 @@
   "error_not_found": "Not found",
   "error_unauthorized": "Unauthorized",
   "error_expired": "Link expired",
+  "error_invalid_request": "Invalid request. Please refresh the page and try again.",
 
   "_greetings": "=== TIME-BASED GREETINGS ===",
   "greeting_morning": "Good morning! Ready for a new day?",

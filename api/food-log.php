@@ -7,12 +7,18 @@ require_once '../config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/helpers.php';
+require_once '../includes/csrf.php';
 
 header('Content-Type: application/json');
 
 if (!isLoggedIn()) {
     jsonResponse(['success' => false, 'error' => 'unauthorized'], 401);
 }
+
+// Sprint security Phase 3 — state-changing methods (POST/DELETE) must carry a valid
+// X-CSRF-Token header (injected into the page; the inline fetch() callers attach it).
+// GET reads are never gated. Rejected requests get a 403 'invalid_csrf' JSON error.
+requireCsrfForApi();
 
 $user = getCurrentUser();
 

@@ -324,7 +324,9 @@ function toggleFavorite(foodId, element) {
 
     fetch('api/favorites.php', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        // Sprint security Phase 3 — attach the per-session CSRF token (injected as
+        // window.CSRF_TOKEN by renderLayout). Invisible to the child; no UX change.
+        headers: {'Content-Type': 'application/json', [window.CSRF_HEADER || 'X-CSRF-Token']: window.CSRF_TOKEN || ''},
         body: JSON.stringify({food_id: foodId})
     })
     .then(r => r.json())
@@ -373,7 +375,8 @@ if (portionModal.addEventListener) {
 function logFood(foodId, portion) {
     fetch('api/food-log.php', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        // Sprint security Phase 3 — attach the per-session CSRF token (window.CSRF_TOKEN).
+        headers: {'Content-Type': 'application/json', [window.CSRF_HEADER || 'X-CSRF-Token']: window.CSRF_TOKEN || ''},
         body: JSON.stringify({
             food_id: foodId,
             meal_id: selectedMeal,

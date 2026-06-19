@@ -176,7 +176,8 @@ document.getElementById('checkInForm').addEventListener('submit', function(e) {
 
     fetch('api/check-in.php', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        // Sprint security Phase 3 — attach the per-session CSRF token (window.CSRF_TOKEN).
+        headers: {'Content-Type': 'application/json', [window.CSRF_HEADER || 'X-CSRF-Token']: window.CSRF_TOKEN || ''},
         body: JSON.stringify(data)
     })
     .then(r => r.json())

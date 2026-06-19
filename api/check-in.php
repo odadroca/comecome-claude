@@ -7,12 +7,16 @@ require_once '../config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/helpers.php';
+require_once '../includes/csrf.php';
 
 header('Content-Type: application/json');
 
 if (!isLoggedIn()) {
     jsonResponse(['success' => false, 'error' => 'unauthorized'], 401);
 }
+
+// Sprint security Phase 3 — state-changing POSTs require a valid X-CSRF-Token header.
+requireCsrfForApi();
 
 $user = getCurrentUser();
 

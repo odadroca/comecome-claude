@@ -135,14 +135,27 @@ ok(true, "php -S dev server is up on $host:$port (throwaway DB)");
 $base = "http://$host:$port";
 $loginUrl = "$base/index.php?page=login";
 
-/** GET a URL, return the response body. */
+// Sprint security Phase 3 — the login POST is now CSRF-protected, so every POST must
+// carry the per-session token AND reuse the same session cookie that minted it. We
+// keep one cookie jar for the whole flood (one session) and one token read from the
+// login page's <meta name="csrf-token"> tag.
+$cookieJar = tempnam(sys_get_temp_dir(), 'cc_throttle_cookie_');
+$GLOBALS['__throttle_cookie'] = $cookieJar;
+
+/** GET a URL (persisting cookies), return the response body. */
 function httpGet($url) {
-    $cmd = 'curl -s ' . escapeshellarg($url);
+    $cmd = 'curl -s -c ' . escapeshellarg($GLOBALS['__throttle_cookie'])
+         . ' -b ' . escapeshellarg($GLOBALS['__throttle_cookie'])
+         . ' ' . escapeshellarg($url);
     return (string) shell_exec($cmd);
 }
-/** POST user_id+pin to the login endpoint, return the response body. */
+/** POST user_id+pin (+CSRF token, +cookie) to the login endpoint; return the body. */
 function httpLoginPost($url, $userId, $pin) {
+    $token = $GLOBALS['__throttle_csrf'] ?? '';
     $cmd = 'curl -s -X POST '
+         . '-c ' . escapeshellarg($GLOBALS['__throttle_cookie']) . ' '
+         . '-b ' . escapeshellarg($GLOBALS['__throttle_cookie']) . ' '
+         . '--data-urlencode ' . escapeshellarg('csrf_token=' . $token) . ' '
          . '--data-urlencode ' . escapeshellarg('user_id=' . $userId) . ' '
          . '--data-urlencode ' . escapeshellarg('pin=' . $pin) . ' '
          . escapeshellarg($url);
@@ -150,8 +163,15 @@ function httpLoginPost($url, $userId, $pin) {
 }
 
 // --- Prime the app: first request creates+seeds the throwaway DB ------------
-$home = httpGet("$base/");
-ok($home !== '' , "priming GET / returned a body (throwaway DB created+seeded)");
+// Fetch the login page (NOT '/', which 302-redirects) so we both seed the DB and
+// capture the per-session CSRF token + session cookie used by every POST below.
+$loginPage = httpGet($loginUrl);
+ok($loginPage !== '' , "priming GET login page returned a body (throwaway DB created+seeded)");
+$GLOBALS['__throttle_csrf'] = '';
+if (preg_match('/<meta name="csrf-token" content="([a-f0-9]+)"/', $loginPage, $m)) {
+    $GLOBALS['__throttle_csrf'] = $m[1];
+}
+ok($GLOBALS['__throttle_csrf'] !== '', "login page exposes a CSRF token (Phase 3) for the POST flood");
 
 // The default guardian (id=1, PIN '0000') is seeded by initializeDatabase(). The
 // login page renders the distinct messages from the pt locale by default:
@@ -206,6 +226,7 @@ ok(!bodyHasAny($correctBody, ['dashboard', 'guardian-dashboard']) ,
    "correct PIN while locked => did NOT reach an authenticated page");
 
 $cleanup();
+if (isset($cookieJar) && file_exists($cookieJar)) { @unlink($cookieJar); }
 
 echo "\n==========================================================\n";
 echo " HTTP throttle smoke: $PASS passed, " . count($FAIL) . " failed\n";

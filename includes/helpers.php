@@ -1103,6 +1103,13 @@ function renderLayout($title, $content, $additionalHead = '') {
         <script>
         (function(){var t=localStorage.getItem('comecome_theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)document.documentElement.setAttribute('data-theme','dark');})();
         </script>
+        <?php
+        // Sprint security Phase 3 — surface the per-session CSRF token to inline
+        // fetch() callers (child + guardian pages) via <meta> + window.CSRF_TOKEN,
+        // so the api endpoints can require it in an X-CSRF-Token header. Guarded so
+        // a context that didn't load csrf.php still renders.
+        if (function_exists('csrfMetaTag')) { echo csrfMetaTag() . "\n"; }
+        ?>
         <?php echo $additionalHead; ?>
     </head>
     <body>

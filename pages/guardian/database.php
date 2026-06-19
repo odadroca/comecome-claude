@@ -8,6 +8,14 @@ $message = '';
 $messageType = 'info';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Sprint security Phase 3 — DB backup/download/restore/reset are all destructive
+    // or data-exfiltrating state-changing actions, so every POST here requires a
+    // valid CSRF token. A forged cross-site POST lacks it and is refused outright.
+    if (function_exists('verifyCsrf') && !verifyCsrf()) {
+        $message = t('error_invalid_request');
+        $messageType = 'error';
+        $action = '';
+    } else {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'backup') {
@@ -64,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = t('all_data_deleted');
         $messageType = 'warning';
     }
+    } // end CSRF-valid branch
 }
 
 // Get DB file size
@@ -97,10 +106,12 @@ ob_start();
             <p><?php echo t('backup_description'); ?></p>
             <div style="display:flex;gap:1rem;flex-wrap:wrap;">
                 <form method="POST">
+                    <?php echo csrfField(); ?>
                     <input type="hidden" name="action" value="backup">
                     <button type="submit" class="btn-primary">💾 <?php echo t('backup_database'); ?></button>
                 </form>
                 <form method="POST">
+                    <?php echo csrfField(); ?>
                     <input type="hidden" name="action" value="download">
                     <button type="submit" class="btn-secondary">📥 <?php echo t('download_db'); ?></button>
                 </form>
@@ -111,6 +122,7 @@ ob_start();
         <section class="management-section">
             <h2>📤 <?php echo t('restore_database'); ?></h2>
             <form method="POST" enctype="multipart/form-data" onsubmit="return confirm('<?php echo t('delete_confirmation'); ?>')">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="upload">
                 <label>
                     <?php echo t('restore_database'); ?> (.db)
@@ -125,6 +137,7 @@ ob_start();
             <h2>🗑️ <?php echo t('delete_all_data'); ?></h2>
             <p class="text-danger" style="font-weight:600;"><?php echo t('delete_warning'); ?></p>
             <form method="POST" onsubmit="return confirm('<?php echo t('delete_warning'); ?>')">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="delete">
                 <label>
                     <?php echo t('type_delete_confirm'); ?>

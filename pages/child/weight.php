@@ -143,7 +143,8 @@ document.getElementById('weightForm').addEventListener('submit', function(e) {
 
     fetch('api/weight.php', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        // Sprint security Phase 3 — attach the per-session CSRF token (window.CSRF_TOKEN).
+        headers: {'Content-Type': 'application/json', [window.CSRF_HEADER || 'X-CSRF-Token']: window.CSRF_TOKEN || ''},
         body: JSON.stringify({weight: parseFloat(weight)})
     })
     .then(r => r.json())
@@ -196,7 +197,8 @@ document.getElementById('weightForm').addEventListener('submit', function(e) {
         if (!height) { done(); return; }
         fetch('api/height.php', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            // Sprint security Phase 3 — attach the per-session CSRF token (window.CSRF_TOKEN).
+            headers: {'Content-Type': 'application/json', [window.CSRF_HEADER || 'X-CSRF-Token']: window.CSRF_TOKEN || ''},
             body: JSON.stringify({height: parseFloat(height)})
         })
         .then(r => r.json())
@@ -206,7 +208,8 @@ document.getElementById('weightForm').addEventListener('submit', function(e) {
 
     fetch('api/weight.php', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        // Sprint security Phase 3 — attach the per-session CSRF token (window.CSRF_TOKEN).
+        headers: {'Content-Type': 'application/json', [window.CSRF_HEADER || 'X-CSRF-Token']: window.CSRF_TOKEN || ''},
         body: JSON.stringify({weight: parseFloat(weight)})
     })
     .then(r => r.json())

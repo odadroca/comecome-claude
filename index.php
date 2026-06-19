@@ -9,6 +9,10 @@ require_once 'includes/db.php';
 require_once 'includes/i18n.php';
 require_once 'includes/auth.php';
 require_once 'includes/helpers.php';
+// Sprint security Phase 3 — CSRF helpers (csrfToken/csrfField/verifyCsrf). Loaded
+// after session_start() (config.php) so the per-session token can be minted; pages
+// embed csrfField() in state-changing forms and renderLayout() emits csrfMetaTag().
+require_once 'includes/csrf.php';
 
 // Clean expired guest tokens
 cleanExpiredTokens();

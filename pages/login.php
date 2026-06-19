@@ -6,6 +6,12 @@
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Sprint security Phase 3 — reject a login POST without a valid CSRF token. The
+    // token is minted per session and embedded in the form below (csrfField); a
+    // cross-site forged POST lacks it and is refused before any authenticate attempt.
+    if (function_exists('verifyCsrf') && !verifyCsrf()) {
+        $error = t('error_invalid_request');
+    } else {
     $userId = $_POST['user_id'] ?? '';
     $pin = $_POST['pin'] ?? '';
 
@@ -26,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+    } // end CSRF-valid branch
 }
 
 // Get all active users - separate children and guardians
@@ -59,18 +66,22 @@ ob_start();
 
         <?php if ($error): ?>
         <div class="error-message" role="alert">
-            <?php echo $error; ?>
+            <?php /* Sprint security Phase 3 — escape the login error: it comes from
+                     t() (guardian-editable DB translations), so render it inert. */ ?>
+            <?php echo sanitize($error); ?>
         </div>
         <?php endif; ?>
 
         <form method="POST" id="loginForm">
+            <?php echo csrfField(); ?>
             <h3><?php echo t('login_select_user'); ?></h3>
 
             <div class="user-grid">
                 <?php foreach ($childUsers as $user): ?>
                 <label class="user-card">
                     <input type="radio" name="user_id" value="<?php echo $user['id']; ?>" required>
-                    <div class="user-avatar"><?php echo $user['avatar_emoji']; ?></div>
+                    <?php /* Sprint security Phase 3 — escape the guardian-editable avatar_emoji too (name was already escaped). */ ?>
+                    <div class="user-avatar"><?php echo sanitize($user['avatar_emoji']); ?></div>
                     <div class="user-name"><?php echo sanitize($user['name']); ?></div>
                 </label>
                 <?php endforeach; ?>
@@ -120,14 +131,31 @@ function showGuardianLogin() {
     const guardianUsers = <?php echo json_encode($guardianUsersJS); ?>;
     const grid = document.querySelector('.user-grid');
 
-    // Replace grid with guardian user cards
+    // Replace grid with guardian user cards.
+    // Sprint security Phase 3 — build each card via createElement + textContent
+    // (NOT innerHTML) so a guardian-editable name/avatar can never inject markup.
     grid.innerHTML = '';
     guardianUsers.forEach(function(user) {
         const label = document.createElement('label');
         label.className = 'user-card';
-        label.innerHTML = '<input type="radio" name="user_id" value="' + user.id + '" required>' +
-            '<div class="user-avatar">' + user.avatar_emoji + '</div>' +
-            '<div class="user-name">' + user.name + '</div>';
+
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = 'user_id';
+        input.value = user.id;
+        input.required = true;
+
+        const avatar = document.createElement('div');
+        avatar.className = 'user-avatar';
+        avatar.textContent = user.avatar_emoji;   // inert: no HTML parsing
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'user-name';
+        nameDiv.textContent = user.name;          // inert: no HTML parsing
+
+        label.appendChild(input);
+        label.appendChild(avatar);
+        label.appendChild(nameDiv);
         grid.appendChild(label);
 
         // Add event listener

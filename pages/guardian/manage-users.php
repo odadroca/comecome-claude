@@ -10,6 +10,13 @@ $message = '';
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Sprint security Phase 3 — every state-changing action here (create / update /
+    // delete / update_self) requires a valid CSRF token. A forged cross-site POST
+    // lacks it and is bounced to the page with an error, before any DB write.
+    if (function_exists('verifyCsrf') && !verifyCsrf()) {
+        header('Location: ?page=manage-users&msg=csrf_error');
+        exit;
+    }
     $action = $_POST['action'] ?? '';
 
     if ($action === 'create') {
@@ -84,6 +91,9 @@ if (isset($_GET['msg'])) {
     } elseif ($_GET['msg'] === 'locked') {
         // Sprint security Phase 1 — too many wrong current-PIN attempts.
         $message = t('login_locked');
+    } elseif ($_GET['msg'] === 'csrf_error') {
+        // Sprint security Phase 3 — a POST arrived without a valid CSRF token.
+        $message = t('error_invalid_request');
     } else {
         $message = t('changes_saved');
     }
@@ -118,7 +128,7 @@ ob_start();
         <?php endif; ?>
 
         <?php if ($message): ?>
-        <?php $isErrorMsg = ($message === t('login_error') || $message === t('login_locked')); ?>
+        <?php $isErrorMsg = ($message === t('login_error') || $message === t('login_locked') || $message === t('error_invalid_request')); ?>
         <div class="alert <?php echo $isErrorMsg ? 'alert-error' : 'alert-success'; ?>">
             <?php echo $isErrorMsg ? '❌' : '✅'; ?> <?php echo $message; ?>
         </div>
@@ -128,6 +138,7 @@ ob_start();
         <section class="management-section">
             <h2>🔑 <?php echo t('my_account'); ?></h2>
             <form method="POST">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="update_self">
                 <div class="form-grid">
                     <label>
@@ -156,6 +167,7 @@ ob_start();
         <section class="management-section">
             <h2><?php echo $editUser ? '✏️ ' . t('edit') : '➕ ' . t('add_new'); ?></h2>
             <form method="POST">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="<?php echo $editUser ? 'update' : 'create'; ?>">
                 <?php if ($editUser): ?>
                 <input type="hidden" name="id" value="<?php echo $editUser['id']; ?>">
@@ -238,6 +250,7 @@ ob_start();
                                 <a href="?page=manage-users&edit=<?php echo $g['id']; ?>" class="btn-small">✏️</a>
                                 <?php if ($g['id'] != $user['id'] && !userHasData($g['id'])): ?>
                                 <form method="POST" style="display:inline;" onsubmit="return confirm('<?php echo t('delete_confirmation'); ?>')">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="id" value="<?php echo $g['id']; ?>">
                                     <button type="submit" class="btn-small btn-danger">🗑️</button>
@@ -274,6 +287,7 @@ ob_start();
                                 <a href="?page=manage-users&edit=<?php echo $child['id']; ?>" class="btn-small">✏️</a>
                                 <?php if (!userHasData($child['id'])): ?>
                                 <form method="POST" style="display:inline;" onsubmit="return confirm('<?php echo t('delete_confirmation'); ?>')">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="id" value="<?php echo $child['id']; ?>">
                                     <button type="submit" class="btn-small btn-danger">🗑️</button>

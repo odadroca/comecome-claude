@@ -292,7 +292,50 @@ function migrateDatabase($db) {
         ");
         $db->exec("CREATE INDEX IF NOT EXISTS idx_login_attempts_locked ON login_attempts(locked_until)");
 
+        // Sprint security Phase 3 — guest-token revocation. Additive is_revoked flag
+        // on guest_tokens (default 0 = active), so a guardian can invalidate a shared
+        // clinician link BEFORE it naturally expires. validateGuestToken() now checks
+        // it. Wrapped in try/catch like the other additive ALTERs so a partially-
+        // migrated DB (column already present) re-runs idempotently. Default-safe:
+        // existing tokens get is_revoked=0 and keep working. Mirrored in db/schema.sql
+        // so a fresh DB matches a migrated one. NO separate version bump — this is
+        // ADDED to the existing v5->v6 block (the whole security sprint bumps once).
+        try {
+            $db->exec("ALTER TABLE guest_tokens ADD COLUMN is_revoked INTEGER NOT NULL DEFAULT 0");
+        } catch (Exception $e) {
+            // Column may already exist
+        }
+
         $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '6')");
+    }
+
+    // Sprint security Phase 3 — reconcile the additive guest_tokens.is_revoked column
+    // for installs that ALREADY reached schema_version 6 under an INTERMEDIATE build
+    // of this same security sprint (Phase 1 bumped 5->6 before Phase 3 added this
+    // column to the v6 block). Such a DB would skip the gated block above (version is
+    // not < 6) yet still lack the column that validateGuestToken() now references. We
+    // therefore ensure the column exists whenever guest_tokens does — keyed on the
+    // column's ABSENCE so it is a no-op on every subsequent request and never a second
+    // schema bump. This is column-presence reconciliation, not a new migration: a
+    // fresh DB (built from schema.sql) and a 5->6 migrate already have the column, so
+    // this only fires for the narrow intermediate-build case. Mirrors the Phase 0
+    // default-PIN backfill pattern.
+    try {
+        $hasGuestTokens = $db->query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='guest_tokens'"
+        )->fetchColumn();
+        if ($hasGuestTokens) {
+            $hasRevoked = false;
+            foreach ($db->query("PRAGMA table_info(guest_tokens)") as $col) {
+                if (isset($col['name']) && $col['name'] === 'is_revoked') { $hasRevoked = true; break; }
+            }
+            if (!$hasRevoked) {
+                $db->exec("ALTER TABLE guest_tokens ADD COLUMN is_revoked INTEGER NOT NULL DEFAULT 0");
+            }
+        }
+    } catch (Exception $e) {
+        // guest_tokens not present yet during an early/partial migrate — the gated v6
+        // block / schema.sql adds the column once the table exists.
     }
 
     // Sprint security Phase 0 — one-time backfill of the default-'0000'-PIN guard
@@ -649,18 +692,77 @@ function generateGuestToken($userId, $hours = 168) {
 
 /**
  * Validate guest token
+ *
+ * Sprint security Phase 3 — a token is valid only when it is NOT expired AND NOT
+ * revoked. is_revoked is checked with `COALESCE(is_revoked, 0) = 0` so a row that
+ * predates the v6 column (NULL) is treated as active — backward compatible with any
+ * token created before the migration ran.
  */
 function validateGuestToken($token) {
     $db = getDB();
 
     $stmt = $db->prepare("
         SELECT user_id FROM guest_tokens
-        WHERE token = ? AND expires_at > datetime('now')
+        WHERE token = ?
+          AND expires_at > datetime('now')
+          AND COALESCE(is_revoked, 0) = 0
     ");
     $stmt->execute([$token]);
 
     $result = $stmt->fetch();
     return $result ? $result['user_id'] : false;
+}
+
+/**
+ * Sprint security Phase 3 — list a child's guest tokens for the guardian revoke UI.
+ * Newest first. Includes the revoked + expired state so the UI can show status and
+ * offer a revoke control on the still-active ones.
+ */
+function getGuestTokensForUser($userId) {
+    $db = getDB();
+    $stmt = $db->prepare("
+        SELECT token, expires_at, created_at, COALESCE(is_revoked, 0) AS is_revoked,
+               (expires_at > datetime('now')) AS not_expired
+        FROM guest_tokens
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+    ");
+    $stmt->execute([$userId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Sprint security Phase 3 — revoke a single guest token (set is_revoked=1). After
+ * this, validateGuestToken() refuses it even though it has not yet expired. Returns
+ * true if a row was changed. Idempotent: revoking an already-revoked token is a
+ * harmless no-op.
+ */
+function revokeGuestToken($token) {
+    $db = getDB();
+    // Scope the UPDATE to still-active rows so re-revoking an already-revoked token
+    // matches 0 rows (a harmless no-op) rather than re-touching it. (SQLite's
+    // rowCount() reports rows MATCHED by the WHERE, so the COALESCE guard is what
+    // makes the second revoke a true no-op.)
+    $stmt = $db->prepare(
+        "UPDATE guest_tokens SET is_revoked = 1 WHERE token = ? AND COALESCE(is_revoked, 0) = 0"
+    );
+    $stmt->execute([$token]);
+    return $stmt->rowCount() > 0;
+}
+
+/**
+ * Sprint security Phase 3 — revoke ALL of a child's currently-active guest tokens
+ * (revoke-all control). Used by the "regenerate" path: revoke every outstanding link
+ * for the child, then issue a fresh one. Returns the number of tokens revoked.
+ */
+function revokeAllGuestTokensForUser($userId) {
+    $db = getDB();
+    $stmt = $db->prepare("
+        UPDATE guest_tokens SET is_revoked = 1
+        WHERE user_id = ? AND COALESCE(is_revoked, 0) = 0
+    ");
+    $stmt->execute([$userId]);
+    return $stmt->rowCount();
 }
 
 /**

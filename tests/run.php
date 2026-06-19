@@ -111,6 +111,16 @@
  *                                     no preload. PHASE B2 — tests/http_tls_smoke.php drives the
  *                                     real 301 + Strict-Transport-Security header over `php -S`.
  *                                     No DB change (no schema bump).
+ *   Security Phase 3 (CSRF/revoke)   : A1/A2 — guest_tokens.is_revoked present on fresh
+ *                                     schema.sql AND added by the v6 ALTER (ADDED to the
+ *                                     existing v6 block — NO second bump). PHASE J —
+ *                                     verifyCsrfToken() constant-time match + "blank never
+ *                                     validates", and the guest-token revocation round-trip
+ *                                     (mint->validate->revoke->refuse-while-unexpired,
+ *                                     revoke-all, NULL-is_revoked legacy backward compat).
+ *                                     PHASE B2 — tests/http_csrf_smoke.php drives the real
+ *                                     403-without-token / 200-with-token api reject + a
+ *                                     guardian POST bounce over `php -S` + curl.
  * ---------------------------------------------------------------------------
  */
 
@@ -368,6 +378,11 @@ ok(columnExists($a1, 'login_attempts', 'window_start'),
    "A1 login_attempts.window_start column present on fresh schema.sql DB");
 ok(columnExists($a1, 'login_attempts', 'locked_until'),
    "A1 login_attempts.locked_until column present on fresh schema.sql DB");
+
+// Security Phase 3: a fresh DB from schema.sql must carry guest_tokens.is_revoked
+// (the additive v6 revocation flag; schema.sql and the v6 ALTER agree).
+ok(columnExists($a1, 'guest_tokens', 'is_revoked'),
+   "A1 guest_tokens.is_revoked column present on fresh schema.sql DB (Phase 3)");
 $a1 = null;
 
 // --- A2. migrateDatabase() forward from synthetic v1 + idempotency ----------
@@ -641,6 +656,10 @@ foreach ($subRunners as $rel) {
  *     - tests/http_tls_smoke.php      : Phase 2 HTTP->HTTPS 301 fires under the TLS
  *                                       env flag, HSTS emitted over (simulated) TLS,
  *                                       and neither fires on plain-HTTP dev (no flag).
+ *     - tests/http_csrf_smoke.php     : Phase 3 an api POST without X-CSRF-Token is
+ *                                       403 invalid_csrf, the same POST with the token
+ *                                       succeeds, and a guardian POST without a token
+ *                                       is bounced (CSRF-reject over real HTTP).
  *   Each spawns its own server bound to a throwaway DB (COMECOME_DB_PATH) and must
  *   exit 0. They need a free TCP port + the `curl` binary; if a smoke cannot bind or
  *   curl is missing it FAILS loudly (honest) rather than being silently skipped.
@@ -682,6 +701,7 @@ $httpSmokes = [
     'tests/http_smoke.php',
     'tests/http_throttle_smoke.php',
     'tests/http_tls_smoke.php',
+    'tests/http_csrf_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;
@@ -1379,6 +1399,117 @@ ok(hstsHeaderValue(['HTTPS' => 'off', 'SERVER_PORT' => 80]) === null,
    "I4 over plain HTTP => null (never assert HSTS over HTTP, RFC 6797)");
 ok(hstsHeaderValue([]) === null,
    "I4 bare HTTP request => null HSTS");
+
+/* -------------------------------------------------------------------------
+ * PHASE J — Security Sprint Phase 3 (CSRF + guest-token revocation).
+ *
+ *   Two families, both harness-assertable without a live session:
+ *
+ *     J1. PURE CSRF token comparison — verifyCsrfToken() is the session-free core of
+ *         verifyCsrf(): a correct token matches (constant-time hash_equals), a wrong
+ *         one is rejected, and an empty expected OR candidate NEVER validates (a blank
+ *         session token must not be a skeleton key). requireCsrfForApi() never gates a
+ *         GET but does gate POST/DELETE (asserted via the method classifier indirectly
+ *         through verifyCsrfToken contract — the HTTP reject is covered by the
+ *         http_csrf_smoke under php -S).
+ *     J2. GUEST-TOKEN REVOCATION round-trip on a throwaway DB: a freshly minted token
+ *         validates; revokeGuestToken() makes validateGuestToken() refuse it while it
+ *         is still UNEXPIRED (proving revocation is independent of expiry);
+ *         revokeAllGuestTokensForUser() kills every active link for a child; a row
+ *         predating the column (NULL is_revoked) still validates (COALESCE backward
+ *         compat). schema_version stays 6 (Phase 3 ADDED to the v6 block — no 2nd bump).
+ *
+ *   csrf.php + db.php are includable; i18n/auth/helpers already loaded above.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE J — security Phase 3 (CSRF + guest-token revocation) ###\n";
+
+require_once $ROOT . '/includes/csrf.php';
+
+ok(function_exists('verifyCsrfToken')
+   && function_exists('csrfField')
+   && function_exists('requireCsrfForApi')
+   && function_exists('revokeGuestToken')
+   && function_exists('validateGuestToken'),
+   "J CSRF + guest-token-revocation helpers loaded");
+
+echo "\n-- J1. verifyCsrfToken(): constant-time match, blank never validates --\n";
+$goodTok = bin2hex(random_bytes(32));
+ok(verifyCsrfToken($goodTok, $goodTok) === true,
+   "J1 matching token validates");
+ok(verifyCsrfToken($goodTok, $goodTok . 'x') === false,
+   "J1 mismatched token is rejected");
+ok(verifyCsrfToken($goodTok, substr($goodTok, 0, -1)) === false,
+   "J1 truncated token is rejected");
+ok(verifyCsrfToken('', $goodTok) === false,
+   "J1 empty EXPECTED token never validates (no blank skeleton key)");
+ok(verifyCsrfToken($goodTok, '') === false,
+   "J1 empty CANDIDATE token never validates");
+ok(verifyCsrfToken('', '') === false,
+   "J1 empty==empty does NOT validate (blank both sides rejected)");
+ok(verifyCsrfToken(null, $goodTok) === false,
+   "J1 non-string expected is rejected (defensive)");
+
+echo "\n-- J2. guest-token revocation round-trip (throwaway DB) --\n";
+initializeDatabase(); // fresh app DB at DB_PATH (has guest_tokens + is_revoked)
+$jDb = getDB();
+ok(columnExists($jDb, 'guest_tokens', 'is_revoked'),
+   "J2 guest_tokens.is_revoked present after initializeDatabase()");
+$jDb = null;
+
+// A child to attach tokens to.
+$jKid = createUser('TokenKid', 'child', '1122', '🧒');
+ok($jKid > 0, "J2 seed child for guest tokens");
+
+// Mint a token (7 days out) and confirm it validates.
+$tok1 = generateGuestToken($jKid, 168);
+ok(validateGuestToken($tok1) == $jKid,
+   "J2 freshly minted token validates to its user_id");
+
+// Revoke it — it must now FAIL even though it is still unexpired.
+ok(revokeGuestToken($tok1) === true, "J2 revokeGuestToken() reports a row changed");
+ok(validateGuestToken($tok1) === false,
+   "J2 a REVOKED (but unexpired) token no longer validates");
+
+// Revoking again is an idempotent no-op (no row changes the second time).
+ok(revokeGuestToken($tok1) === false,
+   "J2 re-revoking an already-revoked token is a harmless no-op");
+
+// revokeAllGuestTokensForUser kills every ACTIVE link for the child.
+$tok2 = generateGuestToken($jKid, 168);
+$tok3 = generateGuestToken($jKid, 168);
+ok(validateGuestToken($tok2) == $jKid && validateGuestToken($tok3) == $jKid,
+   "J2 two more active tokens validate before revoke-all");
+$nRevoked = revokeAllGuestTokensForUser($jKid);
+ok($nRevoked === 2,
+   "J2 revokeAllGuestTokensForUser() revoked exactly the 2 still-active tokens [got $nRevoked]");
+ok(validateGuestToken($tok2) === false && validateGuestToken($tok3) === false,
+   "J2 all of the child's tokens fail after revoke-all");
+
+// ADDITIVE / BACKWARD COMPAT: a brand-new token (never revoked) validates — the v6
+// ALTER defaults is_revoked=0 so existing rows survive the migration and keep working.
+// (The column is NOT NULL DEFAULT 0, so a row can never legitimately be NULL; the
+// COALESCE in the queries is defensive only.) This proves the additive column does
+// not break previously-working tokens.
+$tok4 = generateGuestToken($jKid, 168);
+ok(validateGuestToken($tok4) == $jKid,
+   "J2 a freshly created token validates (additive is_revoked defaults to active)");
+
+// getGuestTokensForUser surfaces the per-token state for the revoke UI.
+$jList = getGuestTokensForUser($jKid);
+ok(is_array($jList) && count($jList) === 4,
+   "J2 getGuestTokensForUser lists all 4 tokens for the child [got " . count($jList) . "]");
+$revokedCount = 0;
+foreach ($jList as $row) { if ((int) $row['is_revoked'] === 1) { $revokedCount++; } }
+ok($revokedCount === 3,
+   "J2 list reports 3 revoked + 1 active (tok4) token states [revoked=$revokedCount]");
+
+// schema_version stayed at 6 — Phase 3 added to the existing v6 block, no second bump.
+ok((int) getSetting('schema_version', '0') === 6,
+   "J2 schema_version stays at 6 (Phase 3 is additive to the v6 block, no new bump)");
+
+// PHASE J cleanup.
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
  * VERDICT.
