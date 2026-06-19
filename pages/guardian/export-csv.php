@@ -64,6 +64,55 @@ if ($clinical) {
     fputcsv($output, []);
 }
 
+// Growth Percentiles (Sprint 8) — current WHO ranks + zones + trajectory.
+// Columns weight_pct / height_pct / bmi_pct per spec. Renders only when the toggle
+// is ON; emits a graceful note row when demographics are missing. Decision iii:
+// derived AGE is included, raw date_of_birth is NOT.
+$percentiles = $reportData['percentiles'] ?? null;
+if (is_array($percentiles) && ($percentiles['reason'] ?? null) !== 'disabled') {
+    fputcsv($output, [t('growth_percentiles')]);
+    if (!($percentiles['available'] ?? false)) {
+        $note = ($percentiles['reason'] ?? null) === 'missing_demographics'
+            ? t('percentile_complete_dob_prompt')
+            : t('percentile_no_measurements');
+        fputcsv($output, [$note]);
+    } else {
+        $cur = $percentiles['current'];
+        $trends = $percentiles['trends'];
+        $rank = function ($m) use ($cur) {
+            return ($cur[$m] ?? null) !== null ? $cur[$m]['rank'] : '';
+        };
+        $zone = function ($m) use ($cur) {
+            return ($cur[$m] ?? null) !== null ? t($cur[$m]['zone_label_key']) : '';
+        };
+        // Header row: the spec's percentile columns plus age + zones + trajectory.
+        fputcsv($output, [
+            'age_months',
+            'weight_pct',
+            'height_pct',
+            'bmi_pct',
+            'weight_zone',
+            'height_zone',
+            'bmi_zone',
+            'weight_trajectory',
+            'height_trajectory',
+        ]);
+        fputcsv($output, [
+            $percentiles['age_months'] ?? '',
+            $rank('weight'),
+            $rank('height'),
+            $rank('bmi'),
+            $zone('weight'),
+            $zone('height'),
+            $zone('bmi'),
+            ($trends['weight'] ?? null) ? formatPercentileTrajectory($trends['weight']) : '',
+            ($trends['height'] ?? null) ? formatPercentileTrajectory($trends['height']) : '',
+        ]);
+        fputcsv($output, [t('percentile_reference_who')]);
+    }
+    fputcsv($output, []);
+}
+
 // Weight Timeline
 if (count($reportData['weights']) > 0) {
     fputcsv($output, [t('weight_timeline_title')]);

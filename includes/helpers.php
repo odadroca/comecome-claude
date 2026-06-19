@@ -3,6 +3,12 @@
  * Helper Functions
  */
 
+// Sprint 8 — Percentiles Display. The dashboard + report data builders below weave
+// in WHO percentile ranks/zones/trajectories, so the side-effect-free Sprint-7
+// engine must be available here. require_once is safe: tests/smoke.php and the
+// router may also pull it in. The engine itself loads its WHO LMS tables lazily.
+require_once __DIR__ . '/percentiles.php';
+
 /**
  * Convert portion text to numeric value for calculations
  */
@@ -198,6 +204,14 @@ function getDashboardData($userId, $startDate, $endDate) {
     // Sprint 3: clinical summary feeds the dashboard "Insights" panel.
     $clinicalSummary = computeClinicalSummary($userId, $startDate, $endDate);
 
+    // Sprint 8: Growth Percentiles block (guardian dashboard). Gated internally on
+    // show_percentiles + gender/DOB; returns a graceful prompt descriptor otherwise.
+    $percentiles = computePercentileSummary($userId, $startDate, $endDate);
+
+    // Sprint 8 (task 4): weave a one-line percentile trajectory into the clinical
+    // summary narrative the Insights panel renders.
+    $clinicalSummary['percentile_trajectory'] = percentileTrajectoryLine($percentiles);
+
     return [
         'daily_intake' => $dailyIntake,
         'check_ins' => $checkIns,
@@ -205,7 +219,8 @@ function getDashboardData($userId, $startDate, $endDate) {
         'weight_history' => $weightHistory,
         'sleep_history' => $sleepHistory,
         'sleep_quality_history' => $sleepQualityHistory,
-        'clinical_summary' => $clinicalSummary
+        'clinical_summary' => $clinicalSummary,
+        'percentiles' => $percentiles
     ];
 }
 
@@ -301,11 +316,20 @@ function getReportData($userId, $startDate, $endDate) {
     // Sprint 3: takeaways-first clinical summary (descriptive, never causal).
     $clinicalSummary = computeClinicalSummary($userId, $startDate, $endDate);
 
+    // Sprint 8: WHO percentile block for the clinician/guardian report surfaces
+    // (HTML / CSV / JSON / guest-report). Gated internally; graceful when disabled
+    // or demographics are missing.
+    $percentiles = computePercentileSummary($userId, $startDate, $endDate);
+
+    // Sprint 8 (task 4): one-line percentile trajectory in the clinical narrative.
+    $clinicalSummary['percentile_trajectory'] = percentileTrajectoryLine($percentiles);
+
     return [
         'user' => $user,
         'start_date' => $startDate,
         'end_date' => $endDate,
         'clinical_summary' => $clinicalSummary,
+        'percentiles' => $percentiles,
         'weights' => $weights,
         'medications' => $medications,
         'daily_meal_count' => $dailyMealCount,
@@ -663,29 +687,330 @@ function computeClinicalSummary($userId, $startDate, $endDate) {
 }
 
 /**
+ * Sprint 8 — Percentiles Display (guardian + clinician surfaces only).
+ *
+ * Build the "Growth Percentiles" data block for a child: current weight/height/BMI
+ * percentile ranks (+ band/zone), and a per-metric trajectory narrative computed at
+ * QUERY time from weight_log + height_log + date_of_birth (nothing stored). Reuses
+ * the Sprint-7 WHO engine end to end.
+ *
+ * GATING (Sprint-8 scope + decision iv): percentiles are shown ONLY when the
+ * show_percentiles toggle is ON AND the child has BOTH gender and date_of_birth.
+ * Otherwise this returns a graceful descriptor the surfaces use to render the
+ * "complete gender/DOB to enable" prompt — it NEVER blocks and NEVER throws.
+ *
+ * Return shape:
+ *   [
+ *     'available'  => bool,                 // true only when fully computable
+ *     'reason'     => null|'disabled'|'missing_demographics',
+ *     'age_months' => int|null,             // derived age (guardian/clinician context)
+ *     'sex'        => 'male'|'female'|null,
+ *     'current'    => [                      // null entries where not computable
+ *        'weight' => null|{value,percentile,rank,zone,zone_label_key,nearest_band},
+ *        'height' => ...,
+ *        'bmi'    => ...,
+ *     ],
+ *     'trends'     => [ 'weight'=>null|{...}, 'height'=>null|{...} ],
+ *   ]
+ *
+ * CHILD BOUNDARY: gender/DOB never travel to a child page; this is consumed only by
+ * the guardian dashboard, exports and the clinician/guest report.
+ */
+function computePercentileSummary($userId, $startDate, $endDate) {
+    $base = [
+        'available'  => false,
+        'reason'     => null,
+        'age_months' => null,
+        'sex'        => null,
+        'current'    => ['weight' => null, 'height' => null, 'bmi' => null],
+        'trends'     => ['weight' => null, 'height' => null],
+    ];
+
+    // Toggle gate. When OFF there is nothing to show (and no prompt either).
+    if (getSetting('show_percentiles', '0') !== '1') {
+        $base['reason'] = 'disabled';
+        return $base;
+    }
+
+    $user = getUserById($userId);
+    $sex = $user['gender'] ?? null;
+    $dob = $user['date_of_birth'] ?? null;
+    $base['sex'] = $sex;
+
+    // Demographics gate (decision iv): missing gender/DOB => graceful prompt, never block.
+    if (empty($sex) || empty($dob)) {
+        $base['reason'] = 'missing_demographics';
+        return $base;
+    }
+
+    $ageMonths = calculateAgeInMonths($dob);
+    $base['age_months'] = $ageMonths;
+
+    $db = getDB();
+
+    // Latest weight + height in window (current rank uses the most recent value).
+    $stmt = $db->prepare("
+        SELECT weight_kg, log_date FROM weight_log
+        WHERE user_id = ? AND log_date BETWEEN ? AND ?
+        ORDER BY log_date
+    ");
+    $stmt->execute([$userId, $startDate, $endDate]);
+    $weights = $stmt->fetchAll();
+
+    $stmt = $db->prepare("
+        SELECT height_cm, log_date FROM height_log
+        WHERE user_id = ? AND log_date BETWEEN ? AND ?
+        ORDER BY log_date
+    ");
+    $stmt->execute([$userId, $startDate, $endDate]);
+    $heights = $stmt->fetchAll();
+
+    $latestWeight = !empty($weights) ? $weights[count($weights) - 1] : null;
+    $latestHeight = !empty($heights) ? $heights[count($heights) - 1] : null;
+
+    // CURRENT ranks (age "now" for the latest measurement display).
+    if ($latestWeight !== null && $ageMonths !== null) {
+        $base['current']['weight'] = describeMetricPercentile(
+            'weight_for_age', (float) $latestWeight['weight_kg'], $ageMonths, $sex
+        );
+    }
+    if ($latestHeight !== null && $ageMonths !== null) {
+        $base['current']['height'] = describeMetricPercentile(
+            'height_for_age', (float) $latestHeight['height_cm'], $ageMonths, $sex
+        );
+    }
+    // BMI needs a same-window weight+height pair; use the two latest values.
+    if ($latestWeight !== null && $latestHeight !== null && $ageMonths !== null) {
+        $bmi = calculateBMI((float) $latestWeight['weight_kg'], (float) $latestHeight['height_cm']);
+        if ($bmi !== null) {
+            $base['current']['bmi'] = describeMetricPercentile(
+                'bmi_for_age', $bmi, $ageMonths, $sex
+            );
+        }
+    }
+
+    // TRAJECTORIES over time (percentile-over-time computed at query time).
+    $wSeries = percentileSeriesFromRows($weights, 'log_date', 'weight_kg', 'weight_for_age', $dob, $sex);
+    $hSeries = percentileSeriesFromRows($heights, 'log_date', 'height_cm', 'height_for_age', $dob, $sex);
+    $base['trends']['weight'] = describePercentileTrend($wSeries);
+    $base['trends']['height'] = describePercentileTrend($hSeries);
+
+    // "available" = the toggle is on, demographics present, and at least ONE current
+    // rank computed. (A child with gender+DOB but an out-of-coverage age still shows
+    // the section header; surfaces guard each metric individually.)
+    $base['available'] = (
+        $base['current']['weight'] !== null
+        || $base['current']['height'] !== null
+        || $base['current']['bmi'] !== null
+    );
+
+    return $base;
+}
+
+/**
+ * Sprint 8 — one-line percentile trajectory woven into the Sprint-3 clinical_summary
+ * narrative (task 4). Picks the most clinically salient available trajectory
+ * (weight first, else height) and returns a compact descriptor with the translation
+ * key + from/to ranks + months, or null when no trajectory is tellable. Pure
+ * read-layer; clinician/guardian surfaces only.
+ */
+function percentileTrajectoryLine($percentiles) {
+    if (!is_array($percentiles) || empty($percentiles['available'])) {
+        return null;
+    }
+    $trends = $percentiles['trends'] ?? [];
+    foreach (['weight', 'height'] as $metric) {
+        $tr = $trends[$metric] ?? null;
+        if ($tr !== null && isset($tr['from_rank'], $tr['to_rank'])) {
+            return [
+                'metric'        => $metric,
+                'metric_key'    => $metric === 'weight' ? 'weight_for_age' : 'height_for_age',
+                'from_rank'     => $tr['from_rank'],
+                'to_rank'       => $tr['to_rank'],
+                'months'        => $tr['months'],
+                'direction'     => $tr['direction'],
+                'narrative_key' => $tr['narrative_key'],
+            ];
+        }
+    }
+    return null;
+}
+
+/**
+ * Sprint 8 — render a localized trajectory one-liner from a trend descriptor
+ * (the {from}/{to}/{months} narrative). Returns '' when there is nothing to say,
+ * so callers can `if ($s = formatPercentileTrajectory($tr)) { ... }`.
+ */
+function formatPercentileTrajectory($trend) {
+    if (!is_array($trend) || empty($trend['narrative_key'])) {
+        return '';
+    }
+    $months = $trend['months'];
+    $monthsLabel = ($months === 1) ? t('month') : t('months');
+    return t($trend['narrative_key'], [
+        'from'         => $trend['from_rank'] ?? '',
+        'to'           => $trend['to_rank'] ?? '',
+        'months'       => ($months === null ? '?' : $months),
+        'months_label' => $monthsLabel,
+    ]);
+}
+
+/**
+ * Sprint 8 — SHARED percentile-section HTML used by BOTH the guardian dashboard and
+ * the HTML/guest report, so the four export surfaces stay in PARITY by construction.
+ * Pure presentation over a $percentiles block from computePercentileSummary().
+ *
+ * $variant: 'dashboard' (richer card markup) or 'report' (compact print markup).
+ * Honors the gating: 'disabled' => renders nothing; 'missing_demographics' =>
+ * a gentle "complete gender/DOB" prompt (guardian/clinician surface only, never the
+ * child). CHILD BOUNDARY: this function is never called from a child page.
+ *
+ * Returns an HTML string (escaped where it interpolates data).
+ */
+function renderPercentileSection($percentiles, $variant = 'dashboard') {
+    if (!is_array($percentiles)) {
+        return '';
+    }
+    $reason = $percentiles['reason'] ?? null;
+
+    // Toggle OFF => show nothing at all on any surface.
+    if ($reason === 'disabled') {
+        return '';
+    }
+
+    $isReport = ($variant === 'report');
+    ob_start();
+
+    // Missing gender/DOB => graceful prompt (decision iv), never blocks.
+    if (!($percentiles['available'] ?? false)) {
+        if ($reason === 'missing_demographics') {
+            ?>
+            <div class="percentile-prompt" style="border:1px dashed #bbb;padding:10px 14px;border-radius:6px;opacity:0.85;">
+                📈 <strong><?php echo t('growth_percentiles'); ?>:</strong>
+                <?php echo t('percentile_complete_dob_prompt'); ?>
+            </div>
+            <?php
+        } else {
+            // Enabled + demographics present, but no computable measurement yet.
+            ?>
+            <div class="percentile-prompt" style="opacity:0.8;">
+                📈 <strong><?php echo t('growth_percentiles'); ?>:</strong>
+                <?php echo t('percentile_no_measurements'); ?>
+            </div>
+            <?php
+        }
+        return ob_get_clean();
+    }
+
+    $zoneColor = function ($zone) {
+        switch ($zone) {
+            case 'green':  return '#2e7d32';
+            case 'yellow': return '#b8860b';
+            case 'red':    return '#c62828';
+            default:       return '#777';
+        }
+    };
+
+    $metrics = [
+        'weight' => 'weight_for_age',
+        'height' => 'height_for_age',
+        'bmi'    => 'bmi_for_age',
+    ];
+    ?>
+    <table class="percentile-table" style="width:100%;border-collapse:collapse;<?php echo $isReport ? '' : 'margin-top:0.5rem;'; ?>">
+        <thead>
+            <tr>
+                <th style="text-align:left;border:1px solid #ddd;padding:4px;"><?php echo t('percentile'); ?></th>
+                <th style="text-align:left;border:1px solid #ddd;padding:4px;"><?php echo t('percentile_rank'); ?></th>
+                <th style="text-align:left;border:1px solid #ddd;padding:4px;"><?php echo t('percentile_band'); ?></th>
+                <th style="text-align:left;border:1px solid #ddd;padding:4px;"><?php echo t('percentile_trajectory_label'); ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($metrics as $key => $labelKey):
+                $cur = $percentiles['current'][$key] ?? null;
+                if ($cur === null) continue;
+                $trend = ($key === 'bmi') ? null : ($percentiles['trends'][$key] ?? null);
+                $trajStr = $trend ? formatPercentileTrajectory($trend) : '';
+            ?>
+            <tr>
+                <td style="border:1px solid #ddd;padding:4px;"><?php echo t($labelKey); ?></td>
+                <td style="border:1px solid #ddd;padding:4px;">
+                    <strong><?php echo sanitize($cur['rank']); ?></strong>
+                </td>
+                <td style="border:1px solid #ddd;padding:4px;">
+                    <span style="color:<?php echo $zoneColor($cur['zone']); ?>;font-weight:bold;">●</span>
+                    <?php echo t($cur['zone_label_key']); ?>
+                </td>
+                <td style="border:1px solid #ddd;padding:4px;">
+                    <?php echo $trajStr !== '' ? sanitize($trajStr) : '—'; ?>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <p style="font-size:<?php echo $isReport ? '7pt' : '0.75rem'; ?>;opacity:0.7;margin-top:6px;">
+        <?php echo t('percentile_reference_who'); ?>
+    </p>
+    <?php
+    return ob_get_clean();
+}
+
+/**
  * Whitelisted projection of report data for the JSON export surface (decision iii).
  *
  * NEVER serialize user.pin or other credential/internal columns. This is the single
  * choke-point that keeps the JSON export from auto-leaking sensitive fields added by
  * later sprints (gender / date_of_birth / percentiles). New sensitive fields must be
  * added here explicitly and on purpose.
+ *
+ * Sprint 8 (decision iii): include gender + derived AGE + the percentile block, but
+ * NEVER the raw date_of_birth in this guest-token-shareable path (age is sufficient
+ * for a clinician artifact), and NEVER user.pin.
  */
 function projectReportForJson($reportData) {
     $user = $reportData['user'] ?? [];
 
-    // Explicit user field whitelist — pin/credential columns deliberately excluded.
+    // Derive AGE from DOB here; the raw date_of_birth is deliberately NOT emitted on
+    // this guest-token-shareable path (decision iii — age is sufficient for a shared
+    // clinician artifact; exact birthdate stays guardian-side only).
+    $ageMonths = isset($user['date_of_birth']) && $user['date_of_birth'] !== null
+        ? calculateAgeInMonths($user['date_of_birth'])
+        : null;
+
+    // Explicit user field whitelist — pin/credential AND raw date_of_birth excluded.
+    // gender + derived age ARE clinically necessary and allowed (decision iii).
     $safeUser = [
         'id'           => $user['id'] ?? null,
         'name'         => $user['name'] ?? null,
         'type'         => $user['type'] ?? null,
         'avatar_emoji' => $user['avatar_emoji'] ?? null,
+        'gender'       => $user['gender'] ?? null,
+        'age_months'   => $ageMonths,
+        // NOTE: 'pin' and 'date_of_birth' are intentionally absent (never serialized).
     ];
+
+    // Percentile block: re-key so the raw DOB / 'sex' never leaks here either — keep
+    // gender as a clinical label plus the derived age and the ranks/zones/trends.
+    $pct = $reportData['percentiles'] ?? null;
+    $safePct = null;
+    if (is_array($pct)) {
+        $safePct = [
+            'available'  => $pct['available'] ?? false,
+            'reason'     => $pct['reason'] ?? null,
+            'age_months' => $pct['age_months'] ?? null,
+            'sex'        => $pct['sex'] ?? null,
+            'current'    => $pct['current'] ?? null,
+            'trends'     => $pct['trends'] ?? null,
+        ];
+    }
 
     return [
         'user'              => $safeUser,
         'start_date'        => $reportData['start_date'] ?? null,
         'end_date'          => $reportData['end_date'] ?? null,
         'clinical_summary'  => $reportData['clinical_summary'] ?? null,
+        'percentiles'       => $safePct,
         'weights'           => $reportData['weights'] ?? [],
         'medications'       => $reportData['medications'] ?? [],
         'daily_meal_count'  => $reportData['daily_meal_count'] ?? [],

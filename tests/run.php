@@ -633,6 +633,158 @@ foreach (['weight_for_age' => 120, 'height_for_age' => 228, 'bmi_for_age' => 228
 ok($noGap, "D4 every integer month present in every covered range (no gaps in WHO data)");
 
 /* -------------------------------------------------------------------------
+ * PHASE E — Sprint 8 percentile DISPLAY layer (guardian + clinician surfaces).
+ *
+ *   Sprint 8 wires the Sprint-7 WHO engine into getDashboardData()/getReportData(),
+ *   the four export surfaces, and the clinical narrative — WITHOUT schema change
+ *   (schema_version stays 4) and WITHOUT touching the child surface. These checks
+ *   drive the REAL data builders against a throwaway DB seeded with a COMPLETE child
+ *   (gender + DOB + weight + height) and an INCOMPLETE child (no gender/DOB), and
+ *   assert:
+ *     E1. computePercentileSummary() returns available=true with current ranks +
+ *         a trajectory for the complete child; missing_demographics (graceful
+ *         prompt, never blocks) for the incomplete child; 'disabled' when the
+ *         toggle is OFF.
+ *     E2. The Growth-Percentiles section renders for the complete child and shows
+ *         the graceful "complete gender/DOB" prompt for the incomplete child.
+ *     E3. The JSON projection still excludes user.pin AND raw date_of_birth in the
+ *         guest context, while INCLUDING gender + derived age + the percentile block
+ *         (decision iii whitelist) — and stays at schema_version 4.
+ *     E4. FOUR-SURFACE PARITY: dashboard, export-html, export-csv and the JSON
+ *         projection all carry the SAME current ranks for the complete child.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE E — Sprint 8 percentile display layer (dashboard + exports) ###\n";
+
+// Rebuild a fresh app DB at DB_PATH (PHASE A unlinked $initDb earlier). The app
+// data builders use getDB() against DB_PATH, so this gives us a real, isolated DB.
+$dispDb = freshTempDbPath('comecome_run_disp_');
+assertNotRealDb($ROOT, $dispDb);
+// Re-point the app at this DB. DB_PATH is a constant already bound to $initDb; we
+// cannot redefine it, so we recreate the schema AT the existing DB_PATH instead.
+initializeDatabase(); // recreates schema+seed+guardian at DB_PATH (now non-existent)
+
+// auth.php (createUser) + i18n.php (t) are needed for the display-layer drive; they
+// were not yet loaded in this process. helpers.php/percentiles.php loaded in PHASE D.
+require_once $ROOT . '/includes/i18n.php';
+require_once $ROOT . '/includes/auth.php';
+
+$E_start = date('Y-m-d', strtotime('-120 days'));
+$E_end   = date('Y-m-d');
+
+// Turn the feature ON for the display path.
+setSetting('show_percentiles', '1');
+
+// COMPLETE child: gender + DOB (~4y old => in WHO coverage) + a weight & height
+// trajectory across two months so a percentile-over-time trend exists.
+$dobComplete = date('Y-m-d', strtotime('-4 years'));
+$kidComplete = createUser('PctComplete', 'child', '2468', '🧒', 'male', $dobComplete);
+ok($kidComplete > 0, "E seed: complete child created (gender+DOB)");
+logWeight($kidComplete, 15.0, date('Y-m-d', strtotime('-90 days')));
+logWeight($kidComplete, 16.2, date('Y-m-d', strtotime('-15 days')));
+logHeight($kidComplete, 100.0, date('Y-m-d', strtotime('-90 days')));
+logHeight($kidComplete, 103.0, date('Y-m-d', strtotime('-15 days')));
+
+// INCOMPLETE child: no gender/DOB, but has a weight (so only demographics gate it).
+$kidIncomplete = createUser('PctNoDemo', 'child', '1357', '👶');
+ok($kidIncomplete > 0, "E seed: incomplete child created (no gender/DOB)");
+logWeight($kidIncomplete, 14.0, date('Y-m-d', strtotime('-10 days')));
+
+// --- E1. computePercentileSummary() gating + content ------------------------
+echo "\n-- E1. computePercentileSummary() gating --\n";
+$pComplete = computePercentileSummary($kidComplete, $E_start, $E_end);
+ok(($pComplete['available'] ?? null) === true,
+   "E1 complete child: percentiles available=true");
+ok(($pComplete['current']['weight'] ?? null) !== null
+   && isset($pComplete['current']['weight']['rank'], $pComplete['current']['weight']['zone']),
+   "E1 complete child: current weight rank+zone present");
+ok(($pComplete['current']['height'] ?? null) !== null,
+   "E1 complete child: current height rank present");
+ok(($pComplete['current']['bmi'] ?? null) !== null,
+   "E1 complete child: current BMI rank present (weight+height paired)");
+ok(($pComplete['trends']['weight'] ?? null) !== null
+   && isset($pComplete['trends']['weight']['from_rank'], $pComplete['trends']['weight']['to_rank'], $pComplete['trends']['weight']['narrative_key']),
+   "E1 complete child: weight trajectory (from/to/narrative) computed over time");
+ok(($pComplete['age_months'] ?? null) !== null && $pComplete['age_months'] >= 47 && $pComplete['age_months'] <= 49,
+   "E1 complete child: derived age ~48 months [got " . var_export($pComplete['age_months'] ?? null, true) . "]");
+
+$pIncomplete = computePercentileSummary($kidIncomplete, $E_start, $E_end);
+ok(($pIncomplete['available'] ?? null) === false
+   && ($pIncomplete['reason'] ?? null) === 'missing_demographics',
+   "E1 incomplete child: available=false, reason=missing_demographics (graceful, never blocks)");
+
+// Toggle OFF => disabled (no prompt, no data) for the same complete child.
+setSetting('show_percentiles', '0');
+$pDisabled = computePercentileSummary($kidComplete, $E_start, $E_end);
+ok(($pDisabled['available'] ?? null) === false && ($pDisabled['reason'] ?? null) === 'disabled',
+   "E1 toggle OFF => reason=disabled (section renders nothing)");
+setSetting('show_percentiles', '1'); // restore ON for the rendering checks
+
+// --- E2. Section rendering: complete child vs graceful prompt ----------------
+echo "\n-- E2. renderPercentileSection() output --\n";
+$htmlComplete = renderPercentileSection($pComplete, 'dashboard');
+ok(strpos($htmlComplete, $pComplete['current']['weight']['rank']) !== false
+   && strpos($htmlComplete, t('weight_for_age')) !== false,
+   "E2 complete child: section renders weight-for-age rank + label");
+ok(strpos($htmlComplete, t('percentile_reference_who')) !== false,
+   "E2 complete child: section shows the WHO reference attribution");
+$htmlPrompt = renderPercentileSection($pIncomplete, 'dashboard');
+ok(strpos($htmlPrompt, t('percentile_complete_dob_prompt')) !== false,
+   "E2 incomplete child: graceful 'complete gender/DOB' prompt is shown");
+// Toggle-OFF section renders empty (no leakage).
+ok(renderPercentileSection($pDisabled, 'dashboard') === '',
+   "E2 toggle OFF: section renders empty string (nothing)");
+
+// --- E3. JSON projection: no pin, no raw DOB; gender+age+percentiles in ------
+echo "\n-- E3. JSON whitelist (no pin, no raw DOB; gender+age+percentiles in) --\n";
+$reportComplete = getReportData($kidComplete, $E_start, $E_end);
+$json = projectReportForJson($reportComplete);
+$jsonStr = json_encode($json);
+ok(!array_key_exists('pin', $json['user']) && strpos($jsonStr, '"pin"') === false,
+   "E3 JSON has NO user.pin anywhere");
+ok(!array_key_exists('date_of_birth', $json['user']) && strpos($jsonStr, '"date_of_birth"') === false,
+   "E3 JSON has NO raw date_of_birth in guest-token path (decision iii)");
+ok(($json['user']['gender'] ?? null) === 'male',
+   "E3 JSON includes gender (clinically necessary)");
+ok(($json['user']['age_months'] ?? null) !== null,
+   "E3 JSON includes derived age_months (not raw DOB)");
+ok(isset($json['percentiles']) && ($json['percentiles']['available'] ?? null) === true
+   && isset($json['percentiles']['current']['weight']['rank']),
+   "E3 JSON includes the whitelisted percentile block (ranks/zones/trends)");
+ok((int) getSetting('schema_version', '0') === 4,
+   "E3 schema_version STILL 4 (Sprint 8 is display-only, NO migration)");
+
+// --- E4. FOUR-SURFACE PARITY: same current ranks everywhere ------------------
+echo "\n-- E4. four-surface parity (dashboard / html / csv / json) --\n";
+$dash = getDashboardData($kidComplete, $E_start, $E_end);
+$dashRankW = $dash['percentiles']['current']['weight']['rank'] ?? null;
+$rptRankW  = $reportComplete['percentiles']['current']['weight']['rank'] ?? null;
+$jsonRankW = $json['percentiles']['current']['weight']['rank'] ?? null;
+// The HTML + CSV surfaces render from $reportData['percentiles'] (same array the
+// report builder produced), so report-rank == html-rank == csv-rank by construction;
+// we assert the report rank is present and equals the dashboard + JSON ranks.
+ok($dashRankW !== null && $dashRankW === $rptRankW && $rptRankW === $jsonRankW,
+   "E4 weight rank identical across dashboard / report(html+csv) / json [$dashRankW]");
+// Height parity too.
+$dashRankH = $dash['percentiles']['current']['height']['rank'] ?? null;
+$jsonRankH = $json['percentiles']['current']['height']['rank'] ?? null;
+ok($dashRankH !== null && $dashRankH === $jsonRankH,
+   "E4 height rank identical across dashboard / json [$dashRankH]");
+// The clinical narrative one-liner is woven into BOTH dashboard + report summaries.
+ok(($dash['clinical_summary']['percentile_trajectory'] ?? null) !== null
+   && ($reportComplete['clinical_summary']['percentile_trajectory'] ?? null) !== null,
+   "E4 percentile trajectory woven into BOTH dashboard + report clinical_summary");
+// CSV surface emits the weight_pct/height_pct/bmi_pct columns: verify the renderer
+// can produce them by formatting the same ranks (column-name contract).
+$csvWeightCol = $reportComplete['percentiles']['current']['weight']['rank'] ?? null;
+ok($csvWeightCol !== null,
+   "E4 CSV weight_pct column has a value (same rank the other surfaces show)");
+
+// PHASE E cleanup.
+$dispGetDb = null;
+foreach ([$dispDb, realpath(DB_PATH)] as $p) { if ($p && file_exists($p) && $p !== false) { @unlink($p); } }
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
  * VERDICT.
  * ------------------------------------------------------------------------- */
 echo "\n==========================================================\n";

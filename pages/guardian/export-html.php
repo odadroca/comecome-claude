@@ -152,12 +152,37 @@ header('Content-Type: text/html; charset=UTF-8');
             <?php else: ?>
             <li style="opacity:0.7;"><?php echo t('correlation_sleep_appetite'); ?>: <?php echo t('not_enough_data'); ?></li>
             <?php endif; ?>
+
+            <?php
+            // Sprint 8 (task 4): one-line percentile trajectory in the clinical narrative.
+            $traj = $clinical['percentile_trajectory'] ?? null;
+            if ($traj):
+                $trajStr = formatPercentileTrajectory($traj);
+                if ($trajStr !== ''): $hasFigure = true;
+            ?>
+            <li><strong><?php echo t($traj['metric_key']); ?>:</strong> <?php echo sanitize($trajStr); ?></li>
+            <?php endif; endif; ?>
         </ul>
 
         <?php if (!$hasFigure): ?>
         <p class="intro"><?php echo t('no_clinical_data'); ?></p>
         <?php endif; ?>
         <p class="disclaimer"><?php echo t('correlation_disclaimer'); ?></p>
+    </div>
+    <?php endif; ?>
+
+    <?php
+    // Sprint 8 — Growth Percentiles (WHO bands/zones/trajectory). Clinician surface.
+    // Same shared renderer as the dashboard (four-surface parity). Renders nothing
+    // when the toggle is OFF; a "complete gender/DOB" prompt when demographics are
+    // missing. Decision iii: this report shows derived AGE (above), never raw DOB.
+    $percentiles = $reportData['percentiles'] ?? null;
+    $percentileHtml = $percentiles ? renderPercentileSection($percentiles, 'report') : '';
+    if ($percentileHtml !== ''):
+    ?>
+    <div class="section">
+        <h3><?php echo t('growth_percentiles'); ?></h3>
+        <?php echo $percentileHtml; ?>
     </div>
     <?php endif; ?>
 

@@ -332,3 +332,250 @@ function bmiForAgePercentileByDOB($weightKg, $heightCm, $dateOfBirth, $sex) {
     }
     return calculateBMIForAgePercentile($bmi, $age, $sex);
 }
+
+/* =========================================================================
+ * SPRINT 8 — PERCENTILES DISPLAY (guardian + clinician surfaces only).
+ * =========================================================================
+ * Side-effect-free presentation helpers layered on top of the Sprint-7 engine.
+ * They turn a percentile into a P-band label, a green/yellow/red color zone, and
+ * a human trajectory narrative ("P25 -> P35 over 3 months"). They also compute a
+ * percentile-OVER-TIME series at QUERY time from the raw logs (nothing stored).
+ *
+ * CHILD BOUNDARY (decision i revised + Sprint-8 scope): NONE of this reaches the
+ * child surface. The child Growth chart stays a plain encouraging line chart with
+ * NO WHO curves and NO clinical flags. All ranks/bands/zones/narratives below are
+ * for the guardian dashboard, exports, and clinician/guest reports ONLY.
+ *
+ * WHO-only, single +-2 SD convention (no CDC, no age-2 transition annotation —
+ * that is the future follow-on 8b). All functions degrade to null/empty when a
+ * percentile cannot be computed (age out of coverage, missing sex/DOB, no logs).
+ */
+
+/**
+ * The five WHO display bands shown as overlay reference lines, as required by the
+ * Sprint-8 spec: P3 / P15 / P50 / P85 / P97.
+ */
+function percentileBands() {
+    return [3, 15, 50, 85, 97];
+}
+
+/**
+ * Classify a percentile (0..100) into a green/yellow/red color zone.
+ *   green  : P15-P85   (typical range)
+ *   yellow : P3-P15  OR P85-P97  (monitor)
+ *   red    : <P3     OR >P97     (outside +-2 SD band)
+ * Boundaries follow the spec's stated ranges; exact band edges (3/15/85/97) fall
+ * in the more-reassuring adjacent zone (>=15 and <=85 => green; >=3 and <=97 =>
+ * yellow). Returns a stable zone key ('green'|'yellow'|'red') or null when the
+ * percentile is null/non-numeric (graceful — caller shows the "complete DOB" path).
+ */
+function percentileZone($percentile) {
+    if ($percentile === null || !is_numeric($percentile)) {
+        return null;
+    }
+    $p = (float) $percentile;
+    if ($p >= 15.0 && $p <= 85.0) {
+        return 'green';
+    }
+    if ($p >= 3.0 && $p <= 97.0) {
+        return 'yellow';
+    }
+    return 'red';
+}
+
+/**
+ * Translation key for a zone's reassuring/clinical label. Returned as a KEY so the
+ * caller stays locale-agnostic (guardian/clinician surfaces resolve via t()).
+ */
+function percentileZoneLabelKey($zone) {
+    switch ($zone) {
+        case 'green':  return 'zone_green';
+        case 'yellow': return 'zone_yellow';
+        case 'red':    return 'zone_red';
+        default:       return 'zone_unknown';
+    }
+}
+
+/**
+ * Nearest WHO display band (P3/P15/P50/P85/P97) for narrative phrasing such as
+ * "around P50". Returns the closest band integer, or null when not computable.
+ */
+function nearestPercentileBand($percentile) {
+    if ($percentile === null || !is_numeric($percentile)) {
+        return null;
+    }
+    $p = (float) $percentile;
+    $bands = percentileBands();
+    $best = null; $bestDist = null;
+    foreach ($bands as $b) {
+        $d = abs($p - $b);
+        if ($bestDist === null || $d < $bestDist) {
+            $bestDist = $d;
+            $best = $b;
+        }
+    }
+    return $best;
+}
+
+/**
+ * Format a percentile as a "P<rounded>" rank label (e.g. 34.6 -> "P35"). Clamps the
+ * displayed rank to the 1..99 range so neither "P0" nor "P100" is ever shown (those
+ * read as absolutes; the engine already clamps z to +-5 SD upstream). null -> null.
+ */
+function formatPercentileRank($percentile) {
+    if ($percentile === null || !is_numeric($percentile)) {
+        return null;
+    }
+    $r = (int) round((float) $percentile);
+    if ($r < 1)  $r = 1;
+    if ($r > 99) $r = 99;
+    return 'P' . $r;
+}
+
+/**
+ * One metric's CURRENT percentile descriptor for a display surface:
+ *   [ 'value'=>raw, 'percentile'=>float, 'rank'=>'P35', 'zone'=>'green',
+ *     'zone_label_key'=>'zone_green', 'nearest_band'=>50 ]
+ * Returns null when the percentile is not computable (caller then shows nothing /
+ * the graceful prompt). $value is the already-measured metric value (kg / cm / BMI).
+ */
+function describeMetricPercentile($metric, $value, $ageMonths, $sex) {
+    $p = calculateMetricPercentile($metric, $value, $ageMonths, $sex);
+    if ($p === null) {
+        return null;
+    }
+    $zone = percentileZone($p);
+    return [
+        'value'          => $value !== null && is_numeric($value) ? (float) $value : null,
+        'percentile'     => round($p, 1),
+        'rank'           => formatPercentileRank($p),
+        'zone'           => $zone,
+        'zone_label_key' => percentileZoneLabelKey($zone),
+        'nearest_band'   => nearestPercentileBand($p),
+    ];
+}
+
+/**
+ * Build a percentile-OVER-TIME series for ONE metric from already-fetched log rows.
+ * Computed at QUERY time, nothing stored (Sprint-8 task 3). Each input row must have
+ * a date field and a value field; rows whose percentile is not computable (age out
+ * of coverage etc.) are skipped, so a sparse/partial series degrades gracefully.
+ *
+ * @param array  $rows       e.g. weight_log rows
+ * @param string $dateField  e.g. 'log_date'
+ * @param string $valueField e.g. 'weight_kg'
+ * @param string $metric     'weight_for_age' | 'height_for_age'
+ * @param string $dob        date_of_birth (YYYY-MM-DD)
+ * @param string $sex        users.gender
+ * @return array list of ['date'=>..., 'value'=>float, 'percentile'=>float]
+ */
+function percentileSeriesFromRows($rows, $dateField, $valueField, $metric, $dob, $sex) {
+    $series = [];
+    if (!is_array($rows) || empty($dob)) {
+        return $series;
+    }
+    foreach ($rows as $row) {
+        $date  = $row[$dateField]  ?? null;
+        $value = $row[$valueField] ?? null;
+        if ($date === null || $value === null || !is_numeric($value)) {
+            continue;
+        }
+        // Age AT THE TIME of the measurement — not "now" — so the trajectory is honest.
+        $ageMonths = ageInMonthsAtDate($dob, $date);
+        if ($ageMonths === null) {
+            continue;
+        }
+        $p = calculateMetricPercentile($metric, (float) $value, $ageMonths, $sex);
+        if ($p === null) {
+            continue;
+        }
+        $series[] = [
+            'date'       => $date,
+            'value'      => (float) $value,
+            'percentile' => round($p, 1),
+        ];
+    }
+    return $series;
+}
+
+/**
+ * Age in completed months at a SPECIFIC measurement date (not "now"). Mirrors
+ * calculateAgeInMonths()'s graceful contract: null on blank/unparseable/ordering
+ * problems. Kept here (not helpers.php) because it is percentile-trajectory logic.
+ */
+function ageInMonthsAtDate($dateOfBirth, $atDate) {
+    if (empty($dateOfBirth) || empty($atDate)) {
+        return null;
+    }
+    try {
+        $dob = new DateTime($dateOfBirth);
+        $at  = new DateTime($atDate);
+    } catch (Exception $e) {
+        return null;
+    }
+    if ($dob > $at) {
+        return null;
+    }
+    $diff = $dob->diff($at);
+    return ($diff->y * 12) + $diff->m;
+}
+
+/**
+ * Turn a percentile series into a trajectory narrative descriptor:
+ *   [ 'from_rank'=>'P25', 'to_rank'=>'P35', 'months'=>3, 'direction'=>'up'|'down'|'stable',
+ *     'narrative_key'=>'percentile_trend_up', 'points'=>N ]
+ * Direction uses a small percentile-point threshold to avoid over-reading noise.
+ * Returns null when there are fewer than 2 computable points (no trajectory to tell).
+ *
+ * narrative_key + the from/to ranks let callers compose the localized one-liner
+ * "moving P25 -> P35 over 3 months" via t('percentile_trend_*', {...}).
+ */
+function describePercentileTrend($series) {
+    if (!is_array($series) || count($series) < 2) {
+        return null;
+    }
+    // Series may arrive in any date order; sort ascending by date for first->last.
+    usort($series, function ($a, $b) {
+        return strcmp((string) $a['date'], (string) $b['date']);
+    });
+    $first = $series[0];
+    $last  = $series[count($series) - 1];
+
+    $fromP = (float) $first['percentile'];
+    $toP   = (float) $last['percentile'];
+    $delta = $toP - $fromP;
+
+    // Months spanned (whole months between first and last measurement).
+    $months = null;
+    try {
+        $d1 = new DateTime($first['date']);
+        $d2 = new DateTime($last['date']);
+        if ($d2 >= $d1) {
+            $diff = $d1->diff($d2);
+            $months = ($diff->y * 12) + $diff->m;
+        }
+    } catch (Exception $e) {
+        $months = null;
+    }
+
+    // 3 percentile points of movement before we call a direction.
+    if ($delta >= 3.0) {
+        $direction = 'up';
+        $narrativeKey = 'percentile_trend_up';
+    } elseif ($delta <= -3.0) {
+        $direction = 'down';
+        $narrativeKey = 'percentile_trend_down';
+    } else {
+        $direction = 'stable';
+        $narrativeKey = 'percentile_trend_stable';
+    }
+
+    return [
+        'from_rank'     => formatPercentileRank($fromP),
+        'to_rank'       => formatPercentileRank($toP),
+        'months'        => $months,
+        'direction'     => $direction,
+        'narrative_key' => $narrativeKey,
+        'points'        => count($series),
+    ];
+}

@@ -129,11 +129,39 @@ ob_start();
                         <?php echo t('paired_days'); ?>: <?php echo $corr['paired_days']; ?>
                     </li>
                     <?php endif; ?>
+
+                    <?php
+                    // Sprint 8 (task 4): one-line percentile trajectory in the narrative.
+                    $traj = $clinical['percentile_trajectory'] ?? null;
+                    if ($traj):
+                        $trajStr = formatPercentileTrajectory($traj);
+                        if ($trajStr !== ''):
+                    ?>
+                    <li style="margin-bottom:0.5rem;">
+                        📈 <strong><?php echo t($traj['metric_key']); ?>:</strong>
+                        <?php echo sanitize($trajStr); ?>
+                    </li>
+                    <?php endif; endif; ?>
                 </ul>
                 <p style="font-size:0.75rem;opacity:0.6;font-style:italic;margin-top:0.75rem;">
                     <?php echo t('correlation_disclaimer'); ?>
                 </p>
             </div>
+        </section>
+        <?php endif; ?>
+
+        <!-- 0b. Growth Percentiles (Sprint 8) — WHO bands/zones/trajectory.
+             Guardian-only. Shown when show_percentiles is ON AND the child has
+             gender+DOB; a graceful "complete gender/DOB" prompt otherwise. The
+             child Growth chart stays a plain encouraging line with NO overlay. -->
+        <?php
+        $percentiles = $data['percentiles'] ?? null;
+        $percentileHtml = $percentiles ? renderPercentileSection($percentiles, 'dashboard') : '';
+        if ($percentileHtml !== ''):
+        ?>
+        <section class="dashboard-section">
+            <h2>📈 <?php echo t('growth_percentiles'); ?></h2>
+            <?php echo $percentileHtml; ?>
         </section>
         <?php endif; ?>
 
