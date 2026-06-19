@@ -116,6 +116,23 @@ Complete data structure for:
 - **Input sanitization** and prepared statements
 - **No external dependencies** for core functionality
 
+## 🔒 Production Hardening (optional, recommended)
+
+A fresh install runs zero-config (DB at `db/data.db`). For an internet-reachable
+deployment, harden it via a **git-ignored** `config.local.php` (copy `config.local.php.example`):
+
+1. **Serve over HTTPS** — enable SSL (e.g. Hostinger hPanel → free Let's Encrypt) and force
+   HTTP→HTTPS in `.htaccess`.
+2. **Change the default guardian PIN** (seeded `0000`) on first login.
+3. **Move the database above the web root** so it can't be served over HTTP:
+   - create a `private/` folder **above** `public_html` and place `data.db` inside it;
+   - copy `config.local.php.example` → `config.local.php` and set
+     `define('DB_PATH', '/absolute/path/to/private/data.db');`.
+
+`config.local.php` is per-deployment and never committed; the override mechanism itself lives
+in `config.php`, so the procedure is reproducible across installs. (Broader auth/transport
+hardening + at-rest field encryption are planned — see `docs/roadmap/SPRINT-SECURITY.md`.)
+
 ## 🗄️ Database Schema
 
 ComeCome uses SQLite with a clean, normalized schema:

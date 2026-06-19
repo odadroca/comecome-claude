@@ -1,0 +1,23 @@
+<?php
+/**
+ * config.local.php.example — per-deployment overrides TEMPLATE.
+ *
+ * HOW TO USE: copy this file to "config.local.php" (same folder as config.php) and edit.
+ * config.local.php is git-ignored, so host-specific values never enter source control.
+ * It is loaded by config.php BEFORE its own define()s, so anything you define here wins.
+ *
+ * A fresh install needs NONE of this — leave it absent and the app runs zero-config
+ * with the database at db/data.db. These overrides are OPTIONAL production hardening.
+ */
+
+/* -------------------------------------------------------------------------
+ * Keep the SQLite database OUTSIDE the web root (recommended for production)
+ * so the .db file can never be served over HTTP.
+ * ---------------------------------------------------------------------- */
+
+// Most reliable on shared hosting (e.g. Hostinger). Use YOUR absolute path:
+// define('DB_PATH', '/home/uXXXXXXXX/private/data.db');
+
+// Or, if config.php sits directly in public_html, this relative form needs no
+// hardcoded path — dirname(__DIR__) is the folder ABOVE public_html:
+// define('DB_PATH', dirname(__DIR__) . '/private/data.db');
