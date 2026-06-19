@@ -200,7 +200,7 @@ require_once $ROOT . '/includes/auth.php';
 require_once $ROOT . '/includes/helpers.php';
 
 $ver = (int) getSetting('schema_version', '0');
-ok($ver === 4, "schema_version reaches 4 (Sprint 6 growth page) [got " . var_export($ver, true) . "]");
+ok($ver === 5, "schema_version reaches 5 (Sprint 9 medication timing) [got " . var_export($ver, true) . "]");
 
 // --- 2. Guardian id=1 / pin=0000 auth path (Sprint 0+) ----------------------
 echo "\n-- Auth path (guardian id=1 / pin=0000) --\n";
@@ -305,11 +305,12 @@ $s3start = date('Y-m-d', strtotime('-30 days'));
 $s3end   = date('Y-m-d');
 
 // (a) Sprint 3 added NO migration (it was schema_version 2 at the time). Sprint 5
-//     later bumped the shipped version to 3 (demographics), and Sprint 6 to 4
-//     (growth page / height_log). We assert the current shipped version (4) here;
-//     the Sprint-3 "no new schema" property is preserved historically.
-ok((int)getSetting('schema_version', '0') === 4,
-   "shipped schema_version is 4 (Sprint 6 growth page; Sprint 3 added no schema)");
+//     later bumped the shipped version to 3 (demographics), Sprint 6 to 4 (growth
+//     page / height_log), and Sprint 9 to 5 (medication timing). We assert the
+//     current shipped version (5) here; the Sprint-3 "no new schema" property is
+//     preserved historically.
+ok((int)getSetting('schema_version', '0') === 5,
+   "shipped schema_version is 5 (Sprint 9 medication timing; Sprint 3 added no schema)");
 // (a2) Sprint 5 positive check: demographics columns exist on the running DB.
 $smokeDb = getDB();
 $userCols = $smokeDb->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
@@ -511,10 +512,11 @@ ok(function_exists('calculateZScore')
    && function_exists('calculateBMIForAgePercentile'),
    "Sprint 7: percentiles engine functions load alongside the app (no fatal/redeclare)");
 
-// (b) NO schema change / NO migration: Sprint 7 is library-only, so the freshly
-//     initialised DB must still be at schema_version 4 (unchanged from Sprint 6).
-ok((int) getSetting('schema_version', '0') === 4,
-   "Sprint 7: schema_version still 4 (engine adds NO migration / NO schema change)");
+// (b) NO schema change / NO migration: Sprint 7 is library-only — it added no
+//     migration of its own. The freshly initialised DB reflects the current shipped
+//     version (5, from Sprint 9); Sprint 7's "no new schema" property is historical.
+ok((int) getSetting('schema_version', '0') === 5,
+   "Sprint 7: shipped schema_version is 5 (engine itself adds NO migration / NO schema change)");
 
 // (c) NO UI change: the Sprint-6 show_percentiles toggle exists and stays OFF by
 //     default — Sprint 7 does not surface percentiles anywhere yet.
@@ -566,9 +568,10 @@ ok(calculateHeightForAgePercentile(100, 36, 'boys') !== null,
 // in), four-surface parity, no migration, and Sprint-8 pt/en i18n parity.
 echo "\n-- Sprint 8 acceptance (percentiles display; guardian + clinician only) --\n";
 
-// (a) NO migration: Sprint 8 is display-only, so schema_version is STILL 4.
-ok((int) getSetting('schema_version', '0') === 4,
-   "Sprint 8: schema_version still 4 (display-only, NO migration / NO schema change)");
+// (a) NO migration: Sprint 8 is display-only and added no migration of its own; the
+//     shipped version is now 5 (Sprint 9 medication timing).
+ok((int) getSetting('schema_version', '0') === 5,
+   "Sprint 8: shipped schema_version is 5 (Sprint 8 display-only added NO migration)");
 
 // Turn the feature ON for the display path (it defaults OFF).
 setSetting('show_percentiles', '1');
@@ -704,6 +707,62 @@ foreach ($s8Keys as $k) {
             && trim((string) $ptS8[$k]) !== '' && trim((string) $enS8[$k]) !== '';
 }
 ok($s8Ok, "Sprint 8: i18n keys present + non-empty in BOTH pt and en");
+
+// --- Sprint 9 acceptance (Medication Timing Foundation) ---------------------
+// Server-side med_window enrichment + guardian config; ZERO child-facing change.
+echo "\n-- Sprint 9 acceptance (medication timing; guardian config only) --\n";
+
+// (a) The classifier + schedule CRUD load alongside the app (no fatal/redeclare).
+ok(function_exists('computeMedWindow')
+   && function_exists('createMedicationSchedule')
+   && function_exists('medTypeDefaultOffsets'),
+   "Sprint 9: medication timing functions load alongside the app");
+
+// (b) med-type default offsets match the documented approximations, and the
+//     non-stimulant type has NO acute appetite window (NULL).
+ok(medTypeDefaultOffsets('short_acting') === [30, 240], "Sprint 9: short-acting defaults 30/240");
+ok(medTypeDefaultOffsets('long_acting') === [30, 480], "Sprint 9: long-acting defaults 30/480");
+ok(medTypeDefaultOffsets('non_stimulant') === null, "Sprint 9: non-stimulant has NO appetite window (NULL)");
+
+// (c) End-to-end stamping through the real logFood() path on the running DB.
+$s9Kid = createUser('S9Kid', 'child', '1928', '🧒');
+$s9db = getDB();
+$s9db->exec("INSERT INTO medications (name, dose) VALUES ('S9Med','5mg')");
+$s9MedId = (int) $s9db->lastInsertId();
+createMedicationSchedule($s9Kid, $s9MedId, '08:00', 'short_acting');
+logFood($s9Kid, 1, 3, 'some', '2026-03-01', '10:00:00');
+$s9Win = $s9db->query("SELECT med_window FROM food_log WHERE user_id=$s9Kid AND log_date='2026-03-01'")->fetchColumn();
+ok($s9Win === 'mid_med', "Sprint 9: logFood() stamps med_window='mid_med' for a 10:00 log on an 08:00 schedule");
+
+// (d) CHILD BOUNDARY: the child log-food page source carries NO medication-timing
+//     surface — no med_window, no schedule config leaks onto the child screen.
+$logFoodSrc = @file_get_contents($ROOT . '/pages/child/log-food.php');
+ok($logFoodSrc !== false && strpos($logFoodSrc, 'med_window') === false,
+   "Sprint 9: child log-food page never references med_window (ZERO child-facing change)");
+// The child request payload remains {food_id, meal_id, portion} only.
+ok($logFoodSrc !== false
+   && strpos($logFoodSrc, 'food_id:') !== false
+   && strpos($logFoodSrc, 'med_type') === false
+   && strpos($logFoodSrc, 'dose_time') === false,
+   "Sprint 9: child food-log payload unchanged (no med_type/dose_time fields)");
+
+// (e) Sprint 9 i18n keys present + non-empty in BOTH locales (hard parity).
+$ptS9 = json_decode(@file_get_contents($ROOT . '/locales/pt.json'), true);
+$enS9 = json_decode(@file_get_contents($ROOT . '/locales/en.json'), true);
+$s9Keys = [
+    'medication_timing', 'medication_timing_intro', 'med_timing_disclaimer',
+    'dose_time', 'med_type',
+    'med_type_short_acting', 'med_type_long_acting', 'med_type_non_stimulant',
+    'peak_start_offset', 'peak_end_offset', 'offset_help',
+    'window_pre_med', 'window_onset', 'window_mid_med', 'window_post_med',
+    'window_24h', 'window_none', 'add_schedule', 'no_schedules',
+];
+$s9Ok = is_array($ptS9) && is_array($enS9);
+foreach ($s9Keys as $k) {
+    $s9Ok = $s9Ok && array_key_exists($k, $ptS9) && array_key_exists($k, $enS9)
+            && trim((string) $ptS9[$k]) !== '' && trim((string) $enS9[$k]) !== '';
+}
+ok($s9Ok, "Sprint 9: i18n keys present + non-empty in BOTH pt and en");
 
 // --- 5. i18n key parity sanity (pt canonical) -------------------------------
 echo "\n-- i18n parity (pt canonical) --\n";

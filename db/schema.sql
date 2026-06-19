@@ -75,6 +75,12 @@ CREATE TABLE IF NOT EXISTS food_log (
     portion TEXT NOT NULL CHECK(portion IN ('little', 'some', 'lot', 'all')),
     log_date DATE NOT NULL,
     log_time TIME NOT NULL,
+    -- Sprint 9: Medication Timing Foundation. Invisible food-log enrichment stamped
+    -- SERVER-SIDE at INSERT (computeMedWindow) by comparing log_time to the child's
+    -- active medication_schedules. NULL = no active appetite-affecting schedule (the
+    -- common case) / non-stimulant. ZERO child-facing change. Mirrors the v5 ALTER in
+    -- includes/db.php so a fresh DB matches a migrated one.
+    med_window TEXT CHECK(med_window IN ('pre_med','onset','mid_med','post_med') OR med_window IS NULL),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (food_id) REFERENCES foods(id) ON DELETE CASCADE,
@@ -96,6 +102,27 @@ CREATE TABLE IF NOT EXISTS user_medications (
     PRIMARY KEY (user_id, medication_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (medication_id) REFERENCES medications(id) ON DELETE CASCADE
+);
+
+-- Medication schedules (Sprint 9: Medication Timing Foundation). Per child +
+-- medication, the typical dose_time (HH:MM) and the peak-effect window as minute
+-- offsets from the dose. med_type records the guardian's UI auto-fill choice
+-- (short_acting / long_acting / non_stimulant); the offsets are the source of truth
+-- read by computeMedWindow() at food-log INSERT. Offsets default to the documented
+-- 60/240; the guardian overrides per child (defaults are approximations, not
+-- prescriptions). Guardian-configured only — ZERO child-facing change. Mirrors the
+-- v5 migration in includes/db.php so a fresh DB matches a migrated one.
+CREATE TABLE IF NOT EXISTS medication_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    medication_id INTEGER NOT NULL,
+    dose_time TEXT NOT NULL,
+    med_type TEXT DEFAULT 'short_acting',
+    peak_start_offset INTEGER DEFAULT 60,
+    peak_end_offset INTEGER DEFAULT 240,
+    active INTEGER DEFAULT 1,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(medication_id) REFERENCES medications(id) ON DELETE CASCADE
 );
 
 -- Daily check-in (appetite, medication, mood)
@@ -197,3 +224,4 @@ CREATE INDEX IF NOT EXISTS idx_sleep_log_user_date ON sleep_log(user_id, log_dat
 CREATE INDEX IF NOT EXISTS idx_sleep_interruptions_log ON sleep_interruptions(sleep_log_id);
 CREATE INDEX IF NOT EXISTS idx_foods_category ON foods(category_id);
 CREATE INDEX IF NOT EXISTS idx_user_favorites_user ON user_favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_medication_schedules_user ON medication_schedules(user_id, active);

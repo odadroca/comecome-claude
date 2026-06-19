@@ -70,7 +70,19 @@
  *                                     (real WHO LMS reproduced within tolerance,
  *                                     catching fabricated data) AND graceful-null /
  *                                     ±5 SD clamp behaviour. NO schema change
- *                                     (schema_version stays 4), pure library check.
+ *                                     (engine itself adds no migration), pure library.
+ *   Sprint 8 (percentiles display)  : PHASE E — display layer over the WHO engine;
+ *                                     gating, four-surface parity, JSON whitelist.
+ *                                     Sprint 8 added no migration of its own.
+ *   Sprint 9 (med timing v4->v5)    : A1 fresh schema.sql carries medication_schedules
+ *                                     + food_log.med_window; schema_version reaches 5.
+ *                                     A2 v1->...->v5 forward migrate adds both
+ *                                     idempotently, the med_window CHECK is enforced,
+ *                                     and pre-existing food_log rows survive. PHASE F —
+ *                                     computeMedWindow() boundary classification + the
+ *                                     non-stimulant NULL path, and logFood() stamping
+ *                                     med_window at INSERT with the child payload
+ *                                     unchanged (ZERO child-facing change).
  * ---------------------------------------------------------------------------
  */
 
@@ -186,12 +198,27 @@ function buildV1Fixture($dbPath) {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )");
     $db->exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)");
+    // Sprint 9: a pre-Sprint-9 food_log WITHOUT the med_window column, so the v5
+    // ALTER TABLE food_log ADD COLUMN med_window has a real target to migrate.
+    $db->exec("CREATE TABLE food_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        food_id INTEGER NOT NULL,
+        meal_id INTEGER NOT NULL,
+        portion TEXT NOT NULL,
+        log_date DATE NOT NULL,
+        log_time TIME NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )");
     // Stamp it as the OLD version so migrateDatabase() takes the v1->v2 branch.
     $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version','1')");
     // A row of real check-in data so we can prove the ALTER preserved it.
     $db->exec("INSERT INTO users (id,name,type,pin) VALUES (1,'Fixture','guardian','x')");
     $db->exec("INSERT INTO daily_checkin (user_id,check_date,appetite_level,mood_level,medication_taken)
                VALUES (1,'2026-01-01',3,4,1)");
+    // A pre-existing food_log row to prove the v5 ALTER is non-destructive.
+    $db->exec("INSERT INTO food_log (id,user_id,food_id,meal_id,portion,log_date,log_time)
+               VALUES (1,1,1,1,'some','2026-01-01','08:30:00')");
     $db = null;
 }
 
@@ -248,16 +275,18 @@ date_default_timezone_set('Europe/Lisbon');
 require_once $ROOT . '/includes/db.php';
 
 // --- A1. initializeDatabase() on a fresh temp DB ----------------------------
-echo "\n-- A1. initializeDatabase(): tables + schema_version=4 --\n";
+echo "\n-- A1. initializeDatabase(): tables + schema_version=5 --\n";
 ok(!file_exists($initDb), "A1 precondition: temp DB does not exist before init");
 initializeDatabase(); // DB_PATH = $initDb
 $a1 = getDB();
 
 // The full set of tables the shipped schema + migration must produce at the
-// current schema_version (4). Sprint 6 adds height_log.
+// current schema_version (5). Sprint 6 adds height_log; Sprint 9 adds
+// medication_schedules.
 $expectedTables = [
     'users', 'meals', 'food_categories', 'meal_categories', 'foods',
     'user_favorites', 'food_log', 'medications', 'user_medications',
+    'medication_schedules',
     'daily_checkin', 'weight_log', 'height_log', 'settings', 'guest_tokens',
     'translations', 'sleep_log', 'sleep_interruptions',
 ];
@@ -272,7 +301,7 @@ ok($expSorted === $gotSorted,
    "A1 table set exactly matches expected (" . count($expectedTables) . " tables)");
 
 $a1ver = readSchemaVersion($a1);
-ok($a1ver === 4, "A1 schema_version reaches 4 on fresh init [got " . var_export($a1ver, true) . "]");
+ok($a1ver === 5, "A1 schema_version reaches 5 on fresh init [got " . var_export($a1ver, true) . "]");
 
 // Default guardian seeded by initializeDatabase().
 $g = $a1->query("SELECT id,type FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
@@ -291,6 +320,17 @@ ok(columnExists($a1, 'height_log', 'height_cm'),
    "A1 height_log.height_cm column present on fresh schema.sql DB");
 ok(columnExists($a1, 'height_log', 'log_date'),
    "A1 height_log.log_date column present on fresh schema.sql DB");
+
+// Sprint 9: a fresh DB from schema.sql must carry medication_schedules (with its
+// offset columns) AND food_log.med_window (schema.sql and the v5 migration agree).
+ok(columnExists($a1, 'medication_schedules', 'dose_time'),
+   "A1 medication_schedules.dose_time column present on fresh schema.sql DB");
+ok(columnExists($a1, 'medication_schedules', 'peak_start_offset'),
+   "A1 medication_schedules.peak_start_offset column present on fresh schema.sql DB");
+ok(columnExists($a1, 'medication_schedules', 'peak_end_offset'),
+   "A1 medication_schedules.peak_end_offset column present on fresh schema.sql DB");
+ok(columnExists($a1, 'food_log', 'med_window'),
+   "A1 food_log.med_window column present on fresh schema.sql DB");
 $a1 = null;
 
 // --- A2. migrateDatabase() forward from synthetic v1 + idempotency ----------
@@ -320,15 +360,22 @@ ok(!columnExists($m, 'users', 'date_of_birth'),
 // migration has real work to do for v4 as well.
 ok(!in_array('height_log', listTables($m), true),
    "A2 fixture lacks height_log before migrate");
+// Sprint 9 (v4->v5): the v1 fixture must also lack medication_schedules and the
+// food_log.med_window column so the forward migration has real v5 work to do.
+ok(!in_array('medication_schedules', listTables($m), true),
+   "A2 fixture lacks medication_schedules before migrate");
+ok(!columnExists($m, 'food_log', 'med_window'),
+   "A2 fixture lacks food_log.med_window before migrate");
 
 // Forward migrate.
 $threwFwd = false;
 try { migrateDatabase($m); } catch (Throwable $e) { $threwFwd = true; echo "    EXCEPTION: " . $e->getMessage() . "\n"; }
 ok(!$threwFwd, "A2 forward migrateDatabase() did not throw");
 
-// Post-state: the Sprint-2, Sprint-5 AND Sprint-6 deliverables now exist. The
-// fixture migrates forward through every gated block (v1->v2->v3->v4) in one call.
-ok(readSchemaVersion($m) === 4, "A2 schema_version is 4 after forward migrate");
+// Post-state: the Sprint-2, Sprint-5, Sprint-6 AND Sprint-9 deliverables now exist.
+// The fixture migrates forward through every gated block (v1->v2->v3->v4->v5) in one
+// call.
+ok(readSchemaVersion($m) === 5, "A2 schema_version is 5 after forward migrate");
 ok(columnExists($m, 'daily_checkin', 'sleep_quality'),
    "A2 daily_checkin.sleep_quality exists after migrate");
 ok(in_array('sleep_log', listTables($m), true),
@@ -347,6 +394,32 @@ ok(columnExists($m, 'height_log', 'height_cm'),
    "A2 height_log.height_cm exists after migrate (v4)");
 ok(columnExists($m, 'height_log', 'log_date'),
    "A2 height_log.log_date exists after migrate (v4)");
+// Sprint 9 (v4->v5): medication_schedules table + food_log.med_window column appear.
+ok(in_array('medication_schedules', listTables($m), true),
+   "A2 medication_schedules exists after migrate (v5)");
+ok(columnExists($m, 'medication_schedules', 'peak_start_offset')
+   && columnExists($m, 'medication_schedules', 'peak_end_offset')
+   && columnExists($m, 'medication_schedules', 'dose_time'),
+   "A2 medication_schedules has dose_time + offset columns after migrate (v5)");
+ok(columnExists($m, 'food_log', 'med_window'),
+   "A2 food_log.med_window exists after migrate (v5)");
+// The v5 food_log ALTER is non-destructive: the pre-existing row survives, with the
+// new med_window column defaulting NULL.
+$flRow = $m->query("SELECT portion, med_window FROM food_log WHERE id=1")->fetch(PDO::FETCH_ASSOC);
+ok($flRow && $flRow['portion'] === 'some' && $flRow['med_window'] === null,
+   "A2 v5 ALTER leaves pre-existing food_log row intact, med_window NULL (additive)");
+// The med_window CHECK constraint accepts the four window names AND NULL, and
+// rejects an out-of-set value (constraint actually enforced).
+$m->exec("INSERT INTO food_log (user_id,food_id,meal_id,portion,log_date,log_time,med_window)
+          VALUES (1,1,1,'lot','2026-01-02','09:00:00','mid_med')");
+$mw = $m->query("SELECT med_window FROM food_log WHERE log_date='2026-01-02'")->fetchColumn();
+ok($mw === 'mid_med', "A2 food_log.med_window accepts a valid window name ('mid_med')");
+$badAccepted = true;
+try {
+    $m->exec("INSERT INTO food_log (user_id,food_id,meal_id,portion,log_date,log_time,med_window)
+              VALUES (1,1,1,'lot','2026-01-03','09:00:00','not_a_window')");
+} catch (Throwable $e) { $badAccepted = false; }
+ok(!$badAccepted, "A2 food_log.med_window CHECK rejects an out-of-set value");
 // Existing user rows survive the v3 ALTERs with the new columns defaulting NULL.
 $urow = $m->query("SELECT name,type,gender,date_of_birth FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
 ok($urow && $urow['name'] === 'Fixture' && $urow['type'] === 'guardian',
@@ -390,7 +463,7 @@ ok(!$threwAgain, "A2 re-running migrateDatabase() twice did not throw");
 $verAfter = readSchemaVersion($m);
 $tablesAfter = listTables($m); sort($tablesAfter);
 ok($verAfter === $verBefore, "A2 schema_version unchanged on re-run ($verBefore -> $verAfter)");
-ok($verAfter === 4, "A2 schema_version stays at 4 on idempotent re-run");
+ok($verAfter === 5, "A2 schema_version stays at 5 on idempotent re-run");
 ok($tablesAfter === $tablesBefore, "A2 table set unchanged on re-run (no-op migration)");
 $usersColsAfter = $m->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
 sort($usersColsAfter);
@@ -405,6 +478,10 @@ ok($keep && $keep['gender'] === 'female' && $keep['date_of_birth'] === '2018-05-
 $keepH = $m->query("SELECT height_cm FROM height_log WHERE user_id=1 AND log_date='2026-01-02'")->fetchColumn();
 ok($keepH !== false && (float) $keepH === 121.0,
    "A2 height_log row preserved across idempotent migrate re-runs");
+// Sprint 9: the v5 blocks are CREATE TABLE IF NOT EXISTS + a try/catch ALTER, so the
+// stamped med_window survives the no-op re-runs (table/column not dropped/recreated).
+$keepMw = $m->query("SELECT med_window FROM food_log WHERE log_date='2026-01-02'")->fetchColumn();
+ok($keepMw === 'mid_med', "A2 food_log.med_window value preserved across idempotent migrate re-runs");
 $m = null;
 
 // --- A3. backup / restore round-trip ----------------------------------------
@@ -750,8 +827,8 @@ ok(($json['user']['age_months'] ?? null) !== null,
 ok(isset($json['percentiles']) && ($json['percentiles']['available'] ?? null) === true
    && isset($json['percentiles']['current']['weight']['rank']),
    "E3 JSON includes the whitelisted percentile block (ranks/zones/trends)");
-ok((int) getSetting('schema_version', '0') === 4,
-   "E3 schema_version STILL 4 (Sprint 8 is display-only, NO migration)");
+ok((int) getSetting('schema_version', '0') === 5,
+   "E3 schema_version at 5 after full init (Sprint 8 added no migration; Sprint 9 bumped 4->5)");
 
 // --- E4. FOUR-SURFACE PARITY: same current ranks everywhere ------------------
 echo "\n-- E4. four-surface parity (dashboard / html / csv / json) --\n";
@@ -782,6 +859,98 @@ ok($csvWeightCol !== null,
 // PHASE E cleanup.
 $dispGetDb = null;
 foreach ([$dispDb, realpath(DB_PATH)] as $p) { if ($p && file_exists($p) && $p !== false) { @unlink($p); } }
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE F — Sprint 9 Medication Timing Foundation (classifier + INSERT stamping).
+ *
+ *   Two families of checks, both server-side / guardian-config only — ZERO child
+ *   surface change:
+ *
+ *     F1. computeMedWindow() BOUNDARY classification + the non-stimulant NULL path.
+ *         Drives the classifier against a child with an explicit short-acting
+ *         schedule (dose 08:00, peak 30..240 => onset 08:00-08:30, mid_med
+ *         08:30-12:00, post_med after 12:00) and asserts every boundary minute lands
+ *         in the right window. Then proves a non-stimulant schedule yields NULL (no
+ *         acute appetite window), and that a child with NO active schedule yields
+ *         NULL.
+ *     F2. INSERT STAMPING: logFood() stamps the SAME server-computed med_window onto
+ *         the row, WITHOUT any change to the (food_id/meal_id/portion) payload. A row
+ *         logged at 10:00 for the scheduled child is stamped 'mid_med'; the same row
+ *         for a child with no schedule is stamped NULL.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE F — Sprint 9 medication timing (computeMedWindow + INSERT stamping) ###\n";
+
+// medication.php is pulled in transitively by includes/db.php (loaded in PHASE A).
+ok(function_exists('computeMedWindow') && function_exists('createMedicationSchedule'),
+   "F medication module loaded (computeMedWindow + schedule CRUD available)");
+
+// Fresh isolated app DB at DB_PATH for the stamping integration test.
+initializeDatabase();
+
+// A child WITH a short-acting schedule (dose 08:00, default short-acting 30/240).
+$kidMed = createUser('MedKid', 'child', '9753', '🧒');
+ok($kidMed > 0, "F seed: scheduled child created");
+$stmtMed = getDB()->prepare("INSERT INTO medications (name, dose) VALUES ('Ritalina','10mg')");
+$stmtMed->execute();
+$medIdF = (int) getDB()->lastInsertId();
+$schedId = createMedicationSchedule($kidMed, $medIdF, '08:00', 'short_acting'); // 30/240
+ok($schedId > 0, "F seed: short-acting schedule created (dose 08:00, peak 30/240)");
+
+echo "\n-- F1. computeMedWindow() boundary classification --\n";
+ok(computeMedWindow($kidMed, '07:59') === 'pre_med',  "F1 07:59 (before dose) => pre_med");
+ok(computeMedWindow($kidMed, '08:00') === 'onset',    "F1 08:00 (at dose) => onset");
+ok(computeMedWindow($kidMed, '08:29') === 'onset',    "F1 08:29 (within onset) => onset");
+ok(computeMedWindow($kidMed, '08:30') === 'mid_med',  "F1 08:30 (peak_start boundary) => mid_med");
+ok(computeMedWindow($kidMed, '10:00') === 'mid_med',  "F1 10:00 (mid peak) => mid_med");
+ok(computeMedWindow($kidMed, '12:00') === 'mid_med',  "F1 12:00 (peak_end boundary, inclusive) => mid_med");
+ok(computeMedWindow($kidMed, '12:01') === 'post_med', "F1 12:01 (past peak_end) => post_med");
+ok(computeMedWindow($kidMed, '23:59') === 'post_med', "F1 23:59 (late) => post_med");
+// Malformed time degrades to NULL, never throws.
+ok(computeMedWindow($kidMed, 'not-a-time') === null,  "F1 malformed time => NULL (graceful)");
+
+// Non-stimulant path: a child whose ONLY active schedule is non-stimulant gets NULL
+// (no acute appetite window), proving the documented NULL classification.
+$kidNonStim = createUser('NonStimKid', 'child', '8642', '👧');
+createMedicationSchedule($kidNonStim, $medIdF, '08:00', 'non_stimulant'); // NULL offsets
+ok(computeMedWindow($kidNonStim, '10:00') === null,
+   "F1 non-stimulant schedule => NULL med_window (no appetite window)");
+
+// No schedule at all => NULL (the common case for most children).
+$kidNoSched = createUser('NoSchedKid', 'child', '7531', '🧑');
+ok(computeMedWindow($kidNoSched, '10:00') === null,
+   "F1 child with no active schedule => NULL med_window");
+
+// An INACTIVE schedule must be ignored by the classifier.
+$inactiveSched = createMedicationSchedule($kidNoSched, $medIdF, '08:00', 'short_acting', null, null, 0);
+ok(computeMedWindow($kidNoSched, '10:00') === null,
+   "F1 inactive schedule ignored => still NULL");
+
+echo "\n-- F2. logFood() stamps med_window at INSERT (payload unchanged) --\n";
+// Log the SAME (food_id, meal_id, portion) payload at 10:00 for the scheduled child;
+// the server stamps mid_med without the child sending anything new.
+logFood($kidMed, 1, 3, 'some', '2026-02-01', '10:00:00');
+$stampDb = getDB();
+$stampedRow = $stampDb->query("SELECT food_id, meal_id, portion, med_window FROM food_log WHERE user_id=$kidMed AND log_date='2026-02-01'")->fetch(PDO::FETCH_ASSOC);
+ok($stampedRow && $stampedRow['med_window'] === 'mid_med',
+   "F2 logFood() stamped med_window='mid_med' from the 10:00 schedule");
+ok($stampedRow && (int) $stampedRow['food_id'] === 1 && (int) $stampedRow['meal_id'] === 3 && $stampedRow['portion'] === 'some',
+   "F2 child payload (food_id/meal_id/portion) is UNCHANGED — enrichment is invisible");
+
+// Same payload for the no-schedule child => med_window stays NULL (no over-stamping).
+logFood($kidNoSched, 1, 3, 'some', '2026-02-01', '10:00:00');
+$nullRow = $stampDb->query("SELECT med_window FROM food_log WHERE user_id=$kidNoSched AND log_date='2026-02-01'")->fetch(PDO::FETCH_ASSOC);
+ok($nullRow && $nullRow['med_window'] === null,
+   "F2 logFood() leaves med_window NULL when the child has no active schedule");
+
+// A pre-med log (07:00) for the scheduled child is stamped pre_med at INSERT.
+logFood($kidMed, 1, 1, 'little', '2026-02-02', '07:00:00');
+$preRow = $stampDb->query("SELECT med_window FROM food_log WHERE user_id=$kidMed AND log_date='2026-02-02'")->fetch(PDO::FETCH_ASSOC);
+ok($preRow && $preRow['med_window'] === 'pre_med',
+   "F2 a 07:00 breakfast is stamped pre_med at INSERT");
+
+// PHASE F cleanup.
+$stampDb = null;
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------

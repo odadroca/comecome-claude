@@ -3,6 +3,12 @@
  * Database Functions
  */
 
+// Sprint 9 — Medication Timing Foundation. logFood() stamps an invisible
+// food_log.med_window computed SERVER-SIDE from the guardian-configured schedule, so
+// the medication module (computeMedWindow + schedule CRUD) must be available here.
+// Side-effect free to include; the function bodies only touch the DB when called.
+require_once __DIR__ . '/medication.php';
+
 /**
  * Get database connection
  */
@@ -147,6 +153,50 @@ function migrateDatabase($db) {
         $db->exec("CREATE INDEX IF NOT EXISTS idx_height_log_user_date ON height_log(user_id, log_date)");
 
         $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '4')");
+    }
+
+    if ($version < 5) {
+        // Sprint 9: Medication Timing Foundation. Two additive pieces, both server-
+        // side / guardian-configured — ZERO child-facing change.
+        //
+        //   (1) medication_schedules: per child + medication, the typical dose_time
+        //       and the peak-effect window as minute offsets from the dose. med_type
+        //       records the UI auto-fill choice (short/long/non-stimulant); the
+        //       offsets are the source of truth the classifier reads. Offsets default
+        //       to the documented 60/240 at the storage layer; the guardian UI
+        //       auto-fills med-type defaults and allows per-child overrides.
+        //   (2) food_log.med_window: invisible enrichment stamped SERVER-SIDE at
+        //       INSERT by comparing log_time to the child's active schedules
+        //       (computeMedWindow). CHECK-constrained to the four window names OR
+        //       NULL (NULL = no active appetite-affecting schedule / non-stimulant).
+        //
+        // CREATE TABLE IF NOT EXISTS + a guarded index keep the table idempotent; the
+        // ALTER is wrapped in try/catch like the Sprint-2/5 ALTERs so a partially-
+        // migrated DB (column already present) re-runs without throwing. Both are
+        // mirrored in db/schema.sql so a fresh DB matches a migrated one.
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS medication_schedules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                medication_id INTEGER NOT NULL,
+                dose_time TEXT NOT NULL,
+                med_type TEXT DEFAULT 'short_acting',
+                peak_start_offset INTEGER DEFAULT 60,
+                peak_end_offset INTEGER DEFAULT 240,
+                active INTEGER DEFAULT 1,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(medication_id) REFERENCES medications(id) ON DELETE CASCADE
+            )
+        ");
+        $db->exec("CREATE INDEX IF NOT EXISTS idx_medication_schedules_user ON medication_schedules(user_id, active)");
+
+        try {
+            $db->exec("ALTER TABLE food_log ADD COLUMN med_window TEXT CHECK(med_window IN ('pre_med','onset','mid_med','post_med') OR med_window IS NULL)");
+        } catch (Exception $e) {
+            // Column may already exist
+        }
+
+        $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '5')");
     }
 }
 
@@ -299,12 +349,20 @@ function logFood($userId, $foodId, $mealId, $portion, $logDate = null, $logTime 
     if (!$logDate) $logDate = date('Y-m-d');
     if (!$logTime) $logTime = date('H:i:s');
 
+    // Sprint 9: invisible food-log enrichment. Compute the medication window
+    // SERVER-SIDE from the child's guardian-configured active schedules and the log
+    // time. NULL when the child has no active appetite-affecting schedule (the common
+    // case) — a perfectly valid value for the CHECK-constrained column. The child
+    // request payload is NOT involved: med_window is derived purely from $userId +
+    // $logTime, so there is ZERO child-facing change.
+    $medWindow = computeMedWindow($userId, $logTime);
+
     $stmt = $db->prepare("
-        INSERT INTO food_log (user_id, food_id, meal_id, portion, log_date, log_time)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO food_log (user_id, food_id, meal_id, portion, log_date, log_time, med_window)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
 
-    return $stmt->execute([$userId, $foodId, $mealId, $portion, $logDate, $logTime]);
+    return $stmt->execute([$userId, $foodId, $mealId, $portion, $logDate, $logTime, $medWindow]);
 }
 
 /**
