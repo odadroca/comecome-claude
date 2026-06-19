@@ -252,6 +252,7 @@
   "delete_confirmation": "Tens a certeza que queres eliminar?",
   "cannot_delete": "Não pode ser eliminado (em uso)",
   "my_account": "A Minha Conta",
+  "default_pin_warning": "Por motivos de segurança, altere o PIN predefinido (0000) antes de continuar. Defina um novo PIN em \"A Minha Conta\" abaixo.",
   "current_pin": "PIN Atual",
   "new_pin": "Novo PIN",
   "leave_empty_keep_current": "Deixar vazio para manter o atual",

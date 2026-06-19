@@ -35,6 +35,13 @@ define('GUEST_TOKEN_LIFETIME', 60 * 60 * 24 * 7); // 7 days
 // Timezone
 date_default_timezone_set('Europe/Lisbon');
 
+// Sprint security Phase 0 — session bootstrap. The cookie-flag logic lives in a
+// side-effect-free, includable helper (includes/session.php) the CLI harness can
+// assert. Apply the hardened params (HttpOnly + SameSite=Lax + env-gated Secure)
+// BEFORE the session starts.
+require_once __DIR__ . '/includes/session.php';
+applySessionCookieParams();
+
 // Start session
 session_start();
 

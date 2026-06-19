@@ -31,6 +31,22 @@ if (!in_array($page, $publicPages) && !isLoggedIn()) {
     $page = 'login';
 }
 
+// Sprint security Phase 0 — force-change the default '0000' guardian PIN.
+// A logged-in guardian still on the seeded default PIN cannot reach ANY page
+// other than the change-PIN form (manage-users self-edit) or logout, until the
+// flag clears (it clears the instant updateUser() persists a non-'0000' PIN).
+// The flag is only ON while the stored hash actually verifies '0000', so a
+// custom-PIN guardian is NEVER caught by this gate (backward-compat hard gate).
+if (!in_array($page, ['login', 'guest-report', 'logout'], true)
+    && isLoggedIn() && isGuardian() && guardianPinIsDefault()) {
+    // Allow the change-PIN page itself (and its POST handler) through so the
+    // guardian can actually clear the gate; everything else redirects there.
+    if ($page !== 'manage-users' && $page !== 'manage-children') {
+        header('Location: index.php?page=manage-users&pin_change_required=1');
+        exit;
+    }
+}
+
 // Route to appropriate page
 switch ($page) {
     case 'login':

@@ -21,13 +21,26 @@ in the existing sub-runners so coverage stays cumulative across Sprints 0–4.
 | A3 | `backupDatabase()` / `restoreDatabase()` round-trip → write → backup → mutate → restore → assert original restored. |
 | B  | Orchestrates `tests/migration_idempotency.php` and `tests/smoke.php` as isolated child processes (each must exit 0). Smoke = cumulative Sprint 0–3 (auth, toggles, sleep, page renders, clinical-report correlations, JSON pin whitelist, pt/en i18n parity). |
 | C  | **Negative self-test** — re-invokes the runner in `--selftest-negative` mode (which fails by design) and asserts a non-zero exit, proving the harness catches a deliberately broken case. |
+| E/F | Sprint 5/6/8/9 percentile + medication-timing coverage (`schema_version` reaches 5). |
+| G  | **Security Phase 0** — `configureSessionCookieParams()` cookie-flag logic (HttpOnly + SameSite=Lax always; Secure env-gated on HTTPS / proxy / :443); `sessionIsExpired()` idle-timeout math (incl. legacy null-stamp backward compat); default-`0000`-PIN guard lifecycle (fresh init arms it; a PIN change off `0000` clears it; restore/reset of a `0000` DB re-arms it; a custom-PIN guardian is never flagged). All re-derived from the actual stored hash. |
 
 ## Sub-runners (can also be run directly)
 
 ```bash
 php tests/smoke.php                  # cumulative smoke (Sprints 0–3)
 php tests/migration_idempotency.php  # migrate forward + idempotency
+php tests/http_smoke.php             # HTTP-level: php -S + Set-Cookie header flags (Phase 0)
 ```
+
+### HTTP smoke (`tests/http_smoke.php`)
+
+The in-process runner cannot load `config.php` or start a real session, so it can
+only assert the **pure** cookie-param logic. `tests/http_smoke.php` boots the
+built-in `php -S` dev server against a **throwaway DB** (`COMECOME_DB_PATH`) and
+inspects the real response headers, asserting the session cookie carries
+`HttpOnly` + `SameSite=Lax` and — over plain HTTP dev — **no** `Secure` flag (so
+local `php -S` is never broken; Secure auto-enables under TLS in Phase 2). Exit
+`0` = pass.
 
 ## Honesty policy
 

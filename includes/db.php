@@ -23,7 +23,12 @@ function getDB() {
         $db->exec('PRAGMA busy_timeout = 5000');
         return $db;
     } catch (PDOException $e) {
-        die('Database connection failed: ' . $e->getMessage());
+        // Sprint security Phase 0 — fail-safe: never echo the driver/DSN/path to
+        // the client (the original message leaked DB_PATH + SQLite driver detail).
+        // Log the real cause for the operator; show the visitor a generic message.
+        error_log('ComeCome getDB() failed: ' . $e->getMessage());
+        http_response_code(500);
+        die('A database error occurred. Please try again later.');
     }
 }
 
@@ -54,7 +59,66 @@ function initializeDatabase() {
     // Run migrations for existing databases
     migrateDatabase($db);
 
+    // Sprint security Phase 0 — seed/refresh the default-PIN guard. On a fresh
+    // first boot the guardian PIN is the well-known '0000', so this flips the flag
+    // ON and the app force-redirects to change it before the dashboard is reachable.
+    refreshGuardianPinDefaultFlag($db);
+
     return true;
+}
+
+/**
+ * Sprint security Phase 0 — recompute the guardian default-PIN guard flag.
+ *
+ * Sets the settings key `guardian_pin_is_default` to '1' ONLY when the stored
+ * guardian hash STILL verifies the well-known default '0000', otherwise '0'.
+ * The value is ALWAYS re-derived from the actual stored hash — never assumed —
+ * so it is correct after a fresh init, a reset, AND a restore/upload of an
+ * arbitrary DB (critique fix: a restore/reset can't wrongly re/un-lock). A
+ * guardian who already changed their PIN to a non-default value is NEVER
+ * force-reset, because their hash will not verify '0000'.
+ *
+ * Evaluated against the lowest-id active guardian (the seeded admin, id=1 on a
+ * fresh DB). If no guardian row exists, the flag is cleared ('0').
+ */
+function refreshGuardianPinDefaultFlag($db = null) {
+    if ($db === null) { $db = getDB(); }
+
+    $isDefault = '0';
+    try {
+        $stmt = $db->query(
+            "SELECT pin FROM users WHERE type = 'guardian' AND active = 1 ORDER BY id LIMIT 1"
+        );
+        $row = $stmt ? $stmt->fetch() : false;
+        if ($row && !empty($row['pin']) && password_verify('0000', $row['pin'])) {
+            $isDefault = '1';
+        }
+    } catch (Exception $e) {
+        // users/settings table may not exist yet during a partial init; treat as
+        // "not default" so we never wrongly lock a half-built DB.
+        $isDefault = '0';
+    }
+
+    try {
+        $stmt = $db->prepare("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('guardian_pin_is_default', ?)");
+        $stmt->execute([$isDefault]);
+    } catch (Exception $e) {
+        // settings table missing during a partial init — nothing to persist yet.
+    }
+
+    return $isDefault === '1';
+}
+
+/**
+ * Sprint security Phase 0 — is the guardian still on the default '0000' PIN?
+ *
+ * Reads the cached `guardian_pin_is_default` flag (refreshed on init/reset/
+ * restore and cleared the moment the PIN is changed). Defaults to NOT-default
+ * ('0') when the flag is absent, so an upgraded existing install with a custom
+ * PIN is never spuriously locked before the flag is first computed.
+ */
+function guardianPinIsDefault() {
+    return getSetting('guardian_pin_is_default', '0') === '1';
 }
 
 /**
@@ -198,6 +262,25 @@ function migrateDatabase($db) {
 
         $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '5')");
     }
+
+    // Sprint security Phase 0 — one-time backfill of the default-'0000'-PIN guard
+    // for EXISTING installs (which were created before this flag existed). This is
+    // NOT a schema change (no new table/column, no version bump) — it only seeds a
+    // settings row when absent, by re-deriving it from the actual stored guardian
+    // hash. Keyed on the flag's absence so it is a no-op on every subsequent
+    // request (migrateDatabase() runs per request) and never overrides a value the
+    // app has since maintained (e.g. after a PIN change clears it).
+    try {
+        $flagStmt = $db->prepare("SELECT value FROM settings WHERE \"key\" = 'guardian_pin_is_default'");
+        $flagStmt->execute();
+        $hasFlag = $flagStmt->fetch();
+        if ($hasFlag === false) {
+            refreshGuardianPinDefaultFlag($db);
+        }
+    } catch (Exception $e) {
+        // settings table not ready during an early/partial migrate — the explicit
+        // refresh in initializeDatabase() will seed it once the schema exists.
+    }
 }
 
 /**
@@ -216,7 +299,15 @@ function backupDatabase() {
  */
 function restoreDatabase($backupPath) {
     if (file_exists($backupPath)) {
-        return copy($backupPath, DB_PATH);
+        if (copy($backupPath, DB_PATH)) {
+            // Sprint security Phase 0 — the restored DB may carry a different
+            // guardian PIN (default OR custom). Re-derive the default-PIN guard
+            // from the NEWLY-restored hash so a restore can't wrongly lock a
+            // custom-PIN admin out, nor un-lock a default-PIN one (critique fix).
+            refreshGuardianPinDefaultFlag(getDB());
+            return true;
+        }
+        return false;
     }
     return false;
 }
@@ -226,8 +317,18 @@ function restoreDatabase($backupPath) {
  */
 function resetDatabase() {
     if (file_exists(DB_PATH)) {
-        unlink(DB_PATH);
+        // On Windows a just-closed SQLite handle can hold the file lock for a few
+        // ms; retry briefly so a legitimate reset never aborts on a transient
+        // "Resource temporarily unavailable". @-suppressed because a final failure
+        // surfaces via the subsequent initializeDatabase() rather than a warning.
+        for ($i = 0; $i < 5 && file_exists(DB_PATH); $i++) {
+            if (@unlink(DB_PATH)) { break; }
+            usleep(20000);
+        }
     }
+    // initializeDatabase() re-seeds the '0000' guardian AND calls
+    // refreshGuardianPinDefaultFlag(), so a reset correctly re-locks behind the
+    // default-PIN change form (critique fix: reset can't leave it un-locked).
     return initializeDatabase();
 }
 

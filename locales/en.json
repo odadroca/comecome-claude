@@ -252,6 +252,7 @@
   "delete_confirmation": "Are you sure you want to delete?",
   "cannot_delete": "Cannot delete (in use)",
   "my_account": "My Account",
+  "default_pin_warning": "For security, please change the default PIN (0000) before continuing. Set a new PIN under \"My Account\" below.",
   "current_pin": "Current PIN",
   "new_pin": "New PIN",
   "leave_empty_keep_current": "Leave empty to keep current",

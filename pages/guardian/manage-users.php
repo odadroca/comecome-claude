@@ -91,6 +91,12 @@ ob_start();
     <main class="container">
         <h1><?php echo t('manage_users'); ?></h1>
 
+        <?php if (isset($_GET['pin_change_required']) && guardianPinIsDefault()): ?>
+        <div class="alert alert-warning" role="alert">
+            ⚠️ <?php echo t('default_pin_warning'); ?>
+        </div>
+        <?php endif; ?>
+
         <?php if ($message): ?>
         <div class="alert <?php echo $message === t('login_error') ? 'alert-error' : 'alert-success'; ?>">
             <?php echo $message === t('login_error') ? '❌' : '✅'; ?> <?php echo $message; ?>

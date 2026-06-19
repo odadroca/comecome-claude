@@ -40,6 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Replace the database file
                 if (copy($tmpFile, DB_PATH)) {
+                    // Sprint security Phase 0 — re-derive the default-PIN guard
+                    // from the freshly-uploaded DB's guardian hash, so an admin
+                    // who restores a DB with a custom PIN isn't wrongly locked,
+                    // and one with the default '0000' is correctly force-changed.
+                    refreshGuardianPinDefaultFlag(getDB());
                     $message = t('restore_success');
                     $messageType = 'success';
                 } else {

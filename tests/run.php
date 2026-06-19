@@ -954,6 +954,104 @@ $stampDb = null;
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
+ * PHASE G — Security Sprint Phase 0 (stop the no-effort takeovers).
+ *
+ *   The CLI harness cannot load config.php or start a session, so Phase 0's
+ *   logic was deliberately extracted into INCLUDABLE, side-effect-free functions
+ *   this runner CAN call and assert:
+ *
+ *     G1. configureSessionCookieParams() — cookie flags (HttpOnly + SameSite=Lax
+ *         always; Secure env-gated on HTTPS) across the HTTP / HTTPS / proxy /
+ *         :443 branches. (HTTP-level Set-Cookie behaviour is covered separately
+ *         by tests/http_smoke.php under `php -S`.)
+ *     G2. sessionIsExpired() — the idle-timeout math wired into isLoggedIn()/
+ *         requireAuth(): not-expired inside the window, expired past it, and a
+ *         null/legacy stamp treated as NOT-expired (backward compat).
+ *     G3. Default-'0000'-PIN guard lifecycle on a throwaway DB: fresh init arms
+ *         it; changing the guardian PIN off '0000' clears it; restoring a DB whose
+ *         guardian is still '0000' re-arms it; a custom-PIN guardian is NEVER
+ *         flagged (the backward-compat hard gate). All re-derived from the actual
+ *         stored hash (critique fix) — never blindly toggled.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE G — security Phase 0 (cookie flags / idle timeout / default-PIN guard) ###\n";
+
+require_once $ROOT . '/includes/session.php';
+require_once $ROOT . '/includes/auth.php';
+
+echo "\n-- G1. configureSessionCookieParams(): HttpOnly + SameSite=Lax + env-gated Secure --\n";
+$pHttp  = configureSessionCookieParams(['SERVER_PORT' => 80]);
+$pHttps = configureSessionCookieParams(['HTTPS' => 'on']);
+$pProxy = configureSessionCookieParams(['HTTP_X_FORWARDED_PROTO' => 'https']);
+$p443   = configureSessionCookieParams(['SERVER_PORT' => 443]);
+$pHttpsOff = configureSessionCookieParams(['HTTPS' => 'off', 'SERVER_PORT' => 80]);
+ok($pHttp['httponly'] === true, "G1 HttpOnly is always true");
+ok($pHttp['samesite'] === 'Lax', "G1 SameSite is always Lax");
+ok($pHttp['secure'] === false, "G1 Secure is FALSE over plain HTTP (local php -S dev not broken)");
+ok($pHttpsOff['secure'] === false, "G1 Secure is FALSE when HTTPS='off' (case-insensitive)");
+ok($pHttps['secure'] === true, "G1 Secure is TRUE when HTTPS=on (auto-enables under TLS / Phase 2)");
+ok($pProxy['secure'] === true, "G1 Secure is TRUE behind X-Forwarded-Proto: https proxy");
+ok($p443['secure'] === true, "G1 Secure is TRUE on standard :443 server port");
+
+echo "\n-- G2. sessionIsExpired(): idle-timeout math (SESSION_LIFETIME wired in) --\n";
+$life = 86400; // SESSION_LIFETIME default
+$nowG = 1000000000;
+ok(sessionIsExpired($nowG - 10,        $nowG, $life) === false, "G2 active 10s ago => NOT expired");
+ok(sessionIsExpired($nowG - ($life-1), $nowG, $life) === false, "G2 just inside the window => NOT expired");
+ok(sessionIsExpired($nowG - ($life+1), $nowG, $life) === true,  "G2 just past the window => expired");
+ok(sessionIsExpired(null,              $nowG, $life) === false, "G2 null stamp (legacy session) => NOT expired (backward compat)");
+ok(sessionIsExpired('',                $nowG, $life) === false, "G2 blank stamp => NOT expired (backward compat)");
+
+echo "\n-- G3. default-'0000'-PIN guard lifecycle (re-derived from stored hash) --\n";
+// Fresh init seeds the '0000' guardian => the guard must be ARMED.
+initializeDatabase();
+ok(guardianPinIsDefault() === true,
+   "G3 fresh init: guardian_pin_is_default flag is ARMED (seeded '0000')");
+ok((string) getSetting('guardian_pin_is_default', 'missing') === '1',
+   "G3 fresh init: flag persisted as '1' in settings");
+
+// Changing the guardian PIN off '0000' must CLEAR the guard (force-change lifts).
+updateUser(1, 'Guardião', 'guardian', '4729', '😊', 1);
+ok(guardianPinIsDefault() === false,
+   "G3 after changing PIN to '4729': guard CLEARED (non-default PIN never force-reset)");
+
+// A guardian whose hash does NOT verify '0000' is never flagged, even on an
+// explicit recompute — the backward-compat hard gate. Scope the handle so no PDO
+// lock lingers on Windows.
+$gRecompute = getDB();
+refreshGuardianPinDefaultFlag($gRecompute);
+$gRecompute = null;
+ok(guardianPinIsDefault() === false,
+   "G3 recompute against a custom-PIN guardian stays CLEARED (hard gate)");
+
+// Restoring/resetting a DB whose guardian is still '0000' must RE-ARM the guard
+// (critique fix: restore can't wrongly un-lock a default-PIN admin). Simulate by
+// resetting the PIN back to '0000' then recomputing, mirroring what a restore of a
+// fresh DB does. Scope each handle so no PDO lock lingers on Windows before the
+// resetDatabase() unlink below.
+$gDb = getDB();
+$gDb->prepare("UPDATE users SET pin = ? WHERE id = 1")
+    ->execute([password_hash('0000', PASSWORD_DEFAULT)]);
+refreshGuardianPinDefaultFlag($gDb);
+$gDb = null;
+ok(guardianPinIsDefault() === true,
+   "G3 guardian reset back to '0000' => guard RE-ARMED on recompute (restore/reset can't un-lock)");
+
+// resetDatabase() re-seeds '0000' AND refreshes the flag in one call. Drop any
+// lingering transient PDO handle first so the internal unlink() can't race a
+// still-open SQLite lock on Windows (file-copy/GC timing artifact, not a prod path).
+gc_collect_cycles();
+resetDatabase();
+$gReset = getDB();
+$gResetFlag = (string) $gReset->query("SELECT value FROM settings WHERE \"key\"='guardian_pin_is_default'")->fetchColumn();
+$gReset = null;
+ok($gResetFlag === '1',
+   "G3 resetDatabase() re-arms the guard (re-seeded '0000' + flag refreshed)");
+
+// PHASE G cleanup.
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
  * VERDICT.
  * ------------------------------------------------------------------------- */
 echo "\n==========================================================\n";

@@ -17,10 +17,48 @@ function getCurrentUser() {
 }
 
 /**
+ * Sprint security Phase 0 — pure idle-timeout predicate (side-effect free so the
+ * CLI harness can assert the math without a live session). Returns true when more
+ * than $lifetime seconds have elapsed since $lastActivity. A null/blank
+ * $lastActivity (legacy session predating this field) is treated as NOT expired,
+ * so existing logged-in sessions keep working until their next activity stamp.
+ */
+function sessionIsExpired($lastActivity, $now, $lifetime) {
+    if ($lastActivity === null || $lastActivity === '') {
+        return false;
+    }
+    return ($now - (int) $lastActivity) > (int) $lifetime;
+}
+
+/**
  * Check if user is logged in
+ *
+ * Sprint security Phase 0 — also enforces the idle timeout: a session idle past
+ * SESSION_LIFETIME is logged out here (the previously-unused constant is now
+ * wired in). Active sessions get their last_activity stamp refreshed on each
+ * authenticated request (sliding window).
  */
 function isLoggedIn() {
-    return isset($_SESSION['user_id']) && getCurrentUser() !== null;
+    if (!isset($_SESSION['user_id'])) {
+        return false;
+    }
+
+    // Idle-timeout gate. SESSION_LIFETIME is defined in config.php; default
+    // generously if somehow absent so we never divide/compare against undefined.
+    $lifetime = defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400;
+    $lastActivity = $_SESSION['last_activity'] ?? null;
+    if (sessionIsExpired($lastActivity, time(), $lifetime)) {
+        logout();
+        return false;
+    }
+
+    if (getCurrentUser() === null) {
+        return false;
+    }
+
+    // Sliding window: refresh the activity stamp on each authenticated check.
+    $_SESSION['last_activity'] = time();
+    return true;
 }
 
 /**
@@ -49,9 +87,19 @@ function authenticateUser($userId, $pin) {
     $user = $stmt->fetch();
 
     if ($user && password_verify($pin, $user['pin'])) {
+        // Sprint security Phase 0 — close session fixation: rotate the session id
+        // on every successful authentication so a pre-login (attacker-fixed) id is
+        // never elevated to an authenticated one. `true` deletes the old session
+        // file. Guarded so the CLI/test context (no active session) never warns.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_type'] = $user['type'];
         $_SESSION['user_name'] = $user['name'];
+        // Sprint security Phase 0 — stamp last-activity so the idle-timeout in
+        // isLoggedIn()/requireAuth() has a baseline from the moment of login.
+        $_SESSION['last_activity'] = time();
         return true;
     }
 
@@ -202,6 +250,16 @@ function updateUser($id, $name, $type, $pin = null, $avatarEmoji = null, $active
             WHERE id = ?
         ");
         $stmt->execute(array_merge([$name, $type, $hashedPin, $avatarEmoji, $active], $demoParams, [$id]));
+
+        // Sprint security Phase 0 — a PIN just changed. Re-derive the default-PIN
+        // guard from the new stored hashes: if the guardian moved off '0000' the
+        // flag clears and the force-change redirect lifts; if a guardian PIN was
+        // (re)set TO '0000' it re-locks. Re-derivation (not a blind clear) keeps a
+        // multi-guardian install correct. Only meaningful for guardian rows but
+        // safe to run unconditionally.
+        if (function_exists('refreshGuardianPinDefaultFlag')) {
+            refreshGuardianPinDefaultFlag($db);
+        }
     } else {
         $stmt = $db->prepare("
             UPDATE users
