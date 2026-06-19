@@ -7,6 +7,15 @@
 $user = getCurrentUser();
 $weightHistory = getWeightHistory($user['id'], 30); // Last 30 days
 
+// Sprint 6 (decision ii): height folds into THIS page only when the guardian has
+// enabled show_percentiles (default OFF). When OFF, the page renders byte-for-byte
+// as the original weight page — no height field, heading stays "Weight". When ON,
+// the page becomes "Growth", gains one optional height input, and reuses the exact
+// same tap-log-celebrate flow. No new route, no new footer item (child stays 4).
+$showPercentiles = getSetting('show_percentiles', '0') === '1';
+$heightHistory = $showPercentiles ? getHeightHistory($user['id'], 30) : [];
+$pageTitle = $showPercentiles ? t('growth') : t('weight_tracking');
+
 // Random encouragement
 $encouragementKey = getRandomEncouragementKey('weight');
 
@@ -16,7 +25,7 @@ ob_start();
 <div class="child-interface">
     <nav class="child-nav">
         <a href="index.php" class="btn-back">← <?php echo t('back'); ?></a>
-        <h1><?php echo t('weight_tracking'); ?> 🌱</h1>
+        <h1><?php echo $pageTitle; ?> 🌱</h1>
         <button class="theme-toggle" type="button" aria-label="Toggle theme"></button>
         <a href="index.php?page=logout" class="btn-logout">🚪</a>
     </nav>
@@ -31,6 +40,14 @@ ob_start();
                     <input type="number" id="weight" name="weight" step="0.1" min="1" max="200" placeholder="25.5" required>
                     <span class="weight-unit">kg</span>
                 </div>
+                <?php if ($showPercentiles): ?>
+                <!-- Sprint 6: optional height. Shown ONLY when show_percentiles is ON.
+                     Not required — the child can still log just weight and celebrate. -->
+                <div class="weight-input-group">
+                    <input type="number" id="height" name="height" step="0.1" min="30" max="220" placeholder="<?php echo t('height_cm'); ?>">
+                    <span class="weight-unit">cm</span>
+                </div>
+                <?php endif; ?>
                 <button type="submit" class="btn-primary btn-large">
                     <?php echo t('save'); ?> 🌱
                 </button>
@@ -113,6 +130,7 @@ ob_start();
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+<?php if (!$showPercentiles): ?>
 document.getElementById('weightForm').addEventListener('submit', function(e) {
     e.preventDefault();
 
@@ -146,6 +164,64 @@ document.getElementById('weightForm').addEventListener('submit', function(e) {
         alert('<?php echo t('error_generic'); ?>');
     });
 });
+<?php else: ?>
+// Sprint 6 (Growth page active): log weight then, if the optional height is
+// filled in, log it to api/height.php before celebrating. An empty or failing
+// height never blocks the weight save or the celebration (graceful degradation).
+document.getElementById('weightForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const weight = document.getElementById('weight').value;
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const resetBtn = function() {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '<?php echo t('save'); ?> 🌱';
+    };
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳';
+
+    const celebrate = function() {
+        launchConfetti();
+        vibrate([50, 100, 50]);
+        setTimeout(function() {
+            document.getElementById('successModal').showModal();
+        }, 600);
+    };
+
+    const logHeightThen = function(done) {
+        const heightEl = document.getElementById('height');
+        const height = heightEl ? heightEl.value : '';
+        if (!height) { done(); return; }
+        fetch('api/height.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({height: parseFloat(height)})
+        })
+        .then(r => r.json())
+        .then(function() { done(); })   // height is optional — don't fail the flow
+        .catch(function() { done(); });
+    };
+
+    fetch('api/weight.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({weight: parseFloat(weight)})
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            logHeightThen(celebrate);
+        } else {
+            resetBtn();
+            alert('<?php echo t('error_generic'); ?>');
+        }
+    })
+    .catch(function() {
+        resetBtn();
+        alert('<?php echo t('error_generic'); ?>');
+    });
+});
+<?php endif; ?>
 
 // Render weight chart
 <?php if (count($weightHistory) > 0): ?>
@@ -199,5 +275,5 @@ new Chart(ctx, {
 
 <?php
 $content = ob_get_clean();
-renderLayout(t('weight_tracking'), $content);
+renderLayout($pageTitle, $content);
 ?>

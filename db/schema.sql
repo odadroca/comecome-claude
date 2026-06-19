@@ -123,6 +123,20 @@ CREATE TABLE IF NOT EXISTS weight_log (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Height tracking (Sprint 6: Growth Page Foundation). Mirrors weight_log: one
+-- optional measurement per child per day (UNIQUE upsert). Mirrors the v4
+-- migration in includes/db.php so a fresh DB matches a migrated one. Shown to the
+-- child only when show_percentiles is ON (guardian opt-in, decision ii).
+CREATE TABLE IF NOT EXISTS height_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    height_cm REAL NOT NULL,
+    log_date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, log_date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- System settings
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -176,6 +190,7 @@ CREATE TABLE IF NOT EXISTS sleep_interruptions (
 CREATE INDEX IF NOT EXISTS idx_food_log_user_date ON food_log(user_id, log_date);
 CREATE INDEX IF NOT EXISTS idx_food_log_date ON food_log(log_date);
 CREATE INDEX IF NOT EXISTS idx_weight_log_user_date ON weight_log(user_id, log_date);
+CREATE INDEX IF NOT EXISTS idx_height_log_user_date ON height_log(user_id, log_date);
 CREATE INDEX IF NOT EXISTS idx_daily_checkin_user_date ON daily_checkin(user_id, check_date);
 CREATE INDEX IF NOT EXISTS idx_guest_tokens_expires ON guest_tokens(expires_at);
 CREATE INDEX IF NOT EXISTS idx_sleep_log_user_date ON sleep_log(user_id, log_date);

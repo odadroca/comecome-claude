@@ -135,6 +135,18 @@
   "no_weight_data": "No weight data yet",
   "weight_change": "Change",
 
+  "_ui_growth": "=== GROWTH ===",
+  "growth": "Growth",
+  "growth_page_title": "Growth Tracking",
+  "height": "Height",
+  "height_cm": "Height (cm)",
+  "log_height": "Log height",
+  "growth_percentiles": "Growth & Percentiles",
+  "growth_percentiles_hint": "Enables height tracking and, later, growth percentiles. Requires each child's sex and date of birth.",
+  "show_percentiles": "Show growth percentiles",
+  "show_percentiles_hint": "When on, the weight page becomes \"Growth\" and the child can log height. Off by default.",
+  "percentiles_need_dob_warning": "To calculate percentiles, the sex or date of birth is still missing for these children:",
+
   "_ui_history": "=== HISTORY ===",
   "my_history": "My History",
   "select_date": "Select Date",

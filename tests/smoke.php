@@ -166,7 +166,7 @@ require_once $ROOT . '/includes/auth.php';
 require_once $ROOT . '/includes/helpers.php';
 
 $ver = (int) getSetting('schema_version', '0');
-ok($ver === 3, "schema_version reaches 3 (Sprint 5 demographics) [got " . var_export($ver, true) . "]");
+ok($ver === 4, "schema_version reaches 4 (Sprint 6 growth page) [got " . var_export($ver, true) . "]");
 
 // --- 2. Guardian id=1 / pin=0000 auth path (Sprint 0+) ----------------------
 echo "\n-- Auth path (guardian id=1 / pin=0000) --\n";
@@ -271,11 +271,11 @@ $s3start = date('Y-m-d', strtotime('-30 days'));
 $s3end   = date('Y-m-d');
 
 // (a) Sprint 3 added NO migration (it was schema_version 2 at the time). Sprint 5
-//     later bumped the shipped version to 3 (demographics). We assert the current
-//     shipped version (3) here; the Sprint-3 "no new schema" property is preserved
-//     historically — Sprint 3 itself contributed none of these columns/tables.
-ok((int)getSetting('schema_version', '0') === 3,
-   "shipped schema_version is 3 (Sprint 5 demographics; Sprint 3 added no schema)");
+//     later bumped the shipped version to 3 (demographics), and Sprint 6 to 4
+//     (growth page / height_log). We assert the current shipped version (4) here;
+//     the Sprint-3 "no new schema" property is preserved historically.
+ok((int)getSetting('schema_version', '0') === 4,
+   "shipped schema_version is 4 (Sprint 6 growth page; Sprint 3 added no schema)");
 // (a2) Sprint 5 positive check: demographics columns exist on the running DB.
 $smokeDb = getDB();
 $userCols = $smokeDb->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);

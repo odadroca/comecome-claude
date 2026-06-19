@@ -135,6 +135,18 @@
   "no_weight_data": "Ainda sem dados de peso",
   "weight_change": "Mudança",
 
+  "_ui_growth": "=== CRESCIMENTO ===",
+  "growth": "Crescimento",
+  "growth_page_title": "Registo de Crescimento",
+  "height": "Altura",
+  "height_cm": "Altura (cm)",
+  "log_height": "Registar altura",
+  "growth_percentiles": "Crescimento e Percentis",
+  "growth_percentiles_hint": "Ativa o registo de altura e, mais tarde, os percentis de crescimento. Requer sexo e data de nascimento de cada criança.",
+  "show_percentiles": "Mostrar percentis de crescimento",
+  "show_percentiles_hint": "Quando ativo, a página de peso passa a \"Crescimento\" e a criança pode registar a altura. Desativado por predefinição.",
+  "percentiles_need_dob_warning": "Para calcular os percentis, falta indicar o sexo ou a data de nascimento destas crianças:",
+
   "_ui_history": "=== HISTÓRICO ===",
   "my_history": "Meu Histórico",
   "select_date": "Selecionar Data",

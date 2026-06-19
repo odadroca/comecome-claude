@@ -59,6 +59,11 @@
  *                                     migrate adds both columns (nullable),
  *                                     preserves pre-existing user rows, and is
  *                                     idempotent on re-run.
+ *   Sprint 6 (growth page v3->v4)   : A1 fresh schema.sql carries height_log;
+ *                                     schema_version reaches 4. A2 v1->...->v4
+ *                                     forward migrate adds height_log, the
+ *                                     UNIQUE(user_id,log_date) upsert is proven,
+ *                                     the table survives idempotent re-runs.
  * ---------------------------------------------------------------------------
  */
 
@@ -236,17 +241,18 @@ date_default_timezone_set('Europe/Lisbon');
 require_once $ROOT . '/includes/db.php';
 
 // --- A1. initializeDatabase() on a fresh temp DB ----------------------------
-echo "\n-- A1. initializeDatabase(): tables + schema_version=3 --\n";
+echo "\n-- A1. initializeDatabase(): tables + schema_version=4 --\n";
 ok(!file_exists($initDb), "A1 precondition: temp DB does not exist before init");
 initializeDatabase(); // DB_PATH = $initDb
 $a1 = getDB();
 
-// The full set of tables the shipped schema + migration must produce at v2.
+// The full set of tables the shipped schema + migration must produce at the
+// current schema_version (4). Sprint 6 adds height_log.
 $expectedTables = [
     'users', 'meals', 'food_categories', 'meal_categories', 'foods',
     'user_favorites', 'food_log', 'medications', 'user_medications',
-    'daily_checkin', 'weight_log', 'settings', 'guest_tokens', 'translations',
-    'sleep_log', 'sleep_interruptions',
+    'daily_checkin', 'weight_log', 'height_log', 'settings', 'guest_tokens',
+    'translations', 'sleep_log', 'sleep_interruptions',
 ];
 $gotTables = listTables($a1);
 foreach ($expectedTables as $t) {
@@ -259,7 +265,7 @@ ok($expSorted === $gotSorted,
    "A1 table set exactly matches expected (" . count($expectedTables) . " tables)");
 
 $a1ver = readSchemaVersion($a1);
-ok($a1ver === 3, "A1 schema_version reaches 3 on fresh init [got " . var_export($a1ver, true) . "]");
+ok($a1ver === 4, "A1 schema_version reaches 4 on fresh init [got " . var_export($a1ver, true) . "]");
 
 // Default guardian seeded by initializeDatabase().
 $g = $a1->query("SELECT id,type FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
@@ -271,6 +277,13 @@ ok(columnExists($a1, 'users', 'gender'),
    "A1 users.gender column present on fresh schema.sql DB");
 ok(columnExists($a1, 'users', 'date_of_birth'),
    "A1 users.date_of_birth column present on fresh schema.sql DB");
+
+// Sprint 6: a fresh DB built from schema.sql must already carry height_log with
+// its expected columns (schema.sql and the v4 migration agree).
+ok(columnExists($a1, 'height_log', 'height_cm'),
+   "A1 height_log.height_cm column present on fresh schema.sql DB");
+ok(columnExists($a1, 'height_log', 'log_date'),
+   "A1 height_log.log_date column present on fresh schema.sql DB");
 $a1 = null;
 
 // --- A2. migrateDatabase() forward from synthetic v1 + idempotency ----------
@@ -296,15 +309,19 @@ ok(!columnExists($m, 'users', 'gender'),
    "A2 fixture lacks users.gender before migrate");
 ok(!columnExists($m, 'users', 'date_of_birth'),
    "A2 fixture lacks users.date_of_birth before migrate");
+// Sprint 6 (v3->v4): the v1 fixture must also lack height_log so the forward
+// migration has real work to do for v4 as well.
+ok(!in_array('height_log', listTables($m), true),
+   "A2 fixture lacks height_log before migrate");
 
 // Forward migrate.
 $threwFwd = false;
 try { migrateDatabase($m); } catch (Throwable $e) { $threwFwd = true; echo "    EXCEPTION: " . $e->getMessage() . "\n"; }
 ok(!$threwFwd, "A2 forward migrateDatabase() did not throw");
 
-// Post-state: the Sprint-2 AND Sprint-5 deliverables now exist. The fixture
-// migrates forward through every gated block (v1->v2->v3) in one call.
-ok(readSchemaVersion($m) === 3, "A2 schema_version is 3 after forward migrate");
+// Post-state: the Sprint-2, Sprint-5 AND Sprint-6 deliverables now exist. The
+// fixture migrates forward through every gated block (v1->v2->v3->v4) in one call.
+ok(readSchemaVersion($m) === 4, "A2 schema_version is 4 after forward migrate");
 ok(columnExists($m, 'daily_checkin', 'sleep_quality'),
    "A2 daily_checkin.sleep_quality exists after migrate");
 ok(in_array('sleep_log', listTables($m), true),
@@ -316,6 +333,13 @@ ok(columnExists($m, 'users', 'gender'),
    "A2 users.gender exists after migrate (v3)");
 ok(columnExists($m, 'users', 'date_of_birth'),
    "A2 users.date_of_birth exists after migrate (v3)");
+// Sprint 6 (v3->v4): height_log table appears with its expected columns.
+ok(in_array('height_log', listTables($m), true),
+   "A2 height_log exists after migrate (v4)");
+ok(columnExists($m, 'height_log', 'height_cm'),
+   "A2 height_log.height_cm exists after migrate (v4)");
+ok(columnExists($m, 'height_log', 'log_date'),
+   "A2 height_log.log_date exists after migrate (v4)");
 // Existing user rows survive the v3 ALTERs with the new columns defaulting NULL.
 $urow = $m->query("SELECT name,type,gender,date_of_birth FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
 ok($urow && $urow['name'] === 'Fixture' && $urow['type'] === 'guardian',
@@ -335,6 +359,16 @@ $wrote = $m->query("SELECT gender,date_of_birth FROM users WHERE id=1")->fetch(P
 ok($wrote && $wrote['gender'] === 'female' && $wrote['date_of_birth'] === '2018-05-04',
    "A2 demographics values write+read back through v3 columns");
 
+// Sprint 6: prove height_log accepts a row and that the UNIQUE(user_id, log_date)
+// upsert (INSERT OR REPLACE, mirroring weight_log) overwrites rather than
+// duplicating a same-day re-log.
+$m->exec("INSERT OR REPLACE INTO height_log (user_id, height_cm, log_date) VALUES (1, 120.5, '2026-01-02')");
+$m->exec("INSERT OR REPLACE INTO height_log (user_id, height_cm, log_date) VALUES (1, 121.0, '2026-01-02')");
+$hcount = (int) $m->query("SELECT COUNT(*) FROM height_log WHERE user_id=1 AND log_date='2026-01-02'")->fetchColumn();
+$hval = $m->query("SELECT height_cm FROM height_log WHERE user_id=1 AND log_date='2026-01-02'")->fetchColumn();
+ok($hcount === 1 && (float) $hval === 121.0,
+   "A2 height_log same-day re-log upserts (1 row, latest value) via UNIQUE(user_id, log_date)");
+
 // Idempotency: capture state, re-run twice, assert no change and no throw.
 $verBefore = readSchemaVersion($m);
 $tablesBefore = listTables($m); sort($tablesBefore);
@@ -349,7 +383,7 @@ ok(!$threwAgain, "A2 re-running migrateDatabase() twice did not throw");
 $verAfter = readSchemaVersion($m);
 $tablesAfter = listTables($m); sort($tablesAfter);
 ok($verAfter === $verBefore, "A2 schema_version unchanged on re-run ($verBefore -> $verAfter)");
-ok($verAfter === 3, "A2 schema_version stays at 3 on idempotent re-run");
+ok($verAfter === 4, "A2 schema_version stays at 4 on idempotent re-run");
 ok($tablesAfter === $tablesBefore, "A2 table set unchanged on re-run (no-op migration)");
 $usersColsAfter = $m->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
 sort($usersColsAfter);
@@ -359,6 +393,11 @@ ok($usersColsAfter === $usersColsBefore,
 $keep = $m->query("SELECT gender,date_of_birth FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
 ok($keep && $keep['gender'] === 'female' && $keep['date_of_birth'] === '2018-05-04',
    "A2 demographics values preserved across idempotent migrate re-runs");
+// Sprint 6: the height_log row written earlier survives the no-op re-runs (the v4
+// block is CREATE TABLE IF NOT EXISTS — it must not drop or recreate the table).
+$keepH = $m->query("SELECT height_cm FROM height_log WHERE user_id=1 AND log_date='2026-01-02'")->fetchColumn();
+ok($keepH !== false && (float) $keepH === 121.0,
+   "A2 height_log row preserved across idempotent migrate re-runs");
 $m = null;
 
 // --- A3. backup / restore round-trip ----------------------------------------

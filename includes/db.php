@@ -124,6 +124,30 @@ function migrateDatabase($db) {
 
         $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '3')");
     }
+
+    if ($version < 4) {
+        // Sprint 6: Growth Page Foundation — height_log. Mirrors weight_log exactly
+        // (one optional measurement per child per day, upserted on UNIQUE(user_id,
+        // log_date)). Guardian opt-in via show_percentiles; the child only ever sees
+        // it when that toggle is ON (decision ii). CREATE TABLE IF NOT EXISTS + a
+        // guarded index keep this block idempotent: a partially-migrated DB re-runs
+        // without throwing. Mirrored in db/schema.sql so a fresh DB matches a
+        // migrated one.
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS height_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                height_cm REAL NOT NULL,
+                log_date DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, log_date),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ");
+        $db->exec("CREATE INDEX IF NOT EXISTS idx_height_log_user_date ON height_log(user_id, log_date)");
+
+        $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '4')");
+    }
 }
 
 /**
@@ -357,6 +381,49 @@ function getWeightHistory($userId, $days = null) {
     $db = getDB();
 
     $sql = "SELECT * FROM weight_log WHERE user_id = ? ORDER BY log_date DESC";
+    if ($days) {
+        $sql .= " LIMIT ?";
+    }
+
+    $stmt = $db->prepare($sql);
+    if ($days) {
+        $stmt->execute([$userId, $days]);
+    } else {
+        $stmt->execute([$userId]);
+    }
+
+    return $stmt->fetchAll();
+}
+
+/**
+ * Log height (Sprint 6 — Growth Page Foundation).
+ *
+ * Mirrors logWeight() exactly: one height per child per day, upserted on the
+ * UNIQUE(user_id, log_date) constraint so re-logging the same day overwrites
+ * rather than duplicating. height_cm is stored as REAL (cm).
+ */
+function logHeight($userId, $heightCm, $date = null) {
+    $db = getDB();
+
+    if (!$date) $date = date('Y-m-d');
+
+    $stmt = $db->prepare("
+        INSERT OR REPLACE INTO height_log (user_id, height_cm, log_date)
+        VALUES (?, ?, ?)
+    ");
+
+    return $stmt->execute([$userId, $heightCm, $date]);
+}
+
+/**
+ * Get height history (Sprint 6 — Growth Page Foundation).
+ *
+ * Mirrors getWeightHistory(): newest-first; optional $days arg caps the row count.
+ */
+function getHeightHistory($userId, $days = null) {
+    $db = getDB();
+
+    $sql = "SELECT * FROM height_log WHERE user_id = ? ORDER BY log_date DESC";
     if ($days) {
         $sql .= " LIMIT ?";
     }

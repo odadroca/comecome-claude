@@ -63,6 +63,29 @@ function calculateAgeInMonths($dateOfBirth) {
 }
 
 /**
+ * Sprint 6 — Growth Page Foundation.
+ *
+ * Body Mass Index from weight (kg) and height (cm): BMI = kg / m^2, rounded to one
+ * decimal (the clinical display convention). This is the same arithmetic the WHO/CDC
+ * BMI-for-age percentile engine (Sprints 7–8) will consume.
+ *
+ * Null-guards missing/invalid inputs (graceful degradation, decision iv): returns
+ * null when either value is blank, non-numeric, or non-positive — height_cm is
+ * OPTIONAL, so a child may have weight without a paired height and BMI is simply
+ * unavailable rather than throwing or producing a divide-by-zero.
+ */
+function calculateBMI($weightKg, $heightCm) {
+    if ($weightKg === null || $heightCm === null) return null;
+    if (!is_numeric($weightKg) || !is_numeric($heightCm)) return null;
+    if ($weightKg <= 0 || $heightCm <= 0) return null;
+
+    $heightM = $heightCm / 100;
+    $bmi = $weightKg / ($heightM * $heightM);
+
+    return round($bmi, 1);
+}
+
+/**
  * Get date range for period
  */
 function getDateRangeForPeriod($period) {
