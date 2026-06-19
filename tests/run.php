@@ -376,6 +376,11 @@ ok($a1ver === 6, "A1 schema_version reaches 6 on fresh init [got " . var_export(
 $g = $a1->query("SELECT id,type FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
 ok($g && $g['type'] === 'guardian', "A1 default guardian id=1 created by init");
 
+// Sprint 2: a fresh DB built from schema.sql must already carry
+// daily_checkin.sleep_quality (schema.sql and the v2 migration agree). NULLABLE.
+ok(columnExists($a1, 'daily_checkin', 'sleep_quality'),
+   "A1 daily_checkin.sleep_quality column present on fresh schema.sql DB");
+
 // Sprint 5: a fresh DB built from schema.sql must already carry the demographics
 // columns (schema.sql and the v3 migration agree). Both are NULLABLE.
 ok(columnExists($a1, 'users', 'gender'),
