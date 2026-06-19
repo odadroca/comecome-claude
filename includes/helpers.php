@@ -1108,6 +1108,7 @@ function renderLayout($title, $content, $additionalHead = '') {
         <title><?php echo sanitize($title); ?> - <?php echo t('app_name'); ?></title>
         <link rel="stylesheet" href="assets/css/pico.min.css">
         <link rel="stylesheet" href="assets/css/custom.css">
+        <link rel="stylesheet" href="assets/css/comecome-theme.css"><!-- design refresh -->
         <link rel="manifest" href="manifest.json">
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
         <script>
