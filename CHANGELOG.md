@@ -5,6 +5,16 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 
 ## [Unreleased] — staging
 
+_Nothing yet._
+
+## [0.11.0] — 2026-06-21 — staging
+
+A visual refresh plus small UX and privacy improvements on top of 0.10.0; **schema
+unchanged** (still `schema_version` 7). Version markers reconciled to **v0.11.0**
+(`config.php` `APP_VERSION` / `sw.js` `CACHE_NAME` `comecome-v0.11.0` / README /
+CLAUDE.md) and tagged. Built and verified on staging (`php tests/run.php` → 332
+green); **not yet promoted to production** (`Come-come`).
+
 ### Added
 - **Child "undo" on the food-log celebration** — after logging, the success dialog now offers
   **"Oops, undo"** (pt *"Enganei-me"*) that removes the just-logged entry, so a child who taps the
@@ -50,6 +60,12 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   the theme didn't set a background. The dark block already overrode it; added the same for light
   (teal select tint via tokens, covering `:focus`/`:active` too), keeping favorites' honey tint.
   `sw.js` → `comecome-v0.10.4`.
+
+### Privacy
+- **Self-hosted fonts** — Lexend + Atkinson Hyperlegible now load from `assets/fonts/` (9 woff2)
+  instead of the Google Fonts CDN, removing a third-party request that exposed visitor IPs. The
+  theme `@import` is replaced with local `@font-face`; the fonts are precached in `sw.js`; SIL
+  OFL 1.1 licenses are shipped (`assets/fonts/Lexend-OFL.txt`, `AtkinsonHyperlegible-OFL.txt`).
 
 ## [0.10.0] — 2026-06-20 — staging
 
