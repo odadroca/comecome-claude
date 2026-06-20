@@ -4,12 +4,23 @@
  * Network-first for pages, cache-first for static assets
  */
 
-const CACHE_NAME = 'comecome-v0.9.3';
+const CACHE_NAME = 'comecome-v0.9.4';
 const STATIC_ASSETS = [
     '/assets/css/pico.min.css',
     '/assets/css/custom.css',
+    '/assets/css/comecome-theme.css',
     '/assets/js/app.js',
-    '/manifest.json'
+    '/manifest.json',
+    // Self-hosted fonts (offline-first; design refresh)
+    '/assets/fonts/lexend-300.woff2',
+    '/assets/fonts/lexend-400.woff2',
+    '/assets/fonts/lexend-500.woff2',
+    '/assets/fonts/lexend-600.woff2',
+    '/assets/fonts/lexend-700.woff2',
+    '/assets/fonts/atkinson-400.woff2',
+    '/assets/fonts/atkinson-700.woff2',
+    '/assets/fonts/atkinson-400-italic.woff2',
+    '/assets/fonts/atkinson-700-italic.woff2'
 ];
 
 // Install event - cache static assets only
