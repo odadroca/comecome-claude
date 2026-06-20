@@ -21,6 +21,13 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   swaps `comecome-theme.css` (re-applying the post-refresh polish fixes the handover package
   predated); Phase 2 remaps the hardcoded JS/manifest/inline colors tangerine→teal and re-points
   the dark-mode inline-hex overrides. Fully revertible. `sw.js` cache → `comecome-v0.10.2`.
+- **Guardian "cards & layout" pass** — the guardian pages rendered every block as a
+  container-less `<section>` (the dashboard read as one flat scroll). Extended the Lagoon theme
+  (CSS only, zero markup) so every `.dashboard-section`/`.management-section` becomes a calm card
+  with a divider header; the dashboard gets a 2-col grid (the two charts pair side-by-side, scoped
+  via `:has()`), management/settings pages a constrained ≤880px column, and tables are framed once.
+  Dark mode automatic via tokens; collapses to one column under 900px. Appended as Blocks A/B to
+  preserve the existing child-side fixes. `sw.js` cache → `comecome-v0.10.5`.
 
 ### Fixed
 - **Medication UI in dark mode** (two pre-existing bugs found in live testing, not recolor-caused):
