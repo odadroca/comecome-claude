@@ -39,8 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         jsonResponse(['success' => false, 'error' => 'invalid_portion'], 400);
     }
 
-    if (logFood($user['id'], $foodId, $mealId, $portion, $logDate, $logTime)) {
-        jsonResponse(['success' => true]);
+    $newLogId = logFood($user['id'], $foodId, $mealId, $portion, $logDate, $logTime);
+    if ($newLogId) {
+        jsonResponse(['success' => true, 'id' => $newLogId]);
     } else {
         jsonResponse(['success' => false, 'error' => 'database_error'], 500);
     }
