@@ -31,6 +31,11 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   styled `.option-card label` and made the card a 2-col grid) — the card chrome never applied and
   the emoji/label split into columns; corrected to the label-is-card pattern with
   `:has(input:checked)` selection, in `custom.css` + `comecome-theme.css`. `sw.js` → `comecome-v0.10.3`.
+- **Food-card hover/focus showed Pico green in light mode** — `.food-card` is a `<button>`, and
+  Pico's `--primary` is the legacy `#4CAF50`, so its hover/focus/active fill leaked green wherever
+  the theme didn't set a background. The dark block already overrode it; added the same for light
+  (teal select tint via tokens, covering `:focus`/`:active` too), keeping favorites' honey tint.
+  `sw.js` → `comecome-v0.10.4`.
 
 ## [0.10.0] — 2026-06-20 — staging
 

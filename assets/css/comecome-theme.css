@@ -138,6 +138,17 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
 
 .food-card { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); box-shadow: var(--cc-shadow-sm); }
 .food-card:hover { border-color: var(--cc-ring); box-shadow: 0 12px 30px rgba(var(--cc-glow),.15); }
+/* .food-card is a <button>: Pico fills its hover/focus/active with the legacy green
+   --primary (#4CAF50). The dark block already overrides this — cover light (and the
+   focus/active states) too, with the teal select tint. Tokens keep it right in both modes. */
+.food-card:hover, .food-card:focus, .food-card:active, .food-card:focus-visible {
+  background: var(--cc-select-fill) !important; border-color: var(--cc-ring) !important;
+}
+/* …but a favorite keeps its honey tint even while hovered/focused. */
+.food-card.is-favorite:hover, .food-card.is-favorite:focus, .food-card.is-favorite:active,
+.food-card.favorite:hover, .food-card.favorite:focus, .food-card.favorite:active {
+  background: var(--cc-favorite-soft) !important; border-color: var(--cc-favorite) !important;
+}
 .food-card.is-favorite, .food-card.favorite {
   border-color: var(--cc-favorite) !important;
   background: var(--cc-favorite-soft) !important;
