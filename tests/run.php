@@ -344,20 +344,22 @@ date_default_timezone_set('Europe/Lisbon');
 require_once $ROOT . '/includes/db.php';
 
 // --- A1. initializeDatabase() on a fresh temp DB ----------------------------
-echo "\n-- A1. initializeDatabase(): tables + schema_version=6 --\n";
+echo "\n-- A1. initializeDatabase(): tables + schema_version=7 --\n";
 ok(!file_exists($initDb), "A1 precondition: temp DB does not exist before init");
 initializeDatabase(); // DB_PATH = $initDb
 $a1 = getDB();
 
 // The full set of tables the shipped schema + migration must produce at the
-// current schema_version (6). Sprint 6 adds height_log; Sprint 9 adds
-// medication_schedules; security Phase 1 adds login_attempts.
+// current schema_version (7). Sprint 6 adds height_log; Sprint 9 adds
+// medication_schedules; security Phase 1 adds login_attempts; Sprint 11 adds
+// food_growth_tags.
 $expectedTables = [
     'users', 'meals', 'food_categories', 'meal_categories', 'foods',
     'user_favorites', 'food_log', 'medications', 'user_medications',
     'medication_schedules',
     'daily_checkin', 'weight_log', 'height_log', 'settings', 'guest_tokens',
     'translations', 'sleep_log', 'sleep_interruptions', 'login_attempts',
+    'food_growth_tags',
 ];
 $gotTables = listTables($a1);
 foreach ($expectedTables as $t) {
@@ -370,7 +372,22 @@ ok($expSorted === $gotSorted,
    "A1 table set exactly matches expected (" . count($expectedTables) . " tables)");
 
 $a1ver = readSchemaVersion($a1);
-ok($a1ver === 6, "A1 schema_version reaches 6 on fresh init [got " . var_export($a1ver, true) . "]");
+ok($a1ver === 7, "A1 schema_version reaches 7 on fresh init [got " . var_export($a1ver, true) . "]");
+
+// Sprint 11 — seed growth tags are present on a fresh init (mirrored schema.sql table +
+// the v6->v7 seed). A few representative foods, not the whole map.
+$ftCount = (int) $a1->query("SELECT COUNT(*) FROM food_growth_tags")->fetchColumn();
+ok($ftCount > 0, "A1 food_growth_tags seeded on fresh init [got $ftCount rows]");
+$milkBone = (int) $a1->query(
+    "SELECT COUNT(*) FROM food_growth_tags fgt JOIN foods f ON f.id = fgt.food_id
+     WHERE f.name_key = 'food_milk' AND fgt.tag = 'bone_building'"
+)->fetchColumn();
+ok($milkBone === 1, "A1 milk tagged bone_building");
+$sodaTags = (int) $a1->query(
+    "SELECT COUNT(*) FROM food_growth_tags fgt JOIN foods f ON f.id = fgt.food_id
+     WHERE f.name_key = 'food_soda'"
+)->fetchColumn();
+ok($sodaTags === 0, "A1 soda intentionally untagged");
 
 // Default guardian seeded by initializeDatabase().
 $g = $a1->query("SELECT id,type FROM users WHERE id=1")->fetch(PDO::FETCH_ASSOC);
@@ -458,16 +475,22 @@ ok(!columnExists($m, 'food_log', 'med_window'),
 // forward migration has real v6 work to do.
 ok(!in_array('login_attempts', listTables($m), true),
    "A2 fixture lacks login_attempts before migrate");
+// Sprint 11 (v6->v7): the v1 fixture must also lack food_growth_tags so the forward
+// migration has real v7 work to do.
+ok(!in_array('food_growth_tags', listTables($m), true),
+   "A2 fixture lacks food_growth_tags before migrate");
 
 // Forward migrate.
 $threwFwd = false;
 try { migrateDatabase($m); } catch (Throwable $e) { $threwFwd = true; echo "    EXCEPTION: " . $e->getMessage() . "\n"; }
 ok(!$threwFwd, "A2 forward migrateDatabase() did not throw");
 
-// Post-state: the Sprint-2, Sprint-5, Sprint-6, Sprint-9 AND security-Phase-1
-// deliverables now exist. The fixture migrates forward through every gated block
-// (v1->v2->v3->v4->v5->v6) in one call.
-ok(readSchemaVersion($m) === 6, "A2 schema_version is 6 after forward migrate");
+// Post-state: the Sprint-2, Sprint-5, Sprint-6, Sprint-9, security-Phase-1 AND
+// Sprint-11 deliverables now exist. The fixture migrates forward through every gated
+// block (v1->v2->v3->v4->v5->v6->v7) in one call.
+ok(readSchemaVersion($m) === 7, "A2 schema_version is 7 after forward migrate");
+ok(in_array('food_growth_tags', listTables($m), true),
+   "A2 food_growth_tags exists after migrate (v7)");
 ok(columnExists($m, 'daily_checkin', 'sleep_quality'),
    "A2 daily_checkin.sleep_quality exists after migrate");
 ok(in_array('sleep_log', listTables($m), true),
@@ -562,7 +585,7 @@ ok(!$threwAgain, "A2 re-running migrateDatabase() twice did not throw");
 $verAfter = readSchemaVersion($m);
 $tablesAfter = listTables($m); sort($tablesAfter);
 ok($verAfter === $verBefore, "A2 schema_version unchanged on re-run ($verBefore -> $verAfter)");
-ok($verAfter === 6, "A2 schema_version stays at 6 on idempotent re-run");
+ok($verAfter === 7, "A2 schema_version stays at 7 on idempotent re-run");
 ok($tablesAfter === $tablesBefore, "A2 table set unchanged on re-run (no-op migration)");
 $usersColsAfter = $m->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
 sort($usersColsAfter);
@@ -1025,8 +1048,8 @@ ok(($json['user']['age_months'] ?? null) !== null,
 ok(isset($json['percentiles']) && ($json['percentiles']['available'] ?? null) === true
    && isset($json['percentiles']['current']['weight']['rank']),
    "E3 JSON includes the whitelisted percentile block (ranks/zones/trends)");
-ok((int) getSetting('schema_version', '0') === 6,
-   "E3 schema_version at 6 after full init (Sprint 8 added no migration; Sprint 9 bumped 4->5; security Phase 1 bumped 5->6)");
+ok((int) getSetting('schema_version', '0') === 7,
+   "E3 schema_version at 7 after full init (Sprint 9 bumped 4->5; security Phase 1 bumped 5->6; Sprint 11 bumped 6->7)");
 
 // --- E4. FOUR-SURFACE PARITY: same current ranks everywhere ------------------
 echo "\n-- E4. four-surface parity (dashboard / html / csv / json) --\n";
@@ -1559,9 +1582,10 @@ foreach ($jList as $row) { if ((int) $row['is_revoked'] === 1) { $revokedCount++
 ok($revokedCount === 3,
    "J2 list reports 3 revoked + 1 active (tok4) token states [revoked=$revokedCount]");
 
-// schema_version stayed at 6 — Phase 3 added to the existing v6 block, no second bump.
-ok((int) getSetting('schema_version', '0') === 6,
-   "J2 schema_version stays at 6 (Phase 3 is additive to the v6 block, no new bump)");
+// Fully-initialized DB sits at the current schema_version. Security Phase 3 added to
+// the existing v6 block (no bump); Sprint 11 then bumped 6->7 for food_growth_tags.
+ok((int) getSetting('schema_version', '0') === 7,
+   "J2 schema_version at 7 (security Phase 3 additive to v6; Sprint 11 bumped 6->7)");
 
 // PHASE J cleanup.
 gc_collect_cycles();
@@ -1675,8 +1699,8 @@ ok($kGen !== generateEncryptionKeyBase64(),
 // schema_version is irrelevant to Phase 4 (no migration) — assert it on a fresh
 // app DB so the "Phase 4 adds no schema change" claim is concretely checked.
 initializeDatabase();
-ok((int) getSetting('schema_version', '0') === 6,
-   "K schema_version stays at 6 (Phase 4 adds no migration)");
+ok((int) getSetting('schema_version', '0') === 7,
+   "K schema_version at 7 (Phase 4 adds no migration; Sprint 11 bumped 6->7)");
 
 // PHASE K cleanup (throwaway key files + scratch dir + the app DB).
 foreach (glob($kDir . '/*') as $f) { @unlink($f); }
@@ -1883,6 +1907,181 @@ $rawPlainKid = $noKeyDb->prepare("SELECT name FROM users WHERE id=?");
 $rawPlainKid->execute([$noKeyChild]);
 ok($rawPlainKid->fetchColumn() === 'Plainkid',
    "L6 createUser() with no key stores users.name as PLAINTEXT");
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE M — Sprint 11: Growth-Support Nutrition Intelligence (rule-based).
+ * -------------------------------------------------------------------------
+ *   includes/nutrition.php is a pure, side-effect-free read-layer. M1 unit-tests the
+ *   rule engine (buildNutritionRecommendations) with crafted analyzer inputs — fully
+ *   deterministic, no DB. M2 is a live integration over a fresh seeded DB: the toggle
+ *   gate (OFF -> disabled), the data-sufficiency gate (too few days -> not_enough_data),
+ *   then a populated window proving timing/coverage/recommendations compute. M3 proves
+ *   the JSON export carries the de-identified nutrition aggregate but never the child's
+ *   name or raw food-log rows. Guardian/clinician-side only — no child surface touched.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE M — Sprint 11 (nutrition intelligence) ###\n";
+
+require_once $ROOT . '/includes/nutrition.php';
+
+ok(function_exists('buildNutritionIntelligence') && function_exists('buildNutritionRecommendations')
+   && function_exists('analyzeMedTiming') && function_exists('analyzeTagCoverage'),
+   "M nutrition module loaded");
+
+echo "\n-- M1. rule engine (pure, deterministic) --\n";
+
+// Helper: build a full 6-tag coverage map from a sparse spec.
+$mkCoverage = function (array $spec) {
+    $out = [];
+    foreach (growthTagNames() as $tag) {
+        $s = $spec[$tag] ?? [];
+        $out[$tag] = [
+            'servings'    => $s['servings'] ?? 0.0,
+            'weekly_rate' => $s['weekly_rate'] ?? 99.0, // default: well above any minimum
+            'recent'      => $s['recent'] ?? 0.0,
+            'earlier'     => $s['earlier'] ?? 0.0,
+            'trend'       => $s['trend'] ?? 'flat',
+            'drop_pct'    => $s['drop_pct'] ?? 0,
+        ];
+    }
+    return $out;
+};
+$recIds = function (array $recs) {
+    return array_map(function ($r) { return $r['id']; }, $recs);
+};
+
+// M1a — timing: post-med-heavy + pre-med-low both fire; no other rules.
+$recs = buildNutritionRecommendations(
+    ['enough' => true, 'has_schedule' => true, 'windowed_total' => 10.0,
+     'by_window' => ['pre_med' => ['pct' => 5], 'onset' => ['pct' => 10],
+                     'mid_med' => ['pct' => 15], 'post_med' => ['pct' => 70]]],
+    $mkCoverage([]),   // every tag well-served, flat
+    null, 4.0
+);
+$ids = $recIds($recs);
+ok(in_array('post_med_heavy', $ids, true), "M1a post_med_heavy fires at 70% post-med");
+ok(in_array('pre_med_low', $ids, true), "M1a pre_med_low fires at 5% pre-med");
+ok(!in_array('growth_falling', $ids, true) && !in_array('sleep_low', $ids, true),
+   "M1a no growth/sleep recs when not warranted");
+$tagLow = array_filter($ids, function ($id) { return strpos($id, 'low_') === 0; });
+ok(count($tagLow) === 0, "M1a no underserved-tag recs when all tags above minimum");
+
+// M1b — coverage gaps + downtrend + falling growth + poor sleep; timing silent.
+$recs = buildNutritionRecommendations(
+    ['enough' => false, 'has_schedule' => false],  // no windowed timing -> no timing recs
+    $mkCoverage([
+        'protein_rich'  => ['weekly_rate' => 1.0, 'trend' => 'down', 'earlier' => 8.0, 'recent' => 2.0],
+        'bone_building' => ['weekly_rate' => 2.0],
+        // calorie_dense / brain_fuel / hydrating left at default 99 (above minimum)
+    ]),
+    ['available' => true, 'trends' => ['weight' => ['direction' => 'down', 'from_rank' => 'P40', 'to_rank' => 'P25']]],
+    2.0
+);
+$ids = $recIds($recs);
+ok(in_array('low_protein_rich', $ids, true), "M1b low protein fires below minimum");
+ok(in_array('low_bone_building', $ids, true), "M1b low bone-building fires below minimum");
+ok(in_array('drop_protein_rich', $ids, true), "M1b protein downtrend fires");
+ok(in_array('growth_falling', $ids, true), "M1b falling weight percentile fires");
+ok(in_array('sleep_low', $ids, true), "M1b low sleep quality fires (info)");
+ok(!in_array('low_calorie_dense', $ids, true), "M1b well-served tag does NOT fire");
+ok(!in_array('post_med_heavy', $ids, true), "M1b no timing rec without an active schedule");
+
+// M1c — empty/zero state: a flat, well-served, no-schedule child yields no recs.
+$recs = buildNutritionRecommendations(['enough' => false, 'has_schedule' => false], $mkCoverage([]), null, null);
+ok($recs === [], "M1c no recommendations when nothing is actionable");
+
+echo "\n-- M2. live build over a fresh seeded DB (gating + sufficiency) --\n";
+
+// Prior phases (notably L) leave open PDO/PDOStatement handles in script-global scope;
+// a lingering PDOStatement keeps its connection alive even after the connection var is
+// nulled. On Windows an open handle makes unlink() fail silently, so the next write hits
+// "database is locked". Sweep ALL global DB handles to null + gc so the file is truly
+// closed, then retry-unlink and re-init a clean DB for this phase.
+foreach (array_keys($GLOBALS) as $gname) {
+    if ($GLOBALS[$gname] instanceof PDO || $GLOBALS[$gname] instanceof PDOStatement) {
+        $GLOBALS[$gname] = null;
+    }
+}
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+$mdb = getDB();
+$kid = createUser('NutriKid', 'child', '0000');
+
+// Toggle OFF (default) -> disabled, regardless of data.
+setSetting('show_nutrition_insights', '0');
+$niOff = buildNutritionIntelligence($kid, '2026-01-01', '2026-01-31', null);
+ok(($niOff['reason'] ?? null) === 'disabled' && ($niOff['available'] ?? null) === false,
+   "M2 toggle OFF -> reason=disabled, not available");
+
+// Toggle ON but no logs -> not_enough_data.
+setSetting('show_nutrition_insights', '1');
+$niEmpty = buildNutritionIntelligence($kid, '2026-01-01', '2026-01-31', null);
+ok(($niEmpty['reason'] ?? null) === 'not_enough_data',
+   "M2 enabled + no logs -> reason=not_enough_data");
+
+// Seed a medication + active schedule (drives timing.has_schedule) and food logs over
+// 6 distinct days, with a deliberately post-med-heavy distribution and low protein.
+$mdb->exec("INSERT INTO medications (name, dose) VALUES ('TestMed', '10mg')");
+$medId = (int) $mdb->lastInsertId();
+$mdb->prepare("INSERT INTO medication_schedules (user_id, medication_id, dose_time, med_type, peak_start_offset, peak_end_offset, active) VALUES (?,?,?,?,?,?,1)")
+    ->execute([$kid, $medId, '08:00', 'short_acting', 30, 240]);
+
+$foodId = function ($nameKey) use ($mdb) {
+    $s = $mdb->prepare("SELECT id FROM foods WHERE name_key = ?");
+    $s->execute([$nameKey]);
+    return (int) $s->fetchColumn();
+};
+$cookie = $foodId('food_cookie'); // calorie_dense, easy_to_eat
+$milk   = $foodId('food_milk');   // bone_building, protein_rich, calorie_dense, hydrating, easy_to_eat
+$ins = $mdb->prepare(
+    "INSERT INTO food_log (user_id, food_id, meal_id, portion, log_date, log_time, med_window)
+     VALUES (?,?,?,?,?,?,?)"
+);
+for ($d = 1; $d <= 6; $d++) {
+    $date = sprintf('2026-01-%02d', $d);
+    // Mostly post-med intake (rebound), almost nothing pre-med -> both timing rules.
+    $ins->execute([$kid, $cookie, 1, 'all', $date, '18:00:00', 'post_med']);
+    $ins->execute([$kid, $cookie, 1, 'lot', $date, '20:00:00', 'post_med']);
+    if ($d === 1) {
+        $ins->execute([$kid, $milk, 1, 'some', $date, '07:00:00', 'pre_med']);
+    }
+}
+$ni = buildNutritionIntelligence($kid, '2026-01-01', '2026-01-31', null);
+ok(($ni['available'] ?? false) === true, "M2 enabled + 6 days of logs -> available");
+ok(($ni['timing']['has_schedule'] ?? false) === true, "M2 timing sees the active schedule");
+ok(($ni['timing']['by_window']['post_med']['pct'] ?? 0) >= NI_POST_MED_HEAVY_PCT,
+   "M2 timing distribution is post-med heavy [" . ($ni['timing']['by_window']['post_med']['pct'] ?? 0) . "%]");
+ok(is_array($ni['coverage']) && count($ni['coverage']) === count(growthTagNames()),
+   "M2 coverage reports all six growth tags");
+$mRecIds = array_map(function ($r) { return $r['id']; }, $ni['recommendations']);
+ok(in_array('post_med_heavy', $mRecIds, true), "M2 post_med_heavy recommendation present on real data");
+ok(in_array('low_protein_rich', $mRecIds, true), "M2 low_protein_rich present (only one pre-med milk serving)");
+
+// Render must produce a non-empty section when available, and '' when disabled.
+$html = renderNutritionSection($ni, 'report');
+ok(is_string($html) && $html !== '' && strpos($html, '18:00:00') === false && strpos($html, 'NutriKid') === false,
+   "M2 renderNutritionSection returns non-empty HTML with no raw log rows or child name");
+setSetting('show_nutrition_insights', '0');
+$niOff2 = buildNutritionIntelligence($kid, '2026-01-01', '2026-01-31', null);
+ok(renderNutritionSection($niOff2, 'report') === '', "M2 renderer returns '' when toggle OFF");
+
+echo "\n-- M3. JSON export carries de-identified nutrition, never name/raw logs --\n";
+setSetting('show_nutrition_insights', '1');
+$report = getReportData($kid, '2026-01-01', '2026-01-31');
+$json = projectReportForJson($report);
+ok(isset($json['nutrition']) && ($json['nutrition']['available'] ?? false) === true,
+   "M3 JSON includes the whitelisted nutrition block");
+ok(isset($json['nutrition']['coverage'], $json['nutrition']['timing'], $json['nutrition']['recommendations']),
+   "M3 nutrition block carries coverage + timing + recommendations");
+$niJson = json_encode($json['nutrition'], JSON_UNESCAPED_UNICODE);
+ok(strpos($niJson, 'NutriKid') === false, "M3 nutrition block does NOT contain the child's name");
+ok(strpos($niJson, 'log_time') === false && strpos($niJson, '18:00:00') === false,
+   "M3 nutrition block does NOT contain raw food-log rows");
+
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------

@@ -88,6 +88,34 @@ Features/improvements captured but not yet sequenced into a sprint:
   "All"; the `index.php` route guards must resolve the toggle for the logged-in child. Effort ~M–L;
   builds directly on Sprint 1's toggle foundation.
 
+- **MCP server — agentic guardian assistant ("good-to-have").** Expose ComeCome to an
+  agentic chat client (Claude Desktop / a local agent) via a **Model Context Protocol** server,
+  so a guardian can ask/act in natural language instead of opening the UI. Two modes:
+  - **Read / "guardian intelligence"** — *"It's dinner time, maybe pizza — has he eaten pizza or
+    too many carbs already today?"* This leans directly on the **Sprint 11 nutrition analyzers**
+    (`includes/nutrition.php` tag coverage + med-timing) plus simple `food_log` queries: tools like
+    `get_intake_today`, `get_tag_coverage`, `was_food_eaten_recently`, `get_nutrition_summary`.
+  - **Write / "book a meal via chat"** — *"log a slice of pizza for dinner for the boy"* — a
+    `log_food` tool wrapping the existing write path, so a quick log doesn't interrupt the moment.
+  - **Build on what exists, don't duplicate:** there is already a JSON `api/` layer (food-log,
+    check-in, weight, height, sleep, favorites; auth + per-user ownership + CSRF on writes) and the
+    `includes/` helpers. The MCP server should call those (or the helpers directly), not re-implement
+    queries.
+  - **Architecture (privacy-first, matching the self-hosted ethos):** prefer a **self-hosted/local
+    MCP server** (stdio or local HTTP) that talks to the family's own SQLite DB / PHP helpers, so
+    child data stays on the family's server; a remote/hosted MCP would be a posture change. **Opt-in,
+    default OFF.** Needs its **own scoped auth** (the API uses PIN/session; reuse the revocable
+    guest-token pattern), **per-child scoping**, and **read vs write tool separation with confirmation
+    on writes** (don't let an agent silently log/delete).
+  - **Privacy caveat — the deciding factor, same as the LLM question:** ComeCome stores
+    special-category children's health data. Even with a local server, the *client driving it* is an
+    LLM/agent — so the privacy-preserving shape is the guardian's own trusted client or a **local
+    model**, and (for reads) returning **aggregated/derived** answers rather than raw logs where
+    possible. Shares the `.env`/secrets foundation and the same boundary as
+    `docs/roadmap/SPRINT-11-nutrition-intelligence.md` §6 (rule-based facts stay source of truth; an
+    agent narrates/acts, it does not invent clinical content). Effort ~M–L; intersects the LLM/privacy
+    decision, so settle that first.
+
 Also tracked (quality / cleanup / product):
 - BMI percentile **trajectory** (needs a same-date weight+height pairing rule; Sprint 8 ships current-rank only).
 - Production-shaped `data.db` migration test; sleep `DATETIME`/`TEXT` normalization on migrated installs; i18n clinical-quality pass; WHO/CDC attribution (revisit with 8b).

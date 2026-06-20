@@ -5,7 +5,25 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 
 ## [Unreleased] — staging (targets v0.10.0)
 
-Built and verified on staging (`schema_version` 5 → **6**); **not yet promoted to production**.
+Built and verified on staging (`schema_version` 5 → **7**); **not yet promoted to production**.
+
+### Added — Sprint 11: Growth-Support Nutrition Intelligence (rule-based, NOT AI)
+- **`food_growth_tags`** table (schema `6 → 7`, mirrored in `db/schema.sql`); the 46 seed foods are
+  pre-tagged with six strategic growth tags (`calorie_dense`, `protein_rich`, `bone_building`,
+  `brain_fuel`, `easy_to_eat`, `hydrating`). Guardian-added foods stay untagged (coverage indicator,
+  no auto-tagging).
+- **`includes/nutrition.php`** — three deterministic analyzers (medication-timing distribution over
+  `food_log.med_window`; weekly growth-tag coverage + trend; a templated recommendation engine
+  cross-referencing tag frequency × med-window × percentile trajectory × sleep quality). Tunable
+  `NI_*` thresholds; degrades gracefully on sparse data.
+- **Guardian dashboard** "Nutrition Intelligence" panel + clinician **"Medication-Aware Nutrition
+  Summary"** across HTML/CSV/JSON/guest-report. Gated by **`show_nutrition_insights`** (default off);
+  JSON export whitelists only de-identified aggregates. **Zero child-facing change.**
+- Decision: shipped rule-based (Option 1) only; an opt-in, de-identified, narrative-only LLM layer
+  (Option 2) remains a possible later sprint — Option 3 ruled out (GDPR). See
+  `docs/roadmap/SPRINT-11-nutrition-intelligence.md` §6.
+- Tests: `tests/run.php` Phase M (rule-engine unit + live build + JSON-privacy) and A1/A2 migration
+  asserts; full suite green (332 tests).
 
 ### Added — features (Sprints 3–10)
 - **Clinical report hardening** — sleep-quality → next-day appetite/mood correlations; a
@@ -39,6 +57,10 @@ Built and verified on staging (`schema_version` 5 → **6**); **not yet promoted
 - `db/seed-demo.php` — 3-month anonymized demo dataset (`--reset` to re-seed).
 - `config.local.php` per-deployment override (keeps `data.db` above the web root) +
   `config.local.php.example`; README "Production Hardening" steps.
+- `docs/DEPLOYMENT.md` — step-by-step deploy + operations runbook: first deploy,
+  the fail-closed-safe encryption enablement sequence, and the backup /
+  data-portability constraints (load-bearing key, what's git-ignored vs deployed,
+  restore/migration). Linked from the README hardening section.
 
 ### Changed
 - `migrateDatabase()` advances to `schema_version` 6 (additive only; existing installs migrate cleanly).

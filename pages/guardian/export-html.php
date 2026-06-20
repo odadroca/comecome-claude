@@ -186,6 +186,20 @@ header('Content-Type: text/html; charset=UTF-8');
     </div>
     <?php endif; ?>
 
+    <?php
+    // Sprint 11 — Medication-Aware Nutrition Summary (rule-based). Same shared renderer
+    // as the dashboard (four-surface parity). Renders nothing when the toggle is OFF and
+    // a friendly note when there is not yet enough logging. De-identified aggregates only.
+    $nutrition = $reportData['nutrition'] ?? null;
+    $nutritionHtml = $nutrition ? renderNutritionSection($nutrition, 'report') : '';
+    if ($nutritionHtml !== ''):
+    ?>
+    <div class="section">
+        <h3><?php echo t('nutrition_intelligence'); ?></h3>
+        <?php echo $nutritionHtml; ?>
+    </div>
+    <?php endif; ?>
+
     <?php if (count($weights) > 0): ?>
     <div class="section">
         <h3><?php echo t('weight_timeline_title'); ?></h3>

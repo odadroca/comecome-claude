@@ -21,6 +21,7 @@ ComeCome helps families monitor their children's eating habits with **minimal fr
 - **Family dashboard** - Visual analytics, trends, and **WHO growth percentiles**
 - **Multiple children** - Manage whole family (gender + date of birth enable percentiles)
 - **Sleep & medication-timing** - Sleep quality tracking + medication-window analysis of intake
+- **Nutrition intelligence** - Optional rule-based "Medication-Aware Nutrition Summary": when in the medication day your child actually eats, growth-supporting food coverage, and plain suggestions (guardian/clinician-only, opt-in; never shown to the child). See the [guardian guide](docs/NUTRITION-INTELLIGENCE-GUIDE.md).
 - **Clinician reports** - Export as HTML, CSV, JSON, or a token-shared guest link
 - **Full data control** - Backup, restore, or delete; **opt-in at-rest field encryption**
 
@@ -203,9 +204,10 @@ threat-ordered plan in `docs/roadmap/SPRINT-SECURITY.md`.
 
 ## 🗄️ Database Schema
 
-ComeCome uses SQLite with a clean, normalized schema (auto-migrated to **`schema_version` 6**):
+ComeCome uses SQLite with a clean, normalized schema (auto-migrated to **`schema_version` 7**):
 - **users** - Children and guardians (incl. `gender`, `date_of_birth` for percentiles)
 - **meals** / **foods** / **food_categories** - Meals + extensible food catalog
+- **food_growth_tags** - Strategic growth tags per food (powers the nutrition intelligence panel)
 - **food_log** - Daily intake tracking (incl. `med_window` medication-timing stamp)
 - **daily_checkin** - Appetite, mood, **sleep quality**, medication
 - **weight_log** / **height_log** - Weight + height for WHO growth percentiles
@@ -237,6 +239,7 @@ Add custom foods from the child interface!
 
 ### Settings
 - Toggle medication visibility for young children
+- Toggle **Nutrition intelligence** (guardian/clinician-only; default off)
 - Change default language
 - Configure meal times
 
@@ -257,9 +260,12 @@ Add custom foods from the child interface!
 
 ### Monitoring (Guardian)
 1. View dashboard for insights
-2. Export reports for doctor visits
-3. Generate guest links for clinicians
-4. Manage family settings
+2. (Optional) Enable **Nutrition intelligence** in Settings for the medication-aware nutrition panel — see the [step-by-step guardian guide](docs/NUTRITION-INTELLIGENCE-GUIDE.md)
+3. Export reports for doctor visits
+4. Generate guest links for clinicians
+5. Manage family settings
+
+> **Operators:** to enable/troubleshoot the nutrition intelligence feature (migration, data prerequisites, thresholds, rollback), see the [operations runbook](docs/RUNBOOK-nutrition-intelligence.md).
 
 ## 🤝 Contributing
 

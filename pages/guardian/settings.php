@@ -18,6 +18,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $showPercentiles = $_POST['show_percentiles'] ?? '0';
     setSetting('show_percentiles', $showPercentiles);
     $justEnabledPercentiles = ($showPercentiles === '1' && !$percentilesWasOn);
+    // Sprint 11: Nutrition Intelligence toggle (default OFF). Guardian/clinician-side
+    // only; no child-facing effect. When OFF, the analyzers short-circuit and nothing
+    // is computed or rendered on any surface.
+    setSetting('show_nutrition_insights', $_POST['show_nutrition_insights'] ?? '0');
     setSetting('default_language', $_POST['default_language'] ?? 'pt');
     $success = true;
 }
@@ -28,6 +32,7 @@ $showWeightTracking = getSetting('show_weight_tracking', '1');
 $showSleepTracking = getSetting('show_sleep_tracking', '1');
 $showMedication = getSetting('show_medication_to_children', '1');
 $showPercentiles = getSetting('show_percentiles', '0');
+$showNutritionInsights = getSetting('show_nutrition_insights', '0');
 $defaultLanguage = getSetting('default_language', 'pt');
 
 // Sprint 6 (decision iv): graceful degradation + soft-warn. When percentiles are
@@ -131,6 +136,15 @@ ob_start();
                 </label>
                 <small style="opacity:0.7;display:block;margin-top:0.25rem;margin-bottom:0.75rem;">
                     <?php echo t('show_percentiles_hint'); ?>
+                </small>
+
+                <!-- Sprint 11: Nutrition Intelligence (guardian/clinician-side, default OFF). -->
+                <label>
+                    <input type="checkbox" name="show_nutrition_insights" value="1" <?php echo $showNutritionInsights == '1' ? 'checked' : ''; ?>>
+                    🥗 <?php echo t('show_nutrition_insights'); ?>
+                </label>
+                <small style="opacity:0.7;display:block;margin-top:0.25rem;margin-bottom:0.75rem;">
+                    <?php echo t('show_nutrition_insights_hint'); ?>
                 </small>
             </section>
 

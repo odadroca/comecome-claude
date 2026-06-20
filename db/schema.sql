@@ -56,6 +56,18 @@ CREATE TABLE IF NOT EXISTS foods (
     FOREIGN KEY (category_id) REFERENCES food_categories(id) ON DELETE CASCADE
 );
 
+-- Food growth tags (Sprint 11) — guardian/clinician-side nutrition intelligence.
+-- Maps a food to one or more strategic growth tags (NOT a micronutrient DB). A food
+-- may carry multiple tags; built-in foods are seeded by seedGrowthTags() in the
+-- v6->v7 migration. Invisible to the child surface.
+CREATE TABLE IF NOT EXISTS food_growth_tags (
+    food_id INTEGER NOT NULL,
+    tag     TEXT NOT NULL CHECK(tag IN
+        ('calorie_dense','protein_rich','bone_building','brain_fuel','easy_to_eat','hydrating')),
+    PRIMARY KEY (food_id, tag),
+    FOREIGN KEY (food_id) REFERENCES foods(id) ON DELETE CASCADE
+);
+
 -- User favorites (per child)
 CREATE TABLE IF NOT EXISTS user_favorites (
     user_id INTEGER NOT NULL,

@@ -320,6 +320,37 @@ function migrateDatabase($db) {
         $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '6')");
     }
 
+    if ($version < 7) {
+        // Sprint 11: Growth-Support Nutrition Intelligence. ONE additive table,
+        // guardian/clinician-side only — ZERO child-facing change. food_growth_tags
+        // maps a food to one or more strategic growth tags (NOT a micronutrient DB;
+        // six tags chosen for ADHD/stimulant relevance). The three rule-based analyzers
+        // in includes/nutrition.php read this join to compute tag-coverage trends. A
+        // food may carry multiple tags (composite PK food_id+tag); ON DELETE CASCADE
+        // drops a food's tags when the food is removed. CREATE TABLE IF NOT EXISTS keeps
+        // the block idempotent; mirrored in db/schema.sql so a fresh DB matches a
+        // migrated one.
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS food_growth_tags (
+                food_id INTEGER NOT NULL,
+                tag     TEXT NOT NULL CHECK(tag IN
+                    ('calorie_dense','protein_rich','bone_building','brain_fuel','easy_to_eat','hydrating')),
+                PRIMARY KEY (food_id, tag),
+                FOREIGN KEY (food_id) REFERENCES foods(id) ON DELETE CASCADE
+            )
+        ");
+
+        // Seed growth tags for the 46 built-in seed foods. Keyed by name_key (stable
+        // across installs; foods.id is autoincrement so we resolve it per-row) and
+        // INSERT OR IGNORE so a re-run / partial migrate never duplicates or throws.
+        // Guardian-ADDED foods are intentionally left untagged here — the panel surfaces
+        // a coverage indicator (§5.2 decision: indicate, never auto-tag). These defaults
+        // are descriptive, clinically-adjacent starting points, not a nutrition claim.
+        seedGrowthTags($db);
+
+        $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '7')");
+    }
+
     // Sprint security Phase 3 — reconcile the additive guest_tokens.is_revoked column
     // for installs that ALREADY reached schema_version 6 under an INTERMEDIATE build
     // of this same security sprint (Phase 1 bumped 5->6 before Phase 3 added this
@@ -366,6 +397,101 @@ function migrateDatabase($db) {
     } catch (Exception $e) {
         // settings table not ready during an early/partial migrate — the explicit
         // refresh in initializeDatabase() will seed it once the schema exists.
+    }
+}
+
+/**
+ * Sprint 11 — seed growth tags for the built-in seed foods (idempotent).
+ *
+ * Resolves each food by its stable name_key (foods.id is autoincrement) and inserts
+ * one (food_id, tag) row per tag with INSERT OR IGNORE, so a re-run, a fresh init, or
+ * a partial migrate never duplicates or throws. Called from the v6->v7 migration block.
+ * Guardian-added foods are deliberately NOT auto-tagged (the panel surfaces a coverage
+ * indicator instead — §5.2 decision). The mapping below is a descriptive,
+ * clinically-adjacent starting point for ADHD/stimulant nutrition support, not a
+ * nutrition database or a medical claim.
+ */
+function seedGrowthTags($db) {
+    // Resilience: a synthetic/partial DB (e.g. the migration test fixture, or an
+    // early/partial migrate) may not have the foods table yet. Skip silently in that
+    // case — a real init always creates + seeds foods before migrateDatabase() runs,
+    // and a later request re-runs this block once foods exists. Mirrors the guarded,
+    // throw-free style of the other additive migration steps.
+    try {
+        $hasFoods = $db->query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='foods'"
+        )->fetchColumn();
+        if (!$hasFoods) return;
+    } catch (Exception $e) {
+        return;
+    }
+
+    // name_key => [tags]. Tags: calorie_dense, protein_rich, bone_building,
+    // brain_fuel, easy_to_eat, hydrating.
+    $map = [
+        // Fruits — mostly hydrating + low-friction; banana is the energy-dense one.
+        'food_apple'      => ['easy_to_eat', 'hydrating'],
+        'food_banana'     => ['calorie_dense', 'brain_fuel', 'easy_to_eat'],
+        'food_orange'     => ['hydrating', 'easy_to_eat'],
+        'food_strawberry' => ['hydrating', 'easy_to_eat'],
+        'food_grapes'     => ['hydrating', 'easy_to_eat'],
+        'food_watermelon' => ['hydrating', 'easy_to_eat'],
+        'food_pear'       => ['hydrating', 'easy_to_eat'],
+        'food_peach'      => ['hydrating', 'easy_to_eat'],
+        // Vegetables.
+        'food_carrot'     => ['hydrating', 'easy_to_eat'],
+        'food_broccoli'   => ['bone_building', 'brain_fuel'],
+        'food_tomato'     => ['hydrating'],
+        'food_lettuce'    => ['hydrating'],
+        'food_cucumber'   => ['hydrating'],
+        'food_potato'     => ['calorie_dense', 'brain_fuel'],
+        'food_corn'       => ['calorie_dense', 'easy_to_eat'],
+        // Proteins.
+        'food_chicken'    => ['protein_rich', 'calorie_dense'],
+        'food_fish'       => ['protein_rich', 'brain_fuel'],
+        'food_egg'        => ['protein_rich', 'brain_fuel', 'easy_to_eat'],
+        'food_meat'       => ['protein_rich', 'calorie_dense'],
+        'food_bacon'      => ['protein_rich', 'calorie_dense'],
+        'food_shrimp'     => ['protein_rich'],
+        // Grains — calorie-dense, brain fuel (complex carbs), low-friction.
+        'food_bread'      => ['calorie_dense', 'brain_fuel', 'easy_to_eat'],
+        'food_rice'       => ['calorie_dense', 'brain_fuel', 'easy_to_eat'],
+        'food_pasta'      => ['calorie_dense', 'brain_fuel', 'easy_to_eat'],
+        'food_cereal'     => ['calorie_dense', 'brain_fuel', 'easy_to_eat'],
+        'food_toast'      => ['calorie_dense', 'brain_fuel', 'easy_to_eat'],
+        'food_pizza'      => ['calorie_dense', 'protein_rich', 'easy_to_eat'],
+        // Dairy — the bone-building backbone.
+        'food_milk'       => ['bone_building', 'protein_rich', 'calorie_dense', 'hydrating', 'easy_to_eat'],
+        'food_cheese'     => ['bone_building', 'protein_rich', 'calorie_dense', 'easy_to_eat'],
+        'food_yogurt'     => ['bone_building', 'protein_rich', 'easy_to_eat'],
+        'food_butter'     => ['calorie_dense'],
+        // Snacks.
+        'food_cookie'     => ['calorie_dense', 'easy_to_eat'],
+        'food_chips'      => ['calorie_dense', 'easy_to_eat'],
+        'food_popcorn'    => ['easy_to_eat'],
+        'food_cracker'    => ['calorie_dense', 'easy_to_eat'],
+        'food_nuts'       => ['calorie_dense', 'protein_rich', 'brain_fuel'],
+        // Drinks — hydrating; chocolate milk doubles as a bone/protein/calorie option.
+        'food_water'          => ['hydrating'],
+        'food_juice'          => ['hydrating', 'calorie_dense'],
+        'food_tea'            => ['hydrating'],
+        'food_chocolate_milk' => ['bone_building', 'protein_rich', 'calorie_dense', 'hydrating', 'easy_to_eat'],
+        // (food_soda intentionally untagged — no growth-supporting role.)
+        // Sweets — calorie-dense, low-friction options for the lowest-appetite windows.
+        'food_ice_cream'  => ['calorie_dense', 'bone_building', 'easy_to_eat'],
+        'food_cake'       => ['calorie_dense', 'easy_to_eat'],
+        'food_chocolate'  => ['calorie_dense', 'easy_to_eat'],
+        'food_candy'      => ['easy_to_eat'],
+    ];
+
+    $stmt = $db->prepare(
+        "INSERT OR IGNORE INTO food_growth_tags (food_id, tag)
+         SELECT id, ? FROM foods WHERE name_key = ?"
+    );
+    foreach ($map as $nameKey => $tags) {
+        foreach ($tags as $tag) {
+            $stmt->execute([$tag, $nameKey]);
+        }
     }
 }
 

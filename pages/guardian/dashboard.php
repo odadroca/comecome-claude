@@ -165,6 +165,21 @@ ob_start();
         </section>
         <?php endif; ?>
 
+        <!-- 0c. Nutrition Intelligence (Sprint 11) — rule-based med-timing + growth-tag
+             coverage + recommendations. Guardian-only, gated by show_nutrition_insights
+             (default OFF). Renders nothing when OFF; a friendly prompt when there is not
+             yet enough logging. ZERO child-facing surface. -->
+        <?php
+        $nutrition = $data['nutrition'] ?? null;
+        $nutritionHtml = $nutrition ? renderNutritionSection($nutrition, 'dashboard') : '';
+        if ($nutritionHtml !== ''):
+        ?>
+        <section class="dashboard-section">
+            <h2>🥗 <?php echo t('nutrition_intelligence'); ?></h2>
+            <?php echo $nutritionHtml; ?>
+        </section>
+        <?php endif; ?>
+
         <!-- 1. Weight Timeline Chart -->
         <?php if (count($data['weight_history']) > 0): ?>
         <section class="dashboard-section">

@@ -217,7 +217,7 @@ require_once $ROOT . '/includes/auth.php';
 require_once $ROOT . '/includes/helpers.php';
 
 $ver = (int) getSetting('schema_version', '0');
-ok($ver === 6, "schema_version reaches 6 (security Phase 1 login_attempts) [got " . var_export($ver, true) . "]");
+ok($ver === 7, "schema_version reaches 7 (Sprint 11 food_growth_tags) [got " . var_export($ver, true) . "]");
 
 // --- 2. Guardian id=1 / pin=0000 auth path (Sprint 0+) ----------------------
 echo "\n-- Auth path (guardian id=1 / pin=0000) --\n";
@@ -326,8 +326,8 @@ $s3end   = date('Y-m-d');
 //     page / height_log), Sprint 9 to 5 (medication timing), and security Phase 1
 //     to 6 (login_attempts). We assert the current shipped version (6) here; the
 //     Sprint-3 "no new schema" property is preserved historically.
-ok((int)getSetting('schema_version', '0') === 6,
-   "shipped schema_version is 6 (security Phase 1 login_attempts; Sprint 3 added no schema)");
+ok((int)getSetting('schema_version', '0') === 7,
+   "shipped schema_version is 7 (security Phase 1 login_attempts; Sprint 11 food_growth_tags)");
 // (a2) Sprint 5 positive check: demographics columns exist on the running DB.
 $smokeDb = getDB();
 $userCols = $smokeDb->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
@@ -532,8 +532,8 @@ ok(function_exists('calculateZScore')
 // (b) NO schema change / NO migration: Sprint 7 is library-only — it added no
 //     migration of its own. The freshly initialised DB reflects the current shipped
 //     version (6, from security Phase 1); Sprint 7's "no new schema" property is historical.
-ok((int) getSetting('schema_version', '0') === 6,
-   "Sprint 7: shipped schema_version is 6 (engine itself adds NO migration / NO schema change)");
+ok((int) getSetting('schema_version', '0') === 7,
+   "Sprint 7: shipped schema_version is 7 (engine itself added NO migration; Sprint 11 bumped 6->7)");
 
 // (c) NO UI change: the Sprint-6 show_percentiles toggle exists and stays OFF by
 //     default — Sprint 7 does not surface percentiles anywhere yet.
@@ -587,8 +587,8 @@ echo "\n-- Sprint 8 acceptance (percentiles display; guardian + clinician only) 
 
 // (a) NO migration: Sprint 8 is display-only and added no migration of its own; the
 //     shipped version is now 6 (security Phase 1 login_attempts).
-ok((int) getSetting('schema_version', '0') === 6,
-   "Sprint 8: shipped schema_version is 6 (Sprint 8 display-only added NO migration)");
+ok((int) getSetting('schema_version', '0') === 7,
+   "Sprint 8: shipped schema_version is 7 (Sprint 8 display-only added NO migration; Sprint 11 bumped 6->7)");
 
 // Turn the feature ON for the display path (it defaults OFF).
 setSetting('show_percentiles', '1');
@@ -787,18 +787,19 @@ ok($s9Ok, "Sprint 9: i18n keys present + non-empty in BOTH pt and en");
 // the open concept-only items blocking Sprint 11. NO schema change, NO migration
 // (schema_version unchanged by this spike), ZERO UI change, NO new locale keys (the
 // Sprint-11 keys are SPECIFIED here but created in Sprint 11). So the cumulative
-// assertion is: (a) the running app is at the current shipped schema_version (6,
-// from security Phase 1) — this spike added no migration of its own;
+// assertion is: (a) the running app is at the current shipped schema_version (7,
+// after Sprint 11's food_growth_tags migration) — this spike added no migration of its own;
 // (b) the decision doc exists and concretely resolves items (1)-(5) with specific
 //     rules/thresholds/copy; (c) no Sprint-11 app code leaked in (food_growth_tags
 //     table is NOT created, getReadOnlyDB() / includes/nutrition.php do NOT exist yet),
 //     proving the spike stayed docs-only.
 echo "\n-- Sprint 10 acceptance (nutrition intelligence DISCOVERY spike; docs-only) --\n";
 
-// (a) NO migration: a discovery spike touches no schema. The running DB reflects the
-//     current shipped version (6); the spike added none of its own.
-ok((int) getSetting('schema_version', '0') === 6,
-   "Sprint 10: schema_version is 6 (discovery spike added NO migration / NO schema change)");
+// (a) The Sprint 10 discovery spike itself added no schema. The running DB now reflects
+//     the current shipped version (7) because Sprint 11 has since landed its v6->v7
+//     food_growth_tags migration.
+ok((int) getSetting('schema_version', '0') === 7,
+   "Sprint 10/11: schema_version is 7 (spike added none; Sprint 11 bumped 6->7 for food_growth_tags)");
 
 // (b) The decision document exists and concretely resolves items (1)-(5).
 $s10doc = @file_get_contents($ROOT . '/docs/roadmap/SPRINT-10-nutrition-discovery.md');
@@ -851,18 +852,21 @@ ok(is_string($s10doc)
        || stripos($s10doc, 'NO external API') !== false),
    "Sprint 10 (5): this sprint introduces NO LLM / NO external dependency");
 
-// (c) Spike stayed docs-only: no Sprint-11 app code leaked into the tree.
-//     food_growth_tags is a Sprint-11 deliverable and must NOT exist yet.
+// (c) Sprint 11 has since landed the spike's deliverables: the food_growth_tags table
+//     and the rule-based analyzers (includes/nutrition.php) now exist. The detailed
+//     analyzer/migration coverage lives in tests/run.php Phase M + A1/A2; here we just
+//     confirm the spike's specified artifacts shipped. Per the §5.3 decision, Sprint 11
+//     used plain indexed SELECTs (no getReadOnlyDB helper), so that stays absent.
 $s10db = getDB();
 $s10hasTagTable = $s10db->query(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='food_growth_tags'"
 )->fetchColumn();
-ok($s10hasTagTable === false,
-   "Sprint 10: food_growth_tags table is NOT created (it is a Sprint-11 deliverable)");
+ok($s10hasTagTable !== false,
+   "Sprint 11: food_growth_tags table now exists (delivered by Sprint 11)");
 ok(!function_exists('getReadOnlyDB'),
-   "Sprint 10: getReadOnlyDB() NOT added yet (specced for Sprint 11, not built in this spike)");
-ok(!file_exists($ROOT . '/includes/nutrition.php'),
-   "Sprint 10: includes/nutrition.php NOT created (Sprint-11 analyzers; spike is docs-only)");
+   "Sprint 11: getReadOnlyDB() not added (§5.3 decision: plain indexed SELECTs at family scale)");
+ok(file_exists($ROOT . '/includes/nutrition.php'),
+   "Sprint 11: includes/nutrition.php now exists (rule-based analyzers delivered)");
 
 // --- 5. i18n key parity sanity (pt canonical) -------------------------------
 echo "\n-- i18n parity (pt canonical) --\n";

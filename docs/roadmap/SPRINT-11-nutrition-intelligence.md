@@ -1,14 +1,40 @@
 # Sprint 11 — Growth-Support Nutrition Intelligence
 
-> **Status: PLANNED — not started.** Last in the recommended sequence; it consumes the
-> percentile, medication-timing, and sleep data produced by earlier sprints.
-> Originally "Sprint 5" in the source plans (`docs/roadmap/SPRINT-PLAN.md`); appears as
-> Sprint 10/11 in the re-sequenced roadmap.
->
-> **Flagged for a design decision:** the maintainer wants to decide whether any part of
-> this sprint should use **AI / LLM integration** before it is scheduled. That decision is
-> the subject of §6 — the rest of the sprint (§1–§5) is specced as a deterministic,
-> rule-based feature and does **not** require AI to ship.
+> **Status: ✅ BUILT on staging (2026-06-20) — rule-based (Option 1).** Shipped without
+> AI/LLM per the maintainer's decision (§6); an opt-in narrative-only layer (Option 2)
+> remains a possible later sprint, Option 3 ruled out (GDPR). `php tests/run.php` green
+> (Phase M + A1/A2 migration asserts). This doc is retained as the design record; the
+> **As-built reconciliation** below notes where the shipped code differs from this spec.
+> Originally "Sprint 5" in the source plans (`docs/roadmap/SPRINT-PLAN.md`).
+
+---
+
+## As-built reconciliation (what shipped vs this spec)
+
+- **Schema bump is `6 → 7`, not `5 → 6`.** This spec predates the Security sprint, which had
+  already taken `schema_version` to 6; Sprint 11's `food_growth_tags` migration is the
+  **v6→v7** block in `migrateDatabase()` (mirrored in `db/schema.sql`).
+- **Rule ids differ from the discovery doc's `R1…R8`.** The shipped engine
+  (`includes/nutrition.php` → `buildNutritionRecommendations()`) emits these ids instead,
+  covering the same intent:
+  | Discovery (SPRINT-10) intent | Shipped id(s) |
+  |---|---|
+  | R1 post-med heavy | `post_med_heavy` |
+  | R2 pre-med skipped | `pre_med_low` |
+  | R3 mid-med dominant | *(folded into the post/pre timing rules)* |
+  | R4 tag underserved | `low_calorie_dense` / `low_protein_rich` / `low_bone_building` / `low_brain_fuel` / `low_hydrating` |
+  | R5 tag declined | `drop_<tag>` |
+  | R6 growth + timing | `growth_falling` |
+  | R7 sleep ↔ appetite | `sleep_low` |
+  | R8 protein low | `low_protein_rich` (the protein case of R4) |
+  Thresholds live as tunable `NI_*` constants at the top of `includes/nutrition.php`.
+- **No `getReadOnlyDB()` was added.** §5.3 was resolved in favour of plain indexed read-only
+  `SELECT`s at single-family scale (the panel is opt-in/default-off); caching/read-only
+  connections remain a noted future option only if contention appears.
+- **Tag maintenance:** built as a **coverage indicator** (no auto-tagging). A per-food tag
+  editor in `manage-foods.php` is a noted follow-on (guardian-added foods stay untagged).
+- Operator + guardian docs: `docs/RUNBOOK-nutrition-intelligence.md`,
+  `docs/NUTRITION-INTELLIGENCE-GUIDE.md`.
 
 ---
 
@@ -82,8 +108,9 @@ Guardian-added foods are tagged opt-in via checkboxes in `manage-foods.php` (non
 
 ### 3.4 Migration & cross-cutting rules
 
-- Add a version-gated block to `migrateDatabase()` (bump `schema_version` 5→6) creating
-  `food_growth_tags`; mirror in `db/schema.sql`.
+- Add a version-gated block to `migrateDatabase()` (bump `schema_version` **6→7** — see the
+  As-built note above; the original spec said 5→6) creating `food_growth_tags`; mirror in
+  `db/schema.sql`.
 - **JSON-export privacy:** `export.php` auto-serializes `getReportData()` — add new fields to
   the whitelist deliberately so derived insights don't silently leak raw data.
 - **i18n:** all tags, window names, panel sections, and recommendation phrasings into

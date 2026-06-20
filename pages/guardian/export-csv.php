@@ -113,6 +113,71 @@ if (is_array($percentiles) && ($percentiles['reason'] ?? null) !== 'disabled') {
     fputcsv($output, []);
 }
 
+// Nutrition Intelligence (Sprint 11) — rule-based med-timing + growth-tag coverage +
+// recommendations. Renders only when show_nutrition_insights is ON; a graceful note row
+// when there is not yet enough logging. De-identified aggregates only.
+$nutrition = $reportData['nutrition'] ?? null;
+if (is_array($nutrition) && ($nutrition['reason'] ?? null) !== 'disabled') {
+    fputcsv($output, [t('nutrition_intelligence')]);
+    if (!($nutrition['available'] ?? false)) {
+        fputcsv($output, [t('nutrition_not_enough_data')]);
+    } else {
+        // Medication timing — share per window.
+        $timing = $nutrition['timing'] ?? null;
+        if (is_array($timing) && !empty($timing['has_schedule']) && ($timing['windowed_total'] ?? 0) > 0) {
+            fputcsv($output, [t('nutrition_med_timing')]);
+            fputcsv($output, [t('nutrition_window'), t('nutrition_share')]);
+            foreach (medWindowNames() as $w) {
+                fputcsv($output, [t('window_' . $w), ((int) ($timing['by_window'][$w]['pct'] ?? 0)) . '%']);
+            }
+            fputcsv($output, []);
+        }
+
+        // Growth-tag coverage — weekly servings + trend + status.
+        $coverage = $nutrition['coverage'] ?? null;
+        if (is_array($coverage)) {
+            $minimums = growthTagMinimums();
+            $trendLabel = ['up' => t('nutrition_trend_up'), 'down' => t('nutrition_trend_down'), 'flat' => t('nutrition_trend_flat')];
+            fputcsv($output, [t('nutrition_tag_coverage')]);
+            fputcsv($output, [t('nutrition_tag'), t('nutrition_weekly_servings'), t('nutrition_trend'), t('nutrition_status')]);
+            foreach (growthTagNames() as $tag) {
+                $c = $coverage[$tag];
+                $hasMin = isset($minimums[$tag]);
+                $status = !$hasMin ? '' : ($c['weekly_rate'] < $minimums[$tag] ? t('nutrition_status_low') : t('nutrition_status_ok'));
+                fputcsv($output, [
+                    t('tag_' . $tag),
+                    $c['weekly_rate'],
+                    $trendLabel[$c['trend']] ?? '',
+                    $status,
+                ]);
+            }
+            $idx = $nutrition['tag_index'] ?? null;
+            if (is_array($idx) && $idx['total'] > 0) {
+                fputcsv($output, [t('nutrition_tag_coverage_indicator', ['tagged' => $idx['tagged'], 'total' => $idx['total']])]);
+            }
+            fputcsv($output, []);
+        }
+
+        // Recommendations — localized text, one per row.
+        $recs = $nutrition['recommendations'] ?? [];
+        if (!empty($recs)) {
+            fputcsv($output, [t('nutrition_recommendations')]);
+            foreach ($recs as $r) {
+                $params = $r['params'] ?? [];
+                if (isset($params['tag_code'])) {
+                    $params['tag'] = t('tag_' . $params['tag_code']);
+                    unset($params['tag_code']);
+                }
+                fputcsv($output, [t($r['key'], $params)]);
+            }
+            fputcsv($output, []);
+        }
+
+        fputcsv($output, [t('nutrition_reference_note')]);
+    }
+    fputcsv($output, []);
+}
+
 // Weight Timeline
 if (count($reportData['weights']) > 0) {
     fputcsv($output, [t('weight_timeline_title')]);

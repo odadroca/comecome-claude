@@ -9,6 +9,13 @@
 // router may also pull it in. The engine itself loads its WHO LMS tables lazily.
 require_once __DIR__ . '/percentiles.php';
 
+// Sprint 11 — Growth-Support Nutrition Intelligence. The dashboard + report data
+// builders below attach a rule-based nutrition-intelligence block (medication-timing,
+// growth-tag coverage, recommendations). Guardian/clinician-side only; gated internally
+// on show_nutrition_insights (default OFF). medication.php (its schedule helpers) is
+// already loaded transitively via includes/db.php.
+require_once __DIR__ . '/nutrition.php';
+
 /**
  * Convert portion text to numeric value for calculations
  */
@@ -217,6 +224,11 @@ function getDashboardData($userId, $startDate, $endDate) {
     // summary narrative the Insights panel renders.
     $clinicalSummary['percentile_trajectory'] = percentileTrajectoryLine($percentiles);
 
+    // Sprint 11: rule-based nutrition intelligence (med-timing, tag coverage,
+    // recommendations). Gated internally on show_nutrition_insights; reuses the
+    // percentile block just computed for the growth-trajectory rule.
+    $nutrition = buildNutritionIntelligence($userId, $startDate, $endDate, $percentiles);
+
     return [
         'daily_intake' => $dailyIntake,
         'check_ins' => $checkIns,
@@ -225,7 +237,8 @@ function getDashboardData($userId, $startDate, $endDate) {
         'sleep_history' => $sleepHistory,
         'sleep_quality_history' => $sleepQualityHistory,
         'clinical_summary' => $clinicalSummary,
-        'percentiles' => $percentiles
+        'percentiles' => $percentiles,
+        'nutrition' => $nutrition
     ];
 }
 
@@ -334,12 +347,17 @@ function getReportData($userId, $startDate, $endDate) {
     // Sprint 8 (task 4): one-line percentile trajectory in the clinical narrative.
     $clinicalSummary['percentile_trajectory'] = percentileTrajectoryLine($percentiles);
 
+    // Sprint 11: rule-based nutrition intelligence for the clinician report surfaces
+    // (HTML / CSV / JSON / guest-report). Gated internally; reuses $percentiles.
+    $nutrition = buildNutritionIntelligence($userId, $startDate, $endDate, $percentiles);
+
     return [
         'user' => $user,
         'start_date' => $startDate,
         'end_date' => $endDate,
         'clinical_summary' => $clinicalSummary,
         'percentiles' => $percentiles,
+        'nutrition' => $nutrition,
         'weights' => $weights,
         'medications' => $medications,
         'daily_meal_count' => $dailyMealCount,
@@ -1015,12 +1033,31 @@ function projectReportForJson($reportData) {
         ];
     }
 
+    // Sprint 11 — nutrition intelligence is already a de-identified aggregate (window
+    // shares, weekly tag rates, rule-based recommendation keys/params). It contains NO
+    // names, DOB, or raw food-log rows, so it is safe to project; we still re-key
+    // explicitly here (the single choke-point) so future additions stay deliberate.
+    $ni = $reportData['nutrition'] ?? null;
+    $safeNi = null;
+    if (is_array($ni)) {
+        $safeNi = [
+            'available'       => $ni['available'] ?? false,
+            'reason'          => $ni['reason'] ?? null,
+            'window_days'     => $ni['window_days'] ?? null,
+            'timing'          => $ni['timing'] ?? null,
+            'coverage'        => $ni['coverage'] ?? null,
+            'recommendations' => $ni['recommendations'] ?? [],
+            'tag_index'       => $ni['tag_index'] ?? null,
+        ];
+    }
+
     return [
         'user'              => $safeUser,
         'start_date'        => $reportData['start_date'] ?? null,
         'end_date'          => $reportData['end_date'] ?? null,
         'clinical_summary'  => $reportData['clinical_summary'] ?? null,
         'percentiles'       => $safePct,
+        'nutrition'         => $safeNi,
         'weights'           => $reportData['weights'] ?? [],
         'medications'       => $reportData['medications'] ?? [],
         'daily_meal_count'  => $reportData['daily_meal_count'] ?? [],
