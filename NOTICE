@@ -10,15 +10,40 @@ later version. See the LICENSE file for the full text.
 Third-party components
 ==============================================================================
 
-Chart.js  -  https://www.chartjs.org/  -  MIT License
-  Loaded at runtime from a CDN (jsdelivr: chart.js@4.4.0); it is NOT
-  redistributed within this source tree, so its license text is not vendored
-  here. If it is ever bundled/vendored, its upstream LICENSE (including the
-  original copyright line) MUST be included verbatim alongside the vendored
-  copy. Chart.js is MIT-licensed, which is compatible with ComeCome's
-  AGPL-3.0-or-later license.
+1) Chart.js  -  https://www.chartjs.org/  -  MIT License
+   Loaded at runtime from a CDN (jsdelivr: chart.js@4.4.0); NOT redistributed
+   within this source tree, so its license text is not vendored here. If it is
+   ever bundled/vendored, its upstream LICENSE (including the original copyright
+   line) MUST be included verbatim. MIT is compatible with AGPL-3.0-or-later.
+
+2) Lexend (font)  -  https://github.com/googlefonts/lexend
+   SIL Open Font License 1.1 - Copyright 2018 The Lexend Project Authors.
+   Self-hosted in this source tree as assets/fonts/lexend-*.woff2.
+   Full license: assets/fonts/Lexend-OFL.txt
+
+3) Atkinson Hyperlegible (font)  -  https://www.brailleinstitute.org/freefont
+   SIL Open Font License 1.1 - Copyright 2020 Braille Institute of America, Inc.
+   Self-hosted in this source tree as assets/fonts/atkinson-*.woff2.
+   Full license: assets/fonts/AtkinsonHyperlegible-OFL.txt
+
+The SIL OFL 1.1 permits bundling/redistribution provided the license and
+copyright notices accompany the fonts (satisfied by the .txt files above) and
+the fonts are not sold on their own. OFL is compatible with AGPL-3.0-or-later.
+
+------------------------------------------------------------------------------
+Reference data
+------------------------------------------------------------------------------
+
+WHO Child Growth Standards (2006) and Growth Reference (2007) - (C) World
+Health Organization. LMS reference data is embedded in
+includes/growth-standards.php and used to compute percentile context.
+  https://www.who.int/tools/child-growth-standards
+  https://www.who.int/tools/growth-reference-data-for-5to19-years
+ComeCome is not endorsed by or affiliated with the WHO. (WHO data-use /
+permissions terms should be confirmed before public release.)
 
 ------------------------------------------------------------------------------
 Note: assets/css/pico.min.css is custom, first-party CSS despite its file name
 -- it is NOT the Pico CSS framework and carries no third-party license
-obligation. It is covered by ComeCome's own AGPL license above.
+obligation. All first-party code and assets are covered by ComeCome's AGPL
+license above.
