@@ -22,6 +22,16 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   predated); Phase 2 remaps the hardcoded JS/manifest/inline colors tangerine→teal and re-points
   the dark-mode inline-hex overrides. Fully revertible. `sw.js` cache → `comecome-v0.10.2`.
 
+### Fixed
+- **Medication UI in dark mode** (two pre-existing bugs found in live testing, not recolor-caused):
+  (1) the guardian medication-timing **disclaimer** was a hardcoded inline `background:#fff8e1` box
+  not covered by the dark-mode override list, so it rendered light-cream with low-contrast text —
+  now uses the themed `alert alert-warning` class (proper light + dark). (2) the child **"took your
+  medication?" Yes/No cards** had a markup/CSS mismatch (`<label class="option-card">` vs CSS that
+  styled `.option-card label` and made the card a 2-col grid) — the card chrome never applied and
+  the emoji/label split into columns; corrected to the label-is-card pattern with
+  `:has(input:checked)` selection, in `custom.css` + `comecome-theme.css`. `sw.js` → `comecome-v0.10.3`.
+
 ## [0.10.0] — 2026-06-20 — staging
 
 Built and verified on staging (`schema_version` 5 → **7**); version markers reconciled to

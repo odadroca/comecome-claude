@@ -162,7 +162,7 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
   animation: none !important;                                /* remove green glowPulse */
 }
 .face-option input[type="radio"]:checked + .face-emoji + .face-label { color: var(--cc-primary-press); }
-.option-card input[type="radio"]:checked ~ div { border-color: var(--cc-ring) !important; background: var(--cc-select-fill) !important; }
+.option-card:has(input[type="radio"]:checked) { border-color: var(--cc-ring) !important; background: var(--cc-select-fill) !important; }
 
 /* ============================================================================
    WEIGHT / HISTORY  (was: purple accents)
@@ -259,7 +259,7 @@ dialog { border-radius: var(--cc-radius-xl); box-shadow: 0 25px 80px rgba(16,40,
 [data-theme="dark"] .guardian-interface > main { background: var(--cc-surface-app); color: var(--cc-text-body); }
 [data-theme="dark"] .child-nav, [data-theme="dark"] .guardian-nav { background: var(--cc-brand) !important; }
 [data-theme="dark"] .food-card, [data-theme="dark"] .meal-btn, [data-theme="dark"] .face-option,
-[data-theme="dark"] .portion-btn, [data-theme="dark"] .option-card label, [data-theme="dark"] .checkin-section,
+[data-theme="dark"] .portion-btn, [data-theme="dark"] .option-card, [data-theme="dark"] .checkin-section,
 [data-theme="dark"] .weight-entry-section, [data-theme="dark"] .chart-container, [data-theme="dark"] .meal-group,
 [data-theme="dark"] .checkin-summary, [data-theme="dark"] .date-selector, [data-theme="dark"] .login-card,
 [data-theme="dark"] .user-card, [data-theme="dark"] dialog {

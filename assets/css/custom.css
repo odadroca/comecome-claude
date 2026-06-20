@@ -566,14 +566,18 @@
 
 .face-label { font-size: 0.75rem; transition: all 0.2s; }
 
-.medication-check, .option-card {
+.medication-check {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
     margin: 1rem 0;
 }
 
-.option-card label {
+.option-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
     padding: 1.5rem;
     border: 3px solid #e8e0f0;
     border-radius: 1.25rem;
@@ -583,13 +587,13 @@
     background: white;
 }
 
-.option-card label:hover {
+.option-card:hover {
     transform: scale(1.05);
     box-shadow: 0 4px 15px rgba(0,0,0,0.08);
 }
 
 .option-card input[type="radio"] { display: none; }
-.option-card input[type="radio"]:checked ~ div { border-color: #4CAF50; background: #e8f5e9; }
+.option-card:has(input[type="radio"]:checked) { border-color: #4CAF50; background: #e8f5e9; }
 
 /* ============================================================
    WEIGHT & CHARTS - Growing is natural
@@ -1097,7 +1101,7 @@ dialog article header {
 [data-theme="dark"] .meal-btn,
 [data-theme="dark"] .face-option,
 [data-theme="dark"] .portion-btn,
-[data-theme="dark"] .option-card label,
+[data-theme="dark"] .option-card,
 [data-theme="dark"] .checkin-section,
 [data-theme="dark"] .weight-entry-section,
 [data-theme="dark"] .chart-container,
@@ -1271,7 +1275,7 @@ dialog article header {
     color: var(--text-primary);
 }
 
-[data-theme="dark"] .option-card label {
+[data-theme="dark"] .option-card {
     color: var(--text-primary);
 }
 
