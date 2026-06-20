@@ -64,7 +64,7 @@ ob_start();
             <h2 style="text-align: center;"><?php echo t('whats_the_meal'); ?></h2>
 
             <?php if ($todayCount > 0): ?>
-            <p style="text-align:center;font-size:0.85rem;color:#667eea;margin-bottom:1rem;">
+            <p style="text-align:center;font-size:0.85rem;color:#7E3A5D;margin-bottom:1rem;">
                 <?php echo t('today_logged_count', ['count' => $todayCount]); ?>
             </p>
             <?php endif; ?>

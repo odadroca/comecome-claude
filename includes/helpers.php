@@ -1104,10 +1104,11 @@ function renderLayout($title, $content, $additionalHead = '') {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta name="description" content="<?php echo t('app_tagline'); ?>">
-        <meta name="theme-color" content="#4CAF50">
+        <meta name="theme-color" content="#E8722C">
         <title><?php echo sanitize($title); ?> - <?php echo t('app_name'); ?></title>
         <link rel="stylesheet" href="assets/css/pico.min.css">
         <link rel="stylesheet" href="assets/css/custom.css">
+        <link rel="stylesheet" href="assets/css/comecome-theme.css"><!-- design refresh -->
         <link rel="manifest" href="manifest.json">
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
         <script>

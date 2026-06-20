@@ -42,7 +42,7 @@ ob_start();
 
     <main class="container">
         <?php if ($checkIn): ?>
-        <p style="text-align:center;font-size:0.85rem;color:#4CAF50;margin-bottom:0.5rem;font-weight:600;">
+        <p style="text-align:center;font-size:0.85rem;color:#E8722C;margin-bottom:0.5rem;font-weight:600;">
             ✅ <?php echo t('checkin_already_done'); ?>
         </p>
         <?php endif; ?>

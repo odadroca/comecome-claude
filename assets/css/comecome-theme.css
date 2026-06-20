@@ -1,0 +1,290 @@
+/* ============================================================================
+   ComeCome — REFRESH THEME (drop-in reskin)
+   ----------------------------------------------------------------------------
+   Re-skins the live ComeCome app (vanilla PHP/CSS) onto the refreshed design
+   system: tangerine / plum / leaf / oat, Lexend + Atkinson Hyperlegible,
+   warm shadows, calmer motion — off the old purple-gradient + Duolingo-green.
+
+   INSTALL — one line, no markup changes. In includes/helpers.php → renderLayout(),
+   add this AFTER the existing custom.css link:
+
+       <link rel="stylesheet" href="assets/css/custom.css">
+       <link rel="stylesheet" href="assets/css/comecome-theme.css">   <!-- add this -->
+
+   It is self-contained (tokens + fonts inline) and overrides custom.css by load
+   order, so no class names in the PHP need to change. Light + dark both covered.
+   Remove the line to revert. See reskin/README.md for the full how-to.
+   ============================================================================ */
+
+/* Self-hosted fonts (offline-first PWA; no Google Fonts CDN dependency).
+   Lexend + Atkinson Hyperlegible, both OFL — attribution lives in the font
+   files. latin subset only (covers pt-PT + en). Paths are relative to THIS
+   stylesheet (assets/css/), hence ../fonts/. */
+@font-face { font-family: 'Lexend'; font-style: normal; font-weight: 300; font-display: swap; src: url('../fonts/lexend-300.woff2') format('woff2'); }
+@font-face { font-family: 'Lexend'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/lexend-400.woff2') format('woff2'); }
+@font-face { font-family: 'Lexend'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/lexend-500.woff2') format('woff2'); }
+@font-face { font-family: 'Lexend'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/lexend-600.woff2') format('woff2'); }
+@font-face { font-family: 'Lexend'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/lexend-700.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/atkinson-400.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/atkinson-700.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/atkinson-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: italic; font-weight: 700; font-display: swap; src: url('../fonts/atkinson-700-italic.woff2') format('woff2'); }
+
+/* ---- Tokens (subset needed by the live app) ---------------------------------- */
+:root {
+  color-scheme: light;  /* native <select> popup follows the theme */
+  --tangerine-50:#FDEFE3; --tangerine-100:#FAD9BF; --tangerine-200:#F6BE92;
+  --tangerine-300:#F1A064; --tangerine-500:#E8722C; --tangerine-600:#CB5E1F; --tangerine-700:#A24A18;
+  --plum-50:#F7E9F0; --plum-100:#ECCFDF; --plum-600:#7E3A5D; --plum-700:#5F2B46;
+  --leaf-50:#ECF3E3; --leaf-500:#5E9A45; --leaf-600:#4C7E37; --leaf-700:#3A6128;
+  --oat-50:#FBF7EF; --oat-100:#F5EEDF; --oat-200:#ECE0CA; --oat-300:#DCCBAD;
+  --ink-900:#2B2521; --ink-700:#4E453D; --ink-500:#786D62; --ink-400:#9A8E81; --ink-300:#B6AB9D;
+  --honey-100:#FBEACB; --honey-500:#E0A02E; --honey-700:#9E6F18;
+  --clay-100:#F8DDD6; --clay-500:#CF5A41; --clay-700:#97351F;
+  --sky-100:#DCEBF1; --sky-500:#4C8FA6; --sky-700:#2E6275;
+
+  --cc-primary:var(--tangerine-500); --cc-primary-hover:var(--tangerine-600); --cc-primary-press:var(--tangerine-700);
+  --cc-primary-soft:var(--tangerine-50); --cc-on-primary:#fff;
+  --cc-brand:var(--plum-600); --cc-on-brand:#fff;
+  --cc-success:var(--leaf-500); --cc-success-soft:var(--leaf-50);
+  --cc-favorite:var(--honey-500); --cc-favorite-soft:var(--honey-100);
+  --cc-danger:var(--clay-500);
+  --cc-surface-app:var(--oat-50); --cc-surface-card:#fff; --cc-surface-sunken:var(--oat-100);
+  --cc-text-strong:var(--ink-900); --cc-text-body:var(--ink-700); --cc-text-muted:var(--ink-500);
+  --cc-border:var(--oat-200); --cc-border-strong:var(--oat-300);
+  --cc-select-fill:var(--tangerine-50); --cc-ring:var(--tangerine-500);
+
+  --cc-radius-md:0.875rem; --cc-radius-lg:1.25rem; --cc-radius-xl:1.75rem;
+  --cc-shadow-sm:0 1px 2px rgba(43,37,33,.06),0 1px 3px rgba(43,37,33,.05);
+  --cc-shadow-md:0 2px 6px rgba(43,37,33,.07),0 4px 12px rgba(43,37,33,.06);
+  --cc-spring:cubic-bezier(0.34,1.4,0.64,1);
+
+  --cc-font-display:"Lexend",system-ui,-apple-system,sans-serif;
+  --cc-font-body:"Atkinson Hyperlegible","Lexend",system-ui,sans-serif;
+}
+
+/* ---- Typography -------------------------------------------------------------- */
+body { font-family: var(--cc-font-body); color: var(--cc-text-body); }
+h1, h2, h3, h4, h5, .child-nav h1, .nav-brand h1 { font-family: var(--cc-font-display); }
+
+/* Native <select> popup — theme the option list for dark-mode contrast */
+select option, select optgroup { background-color: var(--cc-surface-card); color: var(--cc-text-strong); }
+
+/* ============================================================================
+   LOGIN  (was: animated purple→pink gradient)
+   ============================================================================ */
+.login-container {
+  background: var(--cc-surface-app) !important;
+  animation: none !important;
+}
+.login-card {
+  border-radius: var(--cc-radius-xl);
+  box-shadow: var(--cc-shadow-md), 0 0 0 1px var(--cc-border);
+}
+.user-card { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); }
+.user-card:hover { border-color: var(--cc-ring); box-shadow: 0 8px 25px rgba(232,114,44,.15); }
+.user-card input[type="radio"]:checked + .user-avatar { border-color: var(--cc-ring); background: var(--cc-select-fill); }
+.user-card input[type="radio"]:checked ~ .user-name { color: var(--cc-primary-press); }
+.user-card:hover .user-avatar { border-color: var(--cc-ring); }
+.error-message { background: var(--clay-100); color: var(--clay-700); border-left-color: var(--cc-danger); border-radius: var(--cc-radius-md); }
+
+/* ============================================================================
+   CHILD SHELL  (was: purple gradient nav, lavender bg)
+   ============================================================================ */
+.child-interface { background: var(--cc-surface-app); }
+.child-nav {
+  background: var(--cc-brand) !important;
+  color: var(--cc-on-brand);
+  box-shadow: var(--cc-shadow-sm);
+}
+.child-nav::after { display: none !important; }            /* drop the shimmer overlay */
+.btn-back:hover, .btn-logout:hover { background: rgba(255,255,255,.16); }
+.child-nav .theme-toggle { background: rgba(255,255,255,.16); }
+.streak-badge {
+  background: var(--cc-favorite-soft); color: var(--honey-700);
+  border: 2px solid var(--cc-favorite);
+}
+
+.child-footer { background: var(--cc-surface-card); border-top: 2px solid var(--cc-border); }
+.footer-btn { color: var(--cc-text-muted); border-radius: var(--cc-radius-md); }
+.footer-btn.active {
+  background: var(--cc-select-fill) !important;
+  color: var(--cc-primary-press) !important;
+}
+.footer-btn.active::after { background: var(--cc-primary); }
+.footer-btn:hover:not(.active) { background: var(--cc-surface-sunken); color: var(--cc-primary); }
+
+/* ============================================================================
+   MEAL + FOOD SELECTION  (was: green selection, purple ::before bar)
+   ============================================================================ */
+.meal-btn { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); box-shadow: var(--cc-shadow-sm); }
+.meal-btn::before { background: var(--cc-primary) !important; }
+.meal-btn:hover, .meal-btn.active {
+  border-color: var(--cc-ring) !important;
+  background: var(--cc-select-fill) !important;
+  box-shadow: 0 8px 25px rgba(232,114,44,.15);
+}
+.meal-btn:hover::before, .meal-btn.active::before { background: var(--cc-primary) !important; }
+
+.food-card { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); box-shadow: var(--cc-shadow-sm); }
+.food-card:hover { border-color: var(--cc-ring); box-shadow: 0 12px 30px rgba(232,114,44,.15); }
+.food-card.is-favorite, .food-card.favorite {
+  border-color: var(--cc-favorite) !important;
+  background: var(--cc-favorite-soft) !important;
+}
+.food-card.is-favorite::before { background: var(--cc-favorite) !important; }
+.food-name { color: var(--cc-text-strong); }
+
+/* ============================================================================
+   PORTIONS / CHECK-IN  (was: green selection + green glow pulse)
+   ============================================================================ */
+.portion-btn { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); }
+.portion-btn:hover {
+  border-color: var(--cc-ring); background: var(--cc-select-fill);
+  box-shadow: 0 8px 25px rgba(232,114,44,.15);
+}
+.checkin-section { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); box-shadow: var(--cc-shadow-sm); }
+.face-option { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); }
+.face-option:hover { border-color: var(--cc-ring); box-shadow: 0 8px 20px rgba(232,114,44,.15); }
+.face-selected, .face-option:has(input:checked) {
+  border-color: var(--cc-ring) !important;
+  background: var(--cc-select-fill) !important;
+  animation: none !important;                                /* remove green glowPulse */
+}
+.face-option input[type="radio"]:checked + .face-emoji + .face-label { color: var(--cc-primary-press); }
+.option-card input[type="radio"]:checked ~ div { border-color: var(--cc-ring) !important; background: var(--cc-select-fill) !important; }
+
+/* ============================================================================
+   WEIGHT / HISTORY  (was: purple accents)
+   ============================================================================ */
+.weight-entry-section, .chart-container, .date-selector, .checkin-summary, .meal-group {
+  border-color: var(--cc-border); border-radius: var(--cc-radius-lg);
+}
+.weight-unit, .weight-encouragement, .empty-state-text, .meal-group h4 { color: var(--cc-primary) !important; }
+.weight-increase { color: var(--cc-success); }
+.weight-decrease { color: var(--honey-700); }
+.date-nav-btn { background: var(--cc-primary) !important; }
+.date-nav-btn:hover { box-shadow: 0 4px 15px rgba(232,114,44,.3); }
+.food-entry:hover { background: var(--cc-surface-sunken); }
+
+/* ============================================================================
+   BUTTONS  (was: green primary, purple secondary)
+   ============================================================================ */
+.btn-primary {
+  background: var(--cc-primary) !important;
+  border-radius: var(--cc-radius-md);
+  box-shadow: 0 4px 15px rgba(232,114,44,.3);
+}
+.btn-primary:hover { background: var(--cc-primary-hover) !important; box-shadow: 0 8px 25px rgba(232,114,44,.4); }
+.btn-secondary { color: var(--cc-primary); border-color: var(--cc-primary); border-radius: var(--cc-radius-md); }
+.btn-secondary:hover { background: var(--cc-primary); color: var(--cc-on-primary); }
+.btn-danger { background: var(--cc-danger); border-color: var(--cc-danger); }
+.btn-danger:hover { background: var(--clay-700); border-color: var(--clay-700); }
+.btn-small { background: var(--cc-primary); border-radius: 0.5rem; }
+.btn-small:hover { background: var(--cc-primary-hover); }
+
+/* ---- Alerts ---- */
+.alert-success { background: var(--cc-success-soft); color: var(--leaf-700); border-left-color: var(--cc-success); }
+.alert-warning { background: var(--honey-100); color: var(--honey-700); border-left-color: var(--cc-favorite); }
+.alert-error   { background: var(--clay-100); color: var(--clay-700); border-left-color: var(--cc-danger); }
+
+/* ============================================================================
+   SUCCESS DIALOG  (was: green message, purple encouragement, gold streak)
+   ============================================================================ */
+dialog { border-radius: var(--cc-radius-xl); box-shadow: 0 25px 80px rgba(43,37,33,.25); }
+.success-message { color: var(--cc-success); }
+.success-encouragement { color: var(--cc-primary); }
+.success-streak { background: var(--cc-favorite-soft) !important; color: var(--honey-700); border: 2px solid var(--cc-favorite); }
+
+/* ============================================================================
+   CATEGORY TABS  (was: purple selection)
+   ============================================================================ */
+.category-tab { border-color: var(--cc-border); color: var(--cc-text-muted); }
+.category-tab:hover, .category-tab.active {
+  border-color: var(--cc-ring) !important;
+  background: var(--cc-select-fill) !important;
+  color: var(--cc-primary-press) !important;
+}
+
+/* ============================================================================
+   GUARDIAN  (was: deep indigo #1a237e sidebar)
+   ============================================================================ */
+.guardian-nav { background: var(--cc-brand) !important; }
+.nav-menu a:hover, .nav-menu a.active { background: rgba(255,255,255,.16); color: #fff; }
+.guardian-interface h1 { color: var(--cc-brand) !important; }
+.table-responsive th { background: var(--cc-surface-sunken); }
+.table-responsive tr:hover { background: var(--cc-surface-sunken); }
+.table-responsive code { background: var(--cc-surface-sunken); color: var(--cc-primary-press); }
+.dashboard-section h2 { color: var(--cc-text-strong); }
+
+/* ---- Focus ring ---- */
+:focus-visible { outline: 3px solid var(--cc-ring) !important; outline-offset: 2px; }
+
+/* ============================================================================
+   DARK MODE  (was: cold purple #1a1625 / #9575CD)
+   Remap the app's dark surfaces + accents to the warm dark theme.
+   ============================================================================ */
+[data-theme="dark"] {
+  color-scheme: dark;  /* native dropdowns render dark in the app's dark mode */
+  /* Remap custom.css's OWN dark variables → warm palette. This single block
+     reskins dozens of the app's dark rules that reference these vars
+     (category tabs, secondary buttons, accents, surfaces, text). */
+  --bg-primary:#211B17; --bg-secondary:#2D2620; --bg-card:#2D2620;
+  --text-primary:#F3EADC; --text-secondary:#B2A492; --border-color:#3E342B;
+  --accent-green:#7FB85F;
+  --accent-purple:#F2934E; /* the old purple accent role becomes tangerine */
+
+  --cc-surface-app:#211B17; --cc-surface-card:#2D2620; --cc-surface-sunken:#261F1A;
+  --cc-brand:#3A2030; --cc-on-brand:#F3EADC;
+  --cc-text-strong:#F3EADC; --cc-text-body:#E2D6C6; --cc-text-muted:#B2A492;
+  --cc-border:#3E342B; --cc-border-strong:#4E4236;
+  --cc-primary:#F2934E; --cc-primary-hover:#F5A468; --cc-primary-press:#E8722C;
+  --cc-primary-soft:#38281B; --cc-on-primary:#221B16;
+  --cc-success:#7FB85F; --cc-success-soft:#28311C;
+  --cc-favorite:#E9B454; --cc-favorite-soft:#352B12;
+  --cc-select-fill:#38281B; --cc-ring:#F2934E;
+}
+[data-theme="dark"] .child-interface,
+[data-theme="dark"] .guardian-interface > main { background: var(--cc-surface-app); color: var(--cc-text-body); }
+[data-theme="dark"] .child-nav, [data-theme="dark"] .guardian-nav { background: var(--cc-brand) !important; }
+[data-theme="dark"] .food-card, [data-theme="dark"] .meal-btn, [data-theme="dark"] .face-option,
+[data-theme="dark"] .portion-btn, [data-theme="dark"] .option-card label, [data-theme="dark"] .checkin-section,
+[data-theme="dark"] .weight-entry-section, [data-theme="dark"] .chart-container, [data-theme="dark"] .meal-group,
+[data-theme="dark"] .checkin-summary, [data-theme="dark"] .date-selector, [data-theme="dark"] .login-card,
+[data-theme="dark"] .user-card, [data-theme="dark"] dialog {
+  background: var(--cc-surface-card); border-color: var(--cc-border); color: var(--cc-text-body);
+}
+[data-theme="dark"] .login-container { background: var(--cc-surface-app) !important; }
+[data-theme="dark"] .child-footer { background: var(--cc-surface-card); border-color: var(--cc-border); }
+[data-theme="dark"] .footer-btn.active { background: var(--cc-select-fill) !important; color: var(--cc-primary) !important; }
+[data-theme="dark"] .food-card:hover, [data-theme="dark"] .meal-btn:hover, [data-theme="dark"] .meal-btn.active,
+[data-theme="dark"] .face-selected, [data-theme="dark"] .face-option:has(input:checked) {
+  border-color: var(--cc-ring) !important; background: var(--cc-select-fill) !important;
+}
+[data-theme="dark"] .food-card.is-favorite, [data-theme="dark"] .food-card.favorite {
+  border-color: var(--cc-favorite) !important; background: var(--cc-favorite-soft) !important;
+}
+[data-theme="dark"] .food-name, [data-theme="dark"] .meal-btn, [data-theme="dark"] .portion-btn { color: var(--cc-text-strong); }
+[data-theme="dark"] .weight-unit, [data-theme="dark"] .meal-group h4,
+[data-theme="dark"] .empty-state-text, [data-theme="dark"] .weight-encouragement,
+[data-theme="dark"] .success-encouragement { color: var(--cc-primary) !important; }
+[data-theme="dark"] .success-message { color: var(--cc-success); }
+[data-theme="dark"] .guardian-interface h1 { color: var(--plum-100) !important; }
+[data-theme="dark"] .table-responsive th { background: var(--cc-surface-card); color: var(--cc-text-strong); }
+
+/* Category tabs + secondary button in dark use hardcoded purple rgba in custom.css */
+[data-theme="dark"] .category-tab { background: var(--cc-surface-card); border-color: var(--cc-border); color: var(--cc-text-muted); }
+[data-theme="dark"] .category-tab:hover,
+[data-theme="dark"] .category-tab.active {
+  border-color: var(--cc-ring) !important;
+  background: var(--cc-select-fill) !important;
+  color: var(--cc-primary) !important;
+}
+[data-theme="dark"] .btn-secondary { color: var(--cc-primary); border-color: var(--cc-primary); }
+[data-theme="dark"] .btn-secondary:hover { background: var(--cc-primary); color: var(--cc-on-primary); }
+
+/* ---- Calmer motion: soften the spring + honour reduced-motion ---------------- */
+.card-pop-in { animation-timing-function: var(--cc-spring) !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
