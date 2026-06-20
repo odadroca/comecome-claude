@@ -3,6 +3,17 @@
 Notable changes to ComeCome. This repo (`comecome-claude`) is **staging**; entries are promoted
 to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 
+## [Unreleased] — staging
+
+### Added
+- **Child "undo" on the food-log celebration** — after logging, the success dialog now offers
+  **"Oops, undo"** (pt *"Enganei-me"*) that removes the just-logged entry, so a child who taps the
+  wrong quantity can fix it without a guardian (previously impossible — the flow auto-logs on tap
+  and only a guardian could delete). `logFood()` returns the new row id; `api/food-log.php` echoes it
+  on POST; the celebration DELETEs it via the existing CSRF-gated, ownership-scoped endpoint. Child
+  smoke (`tests/http_csrf_child_smoke.php`) covers the POST→DELETE round-trip incl. CSRF on DELETE.
+  `sw.js` cache → `comecome-v0.10.1`.
+
 ## [0.10.0] — 2026-06-20 — staging
 
 Built and verified on staging (`schema_version` 5 → **7**); version markers reconciled to

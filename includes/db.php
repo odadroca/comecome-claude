@@ -702,7 +702,11 @@ function logFood($userId, $foodId, $mealId, $portion, $logDate = null, $logTime 
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
 
-    return $stmt->execute([$userId, $foodId, $mealId, $portion, $logDate, $logTime, $medWindow]);
+    // Return the NEW row id so the child celebration's "undo" can target exactly
+    // this entry. Callers needing only success still work — a positive id is truthy,
+    // and execute() throws on error (PDO ERRMODE_EXCEPTION), so reaching here means OK.
+    $stmt->execute([$userId, $foodId, $mealId, $portion, $logDate, $logTime, $medWindow]);
+    return (int) $db->lastInsertId();
 }
 
 /**

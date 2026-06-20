@@ -199,7 +199,10 @@ ob_start();
         <div class="success-message"><?php echo t('food_logged'); ?></div>
         <div class="success-encouragement" id="successEncouragement"><?php echo t($encouragementKey); ?></div>
         <div class="success-streak" id="successStreak" style="display:none;"></div>
-        <footer style="display:flex;gap:1rem;margin-top:1.5rem;">
+        <footer style="display:flex;gap:0.75rem;margin-top:1.5rem;flex-wrap:wrap;">
+            <button class="btn-secondary" id="undoLogBtn" onclick="undoLastLog()">
+                <?php echo t('undo_log'); ?> ↩️
+            </button>
             <button class="btn-secondary" onclick="location.reload()">
                 <?php echo t('add_another'); ?> ➕
             </button>
@@ -386,6 +389,7 @@ function logFood(foodId, portion) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
+            window.__lastLogId = data.id || null;   // remember it for the celebration "undo"
             document.getElementById('portionModal').close();
 
             // Update streak
@@ -422,6 +426,24 @@ function logFood(foodId, portion) {
         alert('<?php echo t('error_generic'); ?>');
         resetPortionButtons();
     });
+}
+
+// Undo the entry we just logged — for a mis-tapped quantity. Uses the id the POST
+// returned and the CSRF-gated DELETE endpoint, then reloads to a clean,
+// server-accurate state. Only the child's own row can be removed: the API scopes
+// DELETE to WHERE id=? AND user_id=?.
+function undoLastLog() {
+    var btn = document.getElementById('undoLogBtn');
+    if (!window.__lastLogId) { location.reload(); return; }
+    if (btn) { btn.disabled = true; }
+    fetch('api/food-log.php', {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json', [window.CSRF_HEADER || 'X-CSRF-Token']: window.CSRF_TOKEN || ''},
+        body: JSON.stringify({ log_id: window.__lastLogId })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(){ location.reload(); })
+    .catch(function(){ location.reload(); });
 }
 </script>
 

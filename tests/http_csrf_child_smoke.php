@@ -180,6 +180,34 @@ ok($awc !== 403 && strpos($awbody, 'invalid_csrf') === false && strpos($awbody, 
    "child food-log POST WITH a valid X-CSRF-Token SUCCEEDS (log/celebrate flow works) [got $awc, " . trim($awbody) . "]");
 @unlink($payloadFile);
 
+// --- 6. UNDO round-trip: the POST returns the new id; the celebration "undo"
+// DELETEs it via the same CSRF-gated endpoint. Prove (a) the id comes back,
+// (b) DELETE WITHOUT the token is rejected 403, (c) DELETE WITH the token removes it.
+$newId = null;
+if (preg_match('/"id"\s*:\s*(\d+)/', $awbody, $idm)) { $newId = (int) $idm[1]; }
+ok($newId > 0, "food-log POST returns the new entry id (for the celebration undo) [got " . var_export($newId, true) . "]");
+
+$undoFile = tempnam(sys_get_temp_dir(), 'cc_undobody_') . '.json';
+file_put_contents($undoFile, json_encode(['log_id' => $newId]));
+
+$undoNoToken = 'curl -b ' . escapeshellarg($cookieJar)
+    . ' -X DELETE -H "Content-Type: application/json"'
+    . ' --data ' . escapeshellarg('@' . $undoFile)
+    . ' ' . escapeshellarg($flUrl);
+[$unc, $unbody] = curlReq($undoNoToken);
+ok($unc === 403 && strpos($unbody, 'invalid_csrf') !== false,
+   "undo DELETE WITHOUT X-CSRF-Token is rejected 403 invalid_csrf [got $unc]");
+
+$undoWithToken = 'curl -b ' . escapeshellarg($cookieJar)
+    . ' -X DELETE -H "Content-Type: application/json"'
+    . ' -H ' . escapeshellarg('X-CSRF-Token: ' . $childCsrf)
+    . ' --data ' . escapeshellarg('@' . $undoFile)
+    . ' ' . escapeshellarg($flUrl);
+[$uwc, $uwbody] = curlReq($undoWithToken);
+ok($uwc !== 403 && strpos($uwbody, '"success":true') !== false,
+   "undo DELETE WITH a valid token removes the just-logged entry [got $uwc, " . trim($uwbody) . "]");
+@unlink($undoFile);
+
 $cleanup();
 @unlink($cookieJar);
 
