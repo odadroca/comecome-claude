@@ -1,0 +1,24 @@
+ComeCome
+Copyright (C) 2026 odadroca and contributors
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See the LICENSE file for the full text.
+
+==============================================================================
+Third-party components
+==============================================================================
+
+Chart.js  -  https://www.chartjs.org/  -  MIT License
+  Loaded at runtime from a CDN (jsdelivr: chart.js@4.4.0); it is NOT
+  redistributed within this source tree, so its license text is not vendored
+  here. If it is ever bundled/vendored, its upstream LICENSE (including the
+  original copyright line) MUST be included verbatim alongside the vendored
+  copy. Chart.js is MIT-licensed, which is compatible with ComeCome's
+  AGPL-3.0-or-later license.
+
+------------------------------------------------------------------------------
+Note: assets/css/pico.min.css is custom, first-party CSS despite its file name
+-- it is NOT the Pico CSS framework and carries no third-party license
+obligation. It is covered by ComeCome's own AGPL license above.
