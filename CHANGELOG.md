@@ -42,13 +42,18 @@ Built and verified on staging (`schema_version` 5 → **6**); **not yet promoted
 
 ### Changed
 - `migrateDatabase()` advances to `schema_version` 6 (additive only; existing installs migrate cleanly).
-- `sw.js` cache → `comecome-v0.9.5`.
+- `sw.js` cache → `comecome-v0.9.6`.
 
 ### Fixed
 - **schema.sql ↔ migration parity** — `db/schema.sql` now carries `daily_checkin.sleep_quality`
   so a fresh DB matches a v2-migrated one (it was previously only added by the migration). No
   functional change — fresh installs already gained the column via `migrateDatabase()`. Added the
   matching A1 parity assertion in `tests/run.php`.
+- **Design refresh polish** (Hostinger testing) — light-mode portion-modal labels were invisible
+  (white-on-white; the theme set the dark-mode color only); child-nav theme toggle rendered as a
+  vertical oval (a 48px `min-height` touch-target floor fought the 32px width) → now a 44px circle;
+  the logout button could be clipped by page-level horizontal overflow → `.child-interface` now
+  uses `overflow-x: clip`. Verified via headless-render measurements (no x-overflow; 44×44 toggle).
 
 ### Design
 - **Visual refresh** — off the old Duolingo-style palette onto the ComeCome system: tangerine
@@ -59,7 +64,7 @@ Built and verified on staging (`schema_version` 5 → **6**); **not yet promoted
   `custom.css` (making it canonical) is a deferred follow-on.
 
 ### Pending
-- **Version reconcile** (`config.php` 0.9.1 / `sw.js` 0.9.5 → **v0.10.0**) at production promotion.
+- **Version reconcile** (`config.php` 0.9.1 / `sw.js` 0.9.6 → **v0.10.0**) at production promotion.
 - Decisions i–v in `docs/roadmap/DECISIONS.md`; backlog in `.claude/SPRINT-PLAN_reconciled.md`.
 
 ## [0.9.1] — 2026-06-19

@@ -91,15 +91,28 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
 /* ============================================================================
    CHILD SHELL  (was: purple gradient nav, lavender bg)
    ============================================================================ */
-.child-interface { background: var(--cc-surface-app); }
+.child-interface { background: var(--cc-surface-app); overflow-x: clip; }
 .child-nav {
   background: var(--cc-brand) !important;
   color: var(--cc-on-brand);
   box-shadow: var(--cc-shadow-sm);
+  gap: 0.5rem;
+  overflow: visible;            /* shimmer ::after is gone; stop clipping the logout */
 }
 .child-nav::after { display: none !important; }            /* drop the shimmer overlay */
 .btn-back:hover, .btn-logout:hover { background: rgba(255,255,255,.16); }
-.child-nav .theme-toggle { background: rgba(255,255,255,.16); }
+/* Keep the nav controls from flex-shrinking — was producing a clipped logout. */
+.child-nav .btn-back, .child-nav .btn-logout { flex: 0 0 auto; }
+/* Normalise the theme toggle to a real circle. custom.css gave it width:32px but
+   a min-height:48px touch-target floor kept the height at 48 → a vertical oval.
+   Pin all four dims to one 44px touch-target value. */
+.child-nav .theme-toggle {
+  background: rgba(255,255,255,.16);
+  flex: 0 0 auto;
+  width: 2.75rem; height: 2.75rem;
+  min-width: 2.75rem; min-height: 2.75rem;
+  padding: 0; border-radius: 50%;
+}
 .streak-badge {
   background: var(--cc-favorite-soft); color: var(--honey-700);
   border: 2px solid var(--cc-favorite);
@@ -138,7 +151,7 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
 /* ============================================================================
    PORTIONS / CHECK-IN  (was: green selection + green glow pulse)
    ============================================================================ */
-.portion-btn { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); }
+.portion-btn { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); color: var(--cc-text-strong); }
 .portion-btn:hover {
   border-color: var(--cc-ring); background: var(--cc-select-fill);
   box-shadow: 0 8px 25px rgba(232,114,44,.15);
