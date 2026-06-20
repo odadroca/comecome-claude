@@ -1,63 +1,61 @@
 /* ============================================================================
-   ComeCome — REFRESH THEME (drop-in reskin)
+   ComeCome — LAGOON THEME (drop-in reskin)
    ----------------------------------------------------------------------------
-   Re-skins the live ComeCome app (vanilla PHP/CSS) onto the refreshed design
-   system: tangerine / plum / leaf / oat, Lexend + Atkinson Hyperlegible,
-   warm shadows, calmer motion — off the old purple-gradient + Duolingo-green.
+   Re-skins the live ComeCome app (vanilla PHP/CSS) onto the "Lagoon" palette:
+   bright teal #1FA4B5 (primary), deep teal #0F5563 (brand chrome), cool paper
+   neutral surfaces, cool dark mode — keeping the pastel feedback family
+   (leaf / honey / clay / sky) and Lexend + Atkinson Hyperlegible type.
+
+   This SUPERSEDES the earlier warm refresh (tangerine/plum/oat): it is the same
+   file at the same path, recolored. Drop it in and the whole app re-themes.
 
    INSTALL — one line, no markup changes. In includes/helpers.php → renderLayout(),
-   add this AFTER the existing custom.css link:
+   keep this AFTER the existing custom.css link:
 
        <link rel="stylesheet" href="assets/css/custom.css">
-       <link rel="stylesheet" href="assets/css/comecome-theme.css">   <!-- add this -->
+       <link rel="stylesheet" href="assets/css/comecome-theme.css">   <!-- this file -->
 
-   It is self-contained (tokens + fonts inline) and overrides custom.css by load
-   order, so no class names in the PHP need to change. Light + dark both covered.
-   Remove the line to revert. See reskin/README.md for the full how-to.
+   Self-contained (tokens + fonts inline), overrides custom.css by load order, so
+   no class names in the PHP change. Light + dark both covered. Remove the line to
+   revert. See the handover README for the (small) JS/manifest follow-ups.
    ============================================================================ */
 
-/* Self-hosted fonts (offline-first PWA; no Google Fonts CDN dependency).
-   Lexend + Atkinson Hyperlegible, both OFL — attribution lives in the font
-   files. latin subset only (covers pt-PT + en). Paths are relative to THIS
-   stylesheet (assets/css/), hence ../fonts/. */
-@font-face { font-family: 'Lexend'; font-style: normal; font-weight: 300; font-display: swap; src: url('../fonts/lexend-300.woff2') format('woff2'); }
-@font-face { font-family: 'Lexend'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/lexend-400.woff2') format('woff2'); }
-@font-face { font-family: 'Lexend'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/lexend-500.woff2') format('woff2'); }
-@font-face { font-family: 'Lexend'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/lexend-600.woff2') format('woff2'); }
-@font-face { font-family: 'Lexend'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/lexend-700.woff2') format('woff2'); }
-@font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/atkinson-400.woff2') format('woff2'); }
-@font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/atkinson-700.woff2') format('woff2'); }
-@font-face { font-family: 'Atkinson Hyperlegible'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/atkinson-400-italic.woff2') format('woff2'); }
-@font-face { font-family: 'Atkinson Hyperlegible'; font-style: italic; font-weight: 700; font-display: swap; src: url('../fonts/atkinson-700-italic.woff2') format('woff2'); }
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 /* ---- Tokens (subset needed by the live app) ---------------------------------- */
 :root {
   color-scheme: light;  /* native <select> popup follows the theme */
-  --tangerine-50:#FDEFE3; --tangerine-100:#FAD9BF; --tangerine-200:#F6BE92;
-  --tangerine-300:#F1A064; --tangerine-500:#E8722C; --tangerine-600:#CB5E1F; --tangerine-700:#A24A18;
-  --plum-50:#F7E9F0; --plum-100:#ECCFDF; --plum-600:#7E3A5D; --plum-700:#5F2B46;
+
+  /* teal — primary / action / brand chrome */
+  --teal-50:#DFF1F4; --teal-100:#BFE6EB; --teal-200:#93D6DE; --teal-300:#5FC2CE;
+  --teal-500:#1FA4B5; --teal-600:#1A8A99; --teal-700:#136E7A; --teal-800:#0F5563; --teal-900:#0B333B;
+  /* cool neutral — surfaces & borders */
+  --cool-50:#F2F6F7; --cool-100:#E9F0F1; --cool-200:#DEE7E9; --cool-300:#C7D5D7;
+  /* cool ink — text */
+  --ink-900:#16252A; --ink-700:#415257; --ink-500:#6F8085; --ink-400:#90A0A4; --ink-300:#B0BEC1;
+  /* pastel feedback — KEPT */
   --leaf-50:#ECF3E3; --leaf-500:#5E9A45; --leaf-600:#4C7E37; --leaf-700:#3A6128;
-  --oat-50:#FBF7EF; --oat-100:#F5EEDF; --oat-200:#ECE0CA; --oat-300:#DCCBAD;
-  --ink-900:#2B2521; --ink-700:#4E453D; --ink-500:#786D62; --ink-400:#9A8E81; --ink-300:#B6AB9D;
   --honey-100:#FBEACB; --honey-500:#E0A02E; --honey-700:#9E6F18;
   --clay-100:#F8DDD6; --clay-500:#CF5A41; --clay-700:#97351F;
   --sky-100:#DCEBF1; --sky-500:#4C8FA6; --sky-700:#2E6275;
 
-  --cc-primary:var(--tangerine-500); --cc-primary-hover:var(--tangerine-600); --cc-primary-press:var(--tangerine-700);
-  --cc-primary-soft:var(--tangerine-50); --cc-on-primary:#fff;
-  --cc-brand:var(--plum-600); --cc-on-brand:#fff;
+  --cc-primary:var(--teal-500); --cc-primary-hover:var(--teal-600); --cc-primary-press:var(--teal-700);
+  --cc-primary-soft:var(--teal-50); --cc-on-primary:#fff;
+  --cc-brand:var(--teal-800); --cc-on-brand:#EAF7F9;
   --cc-success:var(--leaf-500); --cc-success-soft:var(--leaf-50);
   --cc-favorite:var(--honey-500); --cc-favorite-soft:var(--honey-100);
   --cc-danger:var(--clay-500);
-  --cc-surface-app:var(--oat-50); --cc-surface-card:#fff; --cc-surface-sunken:var(--oat-100);
+  --cc-surface-app:var(--cool-50); --cc-surface-card:#fff; --cc-surface-sunken:var(--cool-100);
   --cc-text-strong:var(--ink-900); --cc-text-body:var(--ink-700); --cc-text-muted:var(--ink-500);
-  --cc-border:var(--oat-200); --cc-border-strong:var(--oat-300);
-  --cc-select-fill:var(--tangerine-50); --cc-ring:var(--tangerine-500);
+  --cc-border:var(--cool-200); --cc-border-strong:var(--cool-300);
+  --cc-select-fill:var(--teal-50); --cc-ring:var(--teal-500);
 
   --cc-radius-md:0.875rem; --cc-radius-lg:1.25rem; --cc-radius-xl:1.75rem;
-  --cc-shadow-sm:0 1px 2px rgba(43,37,33,.06),0 1px 3px rgba(43,37,33,.05);
-  --cc-shadow-md:0 2px 6px rgba(43,37,33,.07),0 4px 12px rgba(43,37,33,.06);
+  --cc-shadow-sm:0 1px 2px rgba(16,40,46,.06),0 1px 3px rgba(16,40,46,.05);
+  --cc-shadow-md:0 2px 6px rgba(16,40,46,.07),0 4px 12px rgba(16,40,46,.06);
   --cc-spring:cubic-bezier(0.34,1.4,0.64,1);
+  /* teal glow used on hover/selection (rgb of #1FA4B5 = 31,164,181) */
+  --cc-glow:31,164,181;
 
   --cc-font-display:"Lexend",system-ui,-apple-system,sans-serif;
   --cc-font-body:"Atkinson Hyperlegible","Lexend",system-ui,sans-serif;
@@ -82,7 +80,7 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
   box-shadow: var(--cc-shadow-md), 0 0 0 1px var(--cc-border);
 }
 .user-card { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); }
-.user-card:hover { border-color: var(--cc-ring); box-shadow: 0 8px 25px rgba(232,114,44,.15); }
+.user-card:hover { border-color: var(--cc-ring); box-shadow: 0 8px 25px rgba(var(--cc-glow),.15); }
 .user-card input[type="radio"]:checked + .user-avatar { border-color: var(--cc-ring); background: var(--cc-select-fill); }
 .user-card input[type="radio"]:checked ~ .user-name { color: var(--cc-primary-press); }
 .user-card:hover .user-avatar { border-color: var(--cc-ring); }
@@ -97,15 +95,14 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
   color: var(--cc-on-brand);
   box-shadow: var(--cc-shadow-sm);
   gap: 0.5rem;
-  overflow: visible;            /* shimmer ::after is gone; stop clipping the logout */
+  overflow: visible;
 }
 .child-nav::after { display: none !important; }            /* drop the shimmer overlay */
 .btn-back:hover, .btn-logout:hover { background: rgba(255,255,255,.16); }
-/* Keep the nav controls from flex-shrinking — was producing a clipped logout. */
+/* Keep the nav controls from flex-shrinking — otherwise the logout clips at the edge. */
 .child-nav .btn-back, .child-nav .btn-logout { flex: 0 0 auto; }
-/* Normalise the theme toggle to a real circle. custom.css gave it width:32px but
-   a min-height:48px touch-target floor kept the height at 48 → a vertical oval.
-   Pin all four dims to one 44px touch-target value. */
+/* Theme toggle = a real 44px circle (a min-height touch-target floor in custom.css
+   otherwise fights the 32px width and renders a vertical oval). */
 .child-nav .theme-toggle {
   background: rgba(255,255,255,.16);
   flex: 0 0 auto;
@@ -135,12 +132,12 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
 .meal-btn:hover, .meal-btn.active {
   border-color: var(--cc-ring) !important;
   background: var(--cc-select-fill) !important;
-  box-shadow: 0 8px 25px rgba(232,114,44,.15);
+  box-shadow: 0 8px 25px rgba(var(--cc-glow),.15);
 }
 .meal-btn:hover::before, .meal-btn.active::before { background: var(--cc-primary) !important; }
 
 .food-card { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); box-shadow: var(--cc-shadow-sm); }
-.food-card:hover { border-color: var(--cc-ring); box-shadow: 0 12px 30px rgba(232,114,44,.15); }
+.food-card:hover { border-color: var(--cc-ring); box-shadow: 0 12px 30px rgba(var(--cc-glow),.15); }
 .food-card.is-favorite, .food-card.favorite {
   border-color: var(--cc-favorite) !important;
   background: var(--cc-favorite-soft) !important;
@@ -154,11 +151,11 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
 .portion-btn { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); color: var(--cc-text-strong); }
 .portion-btn:hover {
   border-color: var(--cc-ring); background: var(--cc-select-fill);
-  box-shadow: 0 8px 25px rgba(232,114,44,.15);
+  box-shadow: 0 8px 25px rgba(var(--cc-glow),.15);
 }
 .checkin-section { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); box-shadow: var(--cc-shadow-sm); }
 .face-option { border-color: var(--cc-border); border-radius: var(--cc-radius-lg); }
-.face-option:hover { border-color: var(--cc-ring); box-shadow: 0 8px 20px rgba(232,114,44,.15); }
+.face-option:hover { border-color: var(--cc-ring); box-shadow: 0 8px 20px rgba(var(--cc-glow),.15); }
 .face-selected, .face-option:has(input:checked) {
   border-color: var(--cc-ring) !important;
   background: var(--cc-select-fill) !important;
@@ -177,7 +174,7 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
 .weight-increase { color: var(--cc-success); }
 .weight-decrease { color: var(--honey-700); }
 .date-nav-btn { background: var(--cc-primary) !important; }
-.date-nav-btn:hover { box-shadow: 0 4px 15px rgba(232,114,44,.3); }
+.date-nav-btn:hover { box-shadow: 0 4px 15px rgba(var(--cc-glow),.3); }
 .food-entry:hover { background: var(--cc-surface-sunken); }
 
 /* ============================================================================
@@ -186,9 +183,9 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
 .btn-primary {
   background: var(--cc-primary) !important;
   border-radius: var(--cc-radius-md);
-  box-shadow: 0 4px 15px rgba(232,114,44,.3);
+  box-shadow: 0 4px 15px rgba(var(--cc-glow),.3);
 }
-.btn-primary:hover { background: var(--cc-primary-hover) !important; box-shadow: 0 8px 25px rgba(232,114,44,.4); }
+.btn-primary:hover { background: var(--cc-primary-hover) !important; box-shadow: 0 8px 25px rgba(var(--cc-glow),.4); }
 .btn-secondary { color: var(--cc-primary); border-color: var(--cc-primary); border-radius: var(--cc-radius-md); }
 .btn-secondary:hover { background: var(--cc-primary); color: var(--cc-on-primary); }
 .btn-danger { background: var(--cc-danger); border-color: var(--cc-danger); }
@@ -204,7 +201,7 @@ select option, select optgroup { background-color: var(--cc-surface-card); color
 /* ============================================================================
    SUCCESS DIALOG  (was: green message, purple encouragement, gold streak)
    ============================================================================ */
-dialog { border-radius: var(--cc-radius-xl); box-shadow: 0 25px 80px rgba(43,37,33,.25); }
+dialog { border-radius: var(--cc-radius-xl); box-shadow: 0 25px 80px rgba(16,40,46,.30); }
 .success-message { color: var(--cc-success); }
 .success-encouragement { color: var(--cc-primary); }
 .success-streak { background: var(--cc-favorite-soft) !important; color: var(--honey-700); border: 2px solid var(--cc-favorite); }
@@ -235,27 +232,28 @@ dialog { border-radius: var(--cc-radius-xl); box-shadow: 0 25px 80px rgba(43,37,
 
 /* ============================================================================
    DARK MODE  (was: cold purple #1a1625 / #9575CD)
-   Remap the app's dark surfaces + accents to the warm dark theme.
+   Remap the app's dark surfaces + accents to the cool Lagoon dark theme.
    ============================================================================ */
 [data-theme="dark"] {
   color-scheme: dark;  /* native dropdowns render dark in the app's dark mode */
-  /* Remap custom.css's OWN dark variables → warm palette. This single block
+  /* Remap custom.css's OWN dark variables → Lagoon palette. This single block
      reskins dozens of the app's dark rules that reference these vars
      (category tabs, secondary buttons, accents, surfaces, text). */
-  --bg-primary:#211B17; --bg-secondary:#2D2620; --bg-card:#2D2620;
-  --text-primary:#F3EADC; --text-secondary:#B2A492; --border-color:#3E342B;
+  --bg-primary:#0E1618; --bg-secondary:#172224; --bg-card:#172224;
+  --text-primary:#E8F3F4; --text-secondary:#8FA3A5; --border-color:#253537;
   --accent-green:#7FB85F;
-  --accent-purple:#F2934E; /* the old purple accent role becomes tangerine */
+  --accent-purple:#3CC2D2; /* the old purple accent role becomes teal */
 
-  --cc-surface-app:#211B17; --cc-surface-card:#2D2620; --cc-surface-sunken:#261F1A;
-  --cc-brand:#3A2030; --cc-on-brand:#F3EADC;
-  --cc-text-strong:#F3EADC; --cc-text-body:#E2D6C6; --cc-text-muted:#B2A492;
-  --cc-border:#3E342B; --cc-border-strong:#4E4236;
-  --cc-primary:#F2934E; --cc-primary-hover:#F5A468; --cc-primary-press:#E8722C;
-  --cc-primary-soft:#38281B; --cc-on-primary:#221B16;
+  --cc-surface-app:#0E1618; --cc-surface-card:#172224; --cc-surface-sunken:#121C1E;
+  --cc-brand:#0B333B; --cc-on-brand:#DFF4F6;
+  --cc-text-strong:#E8F3F4; --cc-text-body:#C9DADC; --cc-text-muted:#8FA3A5;
+  --cc-border:#253537; --cc-border-strong:#314547;
+  --cc-primary:#3CC2D2; --cc-primary-hover:#5BCEDB; --cc-primary-press:#1FA4B5;
+  --cc-primary-soft:#0F2A2E; --cc-on-primary:#062328;
   --cc-success:#7FB85F; --cc-success-soft:#28311C;
   --cc-favorite:#E9B454; --cc-favorite-soft:#352B12;
-  --cc-select-fill:#38281B; --cc-ring:#F2934E;
+  --cc-select-fill:#0F2A2E; --cc-ring:#3CC2D2;
+  --cc-glow:60,194,210; /* rgb of #3CC2D2 for dark-mode glows */
 }
 [data-theme="dark"] .child-interface,
 [data-theme="dark"] .guardian-interface > main { background: var(--cc-surface-app); color: var(--cc-text-body); }
@@ -282,7 +280,7 @@ dialog { border-radius: var(--cc-radius-xl); box-shadow: 0 25px 80px rgba(43,37,
 [data-theme="dark"] .empty-state-text, [data-theme="dark"] .weight-encouragement,
 [data-theme="dark"] .success-encouragement { color: var(--cc-primary) !important; }
 [data-theme="dark"] .success-message { color: var(--cc-success); }
-[data-theme="dark"] .guardian-interface h1 { color: var(--plum-100) !important; }
+[data-theme="dark"] .guardian-interface h1 { color: var(--teal-100) !important; }
 [data-theme="dark"] .table-responsive th { background: var(--cc-surface-card); color: var(--cc-text-strong); }
 
 /* Category tabs + secondary button in dark use hardcoded purple rgba in custom.css */
@@ -296,14 +294,12 @@ dialog { border-radius: var(--cc-radius-xl); box-shadow: 0 25px 80px rgba(43,37,
 [data-theme="dark"] .btn-secondary { color: var(--cc-primary); border-color: var(--cc-primary); }
 [data-theme="dark"] .btn-secondary:hover { background: var(--cc-primary); color: var(--cc-on-primary); }
 
-/* Dark-mode legibility for the Phase-2 refreshed inline child-page text colors.
-   custom.css's [style*="color:#667eea"/"#4CAF50"] dark overrides target the OLD
-   inline hexes; Phase 2 changed those values, so on warm dark surfaces the new
-   plum (#7E3A5D) / tangerine (#E8722C) render dark-on-dark (~2:1). Re-assert
-   contrast here with the theme's light dark-mode tokens (plum-100 ~13:1,
-   cc-primary ~7:1). The deferred custom.css fold will replace these with classes. */
-[data-theme="dark"] .child-interface [style*="color:#7E3A5D"] { color: var(--plum-100) !important; }
-[data-theme="dark"] .child-interface [style*="color:#E8722C"] { color: var(--cc-primary) !important; }
+/* Dark-mode legibility for the Phase-2 teal inline child-page text colors. custom.css's
+   own dark overrides target the OLD Duolingo hexes; the inline hints use the brand
+   (#0F5563) and primary (#1FA4B5) teals, which would read dark-on-dark on the cool dark
+   surfaces. Re-assert contrast with light dark-mode teal tokens. */
+[data-theme="dark"] .child-interface [style*="color:#0F5563"] { color: var(--teal-100) !important; }
+[data-theme="dark"] .child-interface [style*="color:#1FA4B5"] { color: var(--cc-primary) !important; }
 
 /* ---- Calmer motion: soften the spring + honour reduced-motion ---------------- */
 .card-pop-in { animation-timing-function: var(--cc-spring) !important; }
