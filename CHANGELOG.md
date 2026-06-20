@@ -42,7 +42,7 @@ Built and verified on staging (`schema_version` 5 → **6**); **not yet promoted
 
 ### Changed
 - `migrateDatabase()` advances to `schema_version` 6 (additive only; existing installs migrate cleanly).
-- `sw.js` cache → `comecome-v0.9.4`.
+- `sw.js` cache → `comecome-v0.9.5`.
 
 ### Fixed
 - **schema.sql ↔ migration parity** — `db/schema.sql` now carries `daily_checkin.sleep_quality`
@@ -59,7 +59,7 @@ Built and verified on staging (`schema_version` 5 → **6**); **not yet promoted
   `custom.css` (making it canonical) is a deferred follow-on.
 
 ### Pending
-- **Version reconcile** (`config.php` 0.9.1 / `sw.js` 0.9.4 → **v0.10.0**) at production promotion.
+- **Version reconcile** (`config.php` 0.9.1 / `sw.js` 0.9.5 → **v0.10.0**) at production promotion.
 - Decisions i–v in `docs/roadmap/DECISIONS.md`; backlog in `.claude/SPRINT-PLAN_reconciled.md`.
 
 ## [0.9.1] — 2026-06-19

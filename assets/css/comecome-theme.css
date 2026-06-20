@@ -283,6 +283,15 @@ dialog { border-radius: var(--cc-radius-xl); box-shadow: 0 25px 80px rgba(43,37,
 [data-theme="dark"] .btn-secondary { color: var(--cc-primary); border-color: var(--cc-primary); }
 [data-theme="dark"] .btn-secondary:hover { background: var(--cc-primary); color: var(--cc-on-primary); }
 
+/* Dark-mode legibility for the Phase-2 refreshed inline child-page text colors.
+   custom.css's [style*="color:#667eea"/"#4CAF50"] dark overrides target the OLD
+   inline hexes; Phase 2 changed those values, so on warm dark surfaces the new
+   plum (#7E3A5D) / tangerine (#E8722C) render dark-on-dark (~2:1). Re-assert
+   contrast here with the theme's light dark-mode tokens (plum-100 ~13:1,
+   cc-primary ~7:1). The deferred custom.css fold will replace these with classes. */
+[data-theme="dark"] .child-interface [style*="color:#7E3A5D"] { color: var(--plum-100) !important; }
+[data-theme="dark"] .child-interface [style*="color:#E8722C"] { color: var(--cc-primary) !important; }
+
 /* ---- Calmer motion: soften the spring + honour reduced-motion ---------------- */
 .card-pop-in { animation-timing-function: var(--cc-spring) !important; }
 @media (prefers-reduced-motion: reduce) {
