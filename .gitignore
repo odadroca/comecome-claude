@@ -11,3 +11,7 @@ config.local.php
 encryption-key.php
 *-encryption-key.php
 *.key
+
+# Design-system handover (Claude design export: zips + React UI-kit mockups).
+# Reference material, not part of the app build — kept on disk, out of the repo.
+design-handover/
