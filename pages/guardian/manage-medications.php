@@ -290,7 +290,7 @@ ob_start();
             <p style="opacity:0.7;font-size:0.875rem;margin-bottom:0.5rem;">
                 <?php echo t('medication_timing_intro'); ?>
             </p>
-            <div class="alert" style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:0.6rem 0.9rem;margin-bottom:1rem;font-size:0.85rem;">
+            <div class="alert alert-warning" style="font-size:0.85rem;">
                 ⚠️ <?php echo t('med_timing_disclaimer'); ?>
             </div>
 
