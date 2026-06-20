@@ -118,6 +118,11 @@ Complete data structure for:
 
 ## 🔒 Production Hardening (optional, recommended)
 
+> 📘 **For a linear, step-by-step deploy + operations guide — including the
+> encryption enablement sequence and the backup / data-portability constraints —
+> see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).** The section below is the
+> threat-ordered *reference*; that runbook is the *how-to*.
+
 A fresh install runs zero-config (DB at `db/data.db`). For an internet-reachable
 deployment, harden it via a **git-ignored** `config.local.php` (copy `config.local.php.example`):
 
