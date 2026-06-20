@@ -28,6 +28,13 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   via `:has()`), management/settings pages a constrained ≤880px column, and tables are framed once.
   Dark mode automatic via tokens; collapses to one column under 900px. Appended as Blocks A/B to
   preserve the existing child-side fixes. `sw.js` cache → `comecome-v0.10.5`.
+- **Manage-users roster styling** — moved the user tables toward the roster mock (style only):
+  **Status pills** (green Active / grey Inactive), **circular icon action buttons** (teal edit /
+  outlined-clay delete), and **dimmed inactive rows**. CSS scoped to a new `.roster` class plus
+  per-row `is-inactive` / status-badge class hooks added to `manage-users.php` — **no logic or
+  data change** (the two Guardiões/Crianças tables and existing edit/delete actions are unchanged;
+  the consolidated single-table + Type/PIN columns + deactivate-toggle remain a separate markup
+  task). `sw.js` cache → `comecome-v0.10.6`.
 
 ### Fixed
 - **Medication UI in dark mode** (two pre-existing bugs found in live testing, not recolor-caused):
