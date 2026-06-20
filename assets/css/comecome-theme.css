@@ -238,6 +238,161 @@ dialog { border-radius: var(--cc-radius-xl); box-shadow: 0 25px 80px rgba(16,40,
 .table-responsive code { background: var(--cc-surface-sunken); color: var(--cc-primary-press); }
 .dashboard-section h2 { color: var(--cc-text-strong); }
 
+/* ============================================================================
+   GUARDIAN DASHBOARD — cards, grid & rhythm
+   ----------------------------------------------------------------------------
+   The live dashboard renders each block as a bare <section class="dashboard-
+   section"> (heading + content) with NO container, so insights, charts and
+   every table run together in one undifferentiated flat column. These rules —
+   CSS only, no markup change — give the filter bar its own surface, turn every
+   section into a calm card, constrain the reading width, and pair the two
+   charts side-by-side so the whole page scans in clear, separated chunks.
+   ============================================================================ */
+
+/* Constrain + center the dashboard, and lay sections out on a 2-col grid.
+   Scoped with :has(.dashboard-section) so the management pages (which share
+   <main class="container">) are NOT forced onto the chart grid. */
+.guardian-interface > main.container:has(.dashboard-section) {
+  max-width: 1180px;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-content: start;
+}
+/* Page header, age line, filters and any loose paragraph span the full width */
+.guardian-interface > main > h1,
+.guardian-interface > main > .child-age,
+.guardian-interface > main > .dashboard-filters,
+.guardian-interface > main > p { grid-column: 1 / -1; }
+.guardian-interface > main > h1 { margin-bottom: 0.25rem; }
+.guardian-interface > main > .child-age { margin: 0 0 0.25rem !important; }
+
+/* Filter bar → its own card surface */
+.dashboard-filters {
+  background: var(--cc-surface-card);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-lg);
+  box-shadow: var(--cc-shadow-sm);
+  padding: 1.1rem 1.25rem;
+  margin: 0.25rem 0 0;
+  align-items: end;
+}
+.filter-group label { font-weight: 600; color: var(--cc-text-muted); display: block; margin-bottom: 0.4rem; }
+
+/* Every section → a calm card (full width by default) */
+.dashboard-section {
+  grid-column: 1 / -1;
+  margin: 0;
+  background: var(--cc-surface-card);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-lg);
+  box-shadow: var(--cc-shadow-sm);
+  padding: 1.35rem 1.5rem 1.5rem;
+}
+.dashboard-section h2 {
+  font-family: var(--cc-font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--cc-text-strong) !important;
+  margin: 0 0 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--cc-border);
+}
+.dashboard-section h4 { font-family: var(--cc-font-display); color: var(--cc-text-strong); }
+
+/* Insights = the narrative summary → tint it so it reads as the lead card */
+.dashboard-section:has(.insights-panel) {
+  background: var(--cc-primary-soft);
+  border-color: var(--cc-border-strong);
+}
+.insights-panel li { line-height: 1.5; }
+
+/* The two charts sit side-by-side; flatten the inner container (no double frame) */
+.dashboard-section:has(.chart-container) { grid-column: span 1; }
+.dashboard-section .chart-container {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Tables sit flush inside the card, framed once */
+.dashboard-section .table-responsive {
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-md);
+  overflow: hidden;
+}
+.dashboard-section table { margin: 0; }
+.dashboard-section .table-responsive th:first-child,
+.dashboard-section .table-responsive td:first-child { padding-left: 1rem; }
+
+/* Stack to a single column when the viewport gets tight */
+@media (max-width: 900px) {
+  .guardian-interface > main.container:has(.dashboard-section) { grid-template-columns: 1fr; }
+  .dashboard-section:has(.chart-container) { grid-column: 1 / -1; }
+}
+
+/* ============================================================================
+   GUARDIAN MANAGEMENT PAGES — same card approach
+   ----------------------------------------------------------------------------
+   Manage users / foods / meals / medications / sleep / logs, and Settings, all
+   render stacked <section class="management-section"> blocks with NO container
+   (only margin-bottom). Give them the SAME card treatment as the dashboard:
+   each section becomes a calm card with a divider-underlined header, forms get
+   breathing room, tables are framed once, and the column is constrained to a
+   comfortable form-reading width (narrower than the data-dense dashboard).
+   CSS only — no markup change. ========================================== */
+
+.guardian-interface > main.container:has(.management-section) {
+  max-width: 880px;
+  margin-inline: auto;
+}
+
+/* Every management block → a card */
+.management-section {
+  margin: 0 0 1.25rem;
+  background: var(--cc-surface-card);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-lg);
+  box-shadow: var(--cc-shadow-sm);
+  padding: 1.35rem 1.5rem 1.5rem;
+}
+.management-section h2,
+.management-section h3 {
+  font-family: var(--cc-font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--cc-text-strong) !important;
+  margin: 0 0 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--cc-border);
+}
+
+/* Forms inside cards: a touch more rhythm; primary action sits below the grid */
+.management-section .form-grid { margin-bottom: 1.25rem; }
+.management-section .form-grid label { font-weight: 600; color: var(--cc-text-body); }
+.management-section .form-grid input,
+.management-section .form-grid select { margin-top: 0.35rem; }
+
+/* Settings checkbox rows: clearer, calmer spacing for each toggle + its hint */
+.management-section > label { display: block; font-weight: 600; padding: 0.15rem 0; }
+.management-section > small { color: var(--cc-text-muted); }
+
+/* Tables sit flush inside the card, framed once */
+.management-section .table-responsive {
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-md);
+  overflow: hidden;
+}
+.management-section table { margin: 0; }
+.management-section .table-responsive th:first-child,
+.management-section .table-responsive td:first-child { padding-left: 1rem; }
+
+/* Row action buttons (edit / delete) keep a steady gap */
+.management-section td .btn-small { margin-right: 0.35rem; }
+
 /* ---- Focus ring ---- */
 :focus-visible { outline: 3px solid var(--cc-ring) !important; outline-offset: 2px; }
 
