@@ -328,8 +328,8 @@ new Chart(document.getElementById('weightChart'), {
         datasets: [{
             label: '<?php echo t('weight'); ?> (kg)',
             data: weightData.map(d => d.weight_kg),
-            borderColor: '#E8722C',
-            backgroundColor: 'rgba(232, 124, 44, 0.12)',
+            borderColor: '#1FA4B5',
+            backgroundColor: 'rgba(31, 164, 181, 0.12)',
             tension: 0.4,
             fill: true
         }]
@@ -354,7 +354,7 @@ const dates = Object.keys(groupedIntake).sort();
 const mealTypes = [...new Set(intakeData.map(d => d.meal_name_key))];
 
 // Brand palette (design refresh) cycled by index — replaces the old hsl() ramp.
-const CC_CHART = ['#E8722C','#7E3A5D','#5E9A45','#E0A02E','#4C8FA6','#A65C82'];
+const CC_CHART = ['#1FA4B5','#0F5563','#5E9A45','#E0A02E','#4C8FA6','#90A0A4'];
 
 new Chart(document.getElementById('intakeChart'), {
     type: 'bar',

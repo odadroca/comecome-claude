@@ -4,8 +4,8 @@
   "description": "ADHD-friendly food and nutrition tracking for children",
   "start_url": "/index.php",
   "display": "standalone",
-  "background_color": "#FBF7EF",
-  "theme_color": "#E8722C",
+  "background_color": "#F2F6F7",
+  "theme_color": "#1FA4B5",
   "orientation": "portrait",
   "icons": [
     {

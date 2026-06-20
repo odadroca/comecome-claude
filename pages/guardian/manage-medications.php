@@ -435,7 +435,7 @@ ob_start();
 
                 <!-- Edit an existing schedule for this child -->
                 <?php if ($editSchedule && $editSchedule['user_id'] == $child['id']): ?>
-                <form method="POST" class="med-schedule-form" style="margin-top:0.75rem;border-top:2px solid #E8722C;padding-top:0.75rem;">
+                <form method="POST" class="med-schedule-form" style="margin-top:0.75rem;border-top:2px solid #1FA4B5;padding-top:0.75rem;">
                     <input type="hidden" name="action" value="schedule_update">
                     <input type="hidden" name="id" value="<?php echo $editSchedule['id']; ?>">
                     <h4 style="margin:0 0 0.5rem;">✏️ <?php echo t('edit'); ?></h4>
