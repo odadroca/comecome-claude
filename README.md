@@ -1,4 +1,4 @@
-# 🍽️ ComeCome v0.9.1 - ADHD-Friendly Food Tracking
+# 🍽️ ComeCome v0.10.0 - ADHD-Friendly Food Tracking
 
 A compassionate nutrition tracking application designed specifically for neuro-divergent children, particularly those with ADHD and medication-induced appetite challenges.
 

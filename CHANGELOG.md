@@ -3,9 +3,10 @@
 Notable changes to ComeCome. This repo (`comecome-claude`) is **staging**; entries are promoted
 to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 
-## [Unreleased] — staging (targets v0.10.0)
+## [0.10.0] — 2026-06-20 — staging
 
-Built and verified on staging (`schema_version` 5 → **7**); **not yet promoted to production**.
+Built and verified on staging (`schema_version` 5 → **7**); version markers reconciled to
+**v0.10.0** and tagged. **Not yet promoted to production** (`Come-come`).
 
 ### Added — Sprint 11: Growth-Support Nutrition Intelligence (rule-based, NOT AI)
 - **`food_growth_tags`** table (schema `6 → 7`, mirrored in `db/schema.sql`); the 46 seed foods are
@@ -85,8 +86,14 @@ Built and verified on staging (`schema_version` 5 → **7**); **not yet promoted
   and SW precache (Phase 3). Fully revertible by removing the one `<link>`. Folding the theme into
   `custom.css` (making it canonical) is a deferred follow-on.
 
+### Version
+- **Reconciled to v0.10.0** — `README.md` header, `config.php` `APP_VERSION`, and `sw.js`
+  `CACHE_NAME` (was drifted at 0.9.1 / 0.9.1 / comecome-v0.9.6) all set to **v0.10.0**; tagged
+  `v0.10.0` on staging.
+
 ### Pending
-- **Version reconcile** (`config.php` 0.9.1 / `sw.js` 0.9.6 → **v0.10.0**) at production promotion.
+- Promote staging → public `Come-come` (prod `main` is at schema v2 / Sprints 0–2 — this lands
+  Sprints 3–11 + Security + design refresh at once).
 - Decisions i–v in `docs/roadmap/DECISIONS.md`; backlog in `.claude/SPRINT-PLAN_reconciled.md`.
 
 ## [0.9.1] — 2026-06-19
