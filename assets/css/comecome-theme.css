@@ -405,6 +405,27 @@ dialog { border-radius: var(--cc-radius-xl); box-shadow: 0 25px 80px rgba(16,40,
 /* Row action buttons (edit / delete) keep a steady gap */
 .management-section td .btn-small { margin-right: 0.35rem; }
 
+/* Roster tables (manage-users): status pills, circular icon actions, dimmed inactive
+   rows — toward the consolidated-roster mock. `.roster` + row/status class hooks are
+   added in pages/guardian/manage-users.php; styling only, no logic change. */
+.roster td:first-child { width: 1%; white-space: nowrap; padding-right: 0; }
+.roster .status-badge {
+  display: inline-block; padding: 0.18rem 0.65rem; border-radius: 999px;
+  font-size: 0.78rem; font-weight: 600; line-height: 1.35; white-space: nowrap;
+}
+.roster .status-badge.is-on  { background: var(--cc-success-soft); color: var(--cc-success); }
+.roster .status-badge.is-off { background: var(--cc-surface-sunken); color: var(--cc-text-muted); }
+.roster tr.is-inactive { opacity: 0.6; }
+.roster td .btn-small {
+  width: 2.15rem; height: 2.15rem; min-width: 2.15rem; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 0.95rem; line-height: 1; text-decoration: none;
+  border: 1px solid var(--cc-border); background: var(--cc-primary-soft); color: var(--cc-primary-press);
+}
+.roster td .btn-small:hover { background: var(--cc-select-fill); border-color: var(--cc-ring); }
+.roster td .btn-small.btn-danger { background: var(--cc-surface-card); color: var(--cc-danger); border-color: var(--cc-danger); }
+.roster td .btn-small.btn-danger:hover { background: var(--cc-danger); color: #fff; }
+
 /* ---- Focus ring ---- */
 :focus-visible { outline: 3px solid var(--cc-ring) !important; outline-offset: 2px; }
 

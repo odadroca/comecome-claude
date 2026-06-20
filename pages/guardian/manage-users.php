@@ -225,7 +225,7 @@ ob_start();
         <!-- Guardians List -->
         <section class="management-section">
             <h2>🛡️ <?php echo t('guardians'); ?> (<?php echo count($guardians); ?>)</h2>
-            <div class="table-responsive">
+            <div class="table-responsive roster">
                 <table>
                     <thead>
                         <tr>
@@ -237,7 +237,7 @@ ob_start();
                     </thead>
                     <tbody>
                         <?php foreach ($guardians as $g): ?>
-                        <tr>
+                        <tr class="<?php echo $g['active'] ? '' : 'is-inactive'; ?>">
                             <td style="font-size:1.5rem;"><?php echo $g['avatar_emoji']; ?></td>
                             <td>
                                 <?php echo sanitize($g['name']); ?>
@@ -245,7 +245,7 @@ ob_start();
                                 <small style="opacity:0.6;">(<?php echo t('you'); ?>)</small>
                                 <?php endif; ?>
                             </td>
-                            <td><?php echo $g['active'] ? t('active') : t('inactive'); ?></td>
+                            <td><span class="status-badge <?php echo $g['active'] ? 'is-on' : 'is-off'; ?>"><?php echo $g['active'] ? t('active') : t('inactive'); ?></span></td>
                             <td style="white-space:nowrap;">
                                 <a href="?page=manage-users&edit=<?php echo $g['id']; ?>" class="btn-small">✏️</a>
                                 <?php if ($g['id'] != $user['id'] && !userHasData($g['id'])): ?>
@@ -267,7 +267,7 @@ ob_start();
         <!-- Children List -->
         <section class="management-section">
             <h2>👶 <?php echo t('children'); ?> (<?php echo count($children); ?>)</h2>
-            <div class="table-responsive">
+            <div class="table-responsive roster">
                 <table>
                     <thead>
                         <tr>
@@ -279,10 +279,10 @@ ob_start();
                     </thead>
                     <tbody>
                         <?php foreach ($children as $child): ?>
-                        <tr>
+                        <tr class="<?php echo $child['active'] ? '' : 'is-inactive'; ?>">
                             <td style="font-size:1.5rem;"><?php echo $child['avatar_emoji']; ?></td>
                             <td><?php echo sanitize($child['name']); ?></td>
-                            <td><?php echo $child['active'] ? t('active') : t('inactive'); ?></td>
+                            <td><span class="status-badge <?php echo $child['active'] ? 'is-on' : 'is-off'; ?>"><?php echo $child['active'] ? t('active') : t('inactive'); ?></span></td>
                             <td style="white-space:nowrap;">
                                 <a href="?page=manage-users&edit=<?php echo $child['id']; ?>" class="btn-small">✏️</a>
                                 <?php if (!userHasData($child['id'])): ?>
