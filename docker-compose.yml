@@ -1,0 +1,40 @@
+# ComeCome — self-host stack: the PHP/Apache app + Caddy for automatic HTTPS.
+#
+# Quick start:
+#   docker compose up --build
+#   open https://localhost   (accept the local-CA warning once)
+#
+# Data persists in the named volume `comecome-data` (the SQLite DB lives there,
+# outside the web root). To update: `git pull && docker compose up --build -d`.
+
+services:
+  comecome:
+    build: .
+    image: ghcr.io/odadroca/comecome:latest
+    environment:
+      COMECOME_DB_PATH: /data/data.db
+      # COMECOME_FORCE_HTTPS: "1"   # optional PHP-level HTTP->HTTPS backstop
+      # COMECOME_CONFIG: /run/secrets/comecome.php   # above-docroot secrets/key
+    volumes:
+      - comecome-data:/data
+    expose:
+      - "80"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    depends_on:
+      - comecome
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  comecome-data:
+  caddy-data:
+  caddy-config:

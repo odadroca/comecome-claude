@@ -1,0 +1,25 @@
+# VCS / tooling
+.git
+.github
+.gitignore
+.dockerignore
+.claude
+.remember
+
+# Dev-only (not needed at runtime). Legal files (LICENSE/NOTICE/DISCLAIMER.md)
+# are intentionally NOT excluded — they must ship in the artifact.
+tests
+design-handover
+software-launcher-framework
+node_modules
+
+# Local DB + secrets must never enter the image (DB lives in the /data volume)
+db/*.db
+db/*.db-wal
+db/*.db-shm
+config.local.php
+*encryption-key.php
+*.key
+
+# Scratch
+_*.md

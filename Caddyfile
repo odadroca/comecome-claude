@@ -1,0 +1,18 @@
+# ComeCome reverse proxy — automatic HTTPS.
+#
+# Local:      serves https://localhost using Caddy's internal CA (your browser
+#             warns once; accept it). This satisfies the app's HTTPS preference
+#             (the bundled .htaccess redirects plain HTTP -> HTTPS).
+# Production: replace `localhost` with your domain (e.g. comecome.example.org)
+#             and Caddy obtains + renews a real Let's Encrypt certificate
+#             automatically. Set a contact email in the global block first.
+
+{
+	# email admin@example.org
+}
+
+localhost {
+	reverse_proxy comecome:80 {
+		header_up X-Forwarded-Proto https
+	}
+}
