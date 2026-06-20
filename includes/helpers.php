@@ -1141,7 +1141,7 @@ function renderLayout($title, $content, $additionalHead = '') {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta name="description" content="<?php echo t('app_tagline'); ?>">
-        <meta name="theme-color" content="#E8722C">
+        <meta name="theme-color" content="#1FA4B5">
         <title><?php echo sanitize($title); ?> - <?php echo t('app_name'); ?></title>
         <link rel="stylesheet" href="assets/css/pico.min.css">
         <link rel="stylesheet" href="assets/css/custom.css">

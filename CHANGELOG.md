@@ -14,6 +14,14 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   smoke (`tests/http_csrf_child_smoke.php`) covers the POST→DELETE round-trip incl. CSRF on DELETE.
   `sw.js` cache → `comecome-v0.10.1`.
 
+### Design
+- **"Lagoon" recolor** — re-theme from the warm tangerine/plum/oat palette to a teal-forward
+  scheme: primary `#1FA4B5`, chrome `#0F5563`, cool-paper surfaces, cool dark mode — keeping the
+  feedback pastels (leaf/honey/clay/sky), Lexend + Atkinson type, radii/shadows/motion. Phase 1
+  swaps `comecome-theme.css` (re-applying the post-refresh polish fixes the handover package
+  predated); Phase 2 remaps the hardcoded JS/manifest/inline colors tangerine→teal and re-points
+  the dark-mode inline-hex overrides. Fully revertible. `sw.js` cache → `comecome-v0.10.2`.
+
 ## [0.10.0] — 2026-06-20 — staging
 
 Built and verified on staging (`schema_version` 5 → **7**); version markers reconciled to
