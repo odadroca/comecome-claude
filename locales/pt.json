@@ -234,6 +234,7 @@
   "gender_male": "Masculino",
   "gender_female": "Feminino",
   "date_of_birth": "Data de Nascimento",
+  "child_demographics_hint": "Opcional — o sexo e a data de nascimento ativam os percentis de crescimento (OMS).",
   "dob_optional_hint": "Opcional — usado para calcular a idade e, mais tarde, os percentis de crescimento.",
   "age": "Idade",
   "year": "ano",
