@@ -110,7 +110,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (isset($_GET['msg'])) {
-    $message = t('changes_saved');
+    // A POST without a valid CSRF token redirects here with msg=csrf_error — show
+    // an error, NOT the green "saved" notice (the write was blocked, not applied).
+    $message = ($_GET['msg'] === 'csrf_error') ? t('error_invalid_request') : t('changes_saved');
 }
 
 // Get all medications (including inactive).
@@ -182,8 +184,9 @@ ob_start();
         <h1><?php echo t('manage_medications'); ?></h1>
 
         <?php if ($message): ?>
-        <div class="alert alert-success">
-            ✅ <?php echo $message; ?>
+        <?php $isErrorMsg = ($message === t('error_invalid_request')); ?>
+        <div class="alert <?php echo $isErrorMsg ? 'alert-error' : 'alert-success'; ?>">
+            <?php echo $isErrorMsg ? '❌' : '✅'; ?> <?php echo $message; ?>
         </div>
         <?php endif; ?>
 

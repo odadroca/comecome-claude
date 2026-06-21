@@ -10,7 +10,7 @@ $db = getDB();
 // Get all children
 $children = getAllUsers('child');
 $selectedChild = $_GET['child'] ?? ($children[0]['id'] ?? null);
-$selectedDate = $_GET['date'] ?? date('Y-m-d');
+$selectedDate = clampLogDate($_GET['date'] ?? date('Y-m-d'));   // never a future/malformed log date
 $message = '';
 
 // Handle POST actions
@@ -143,7 +143,7 @@ ob_start();
                 </label>
                 <label style="flex:1;min-width:150px;">
                     <?php echo t('date'); ?>
-                    <input type="date" name="date" value="<?php echo $selectedDate; ?>" onchange="this.form.submit()">
+                    <input type="date" name="date" value="<?php echo $selectedDate; ?>" max="<?php echo date('Y-m-d'); ?>" onchange="this.form.submit()">
                 </label>
                 <div style="display:flex;gap:0.5rem;">
                     <a href="?page=manage-logs&child=<?php echo $selectedChild; ?>&date=<?php echo date('Y-m-d', strtotime($selectedDate . ' -1 day')); ?>" class="btn-small">◀</a>
