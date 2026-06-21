@@ -523,5 +523,10 @@
   "rec_tag_low_hydrating": "Os alimentos/líquidos hidratantes estão baixos ({rate}/semana); os estimulantes reduzem a sensação de sede.",
   "rec_tag_drop": "As porções de «{tag}» desceram esta semana (de {earlier} para {recent}).",
   "rec_growth_falling": "O percentil de peso para a idade está a descer ({from}→{to}). Dê prioridade a alimentos calóricos e fáceis de comer na melhor janela de apetite.",
-  "rec_sleep_low": "A qualidade do sono tem estado baixa ({avg}/5); dormir mal pode reduzir ainda mais o apetite no dia seguinte."
+  "rec_sleep_low": "A qualidade do sono tem estado baixa ({avg}/5); dormir mal pode reduzir ainda mais o apetite no dia seguinte.",
+
+  "_backdated_logging": "=== REGISTO RETROATIVO DE REFEIÇÕES ===",
+  "log_past_meal": "Registar refeição de outro dia",
+  "logging_for_date": "A registar para {date}",
+  "add_entry": "Adicionar"
 }

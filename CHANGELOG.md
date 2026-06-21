@@ -5,6 +5,18 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 
 ## [Unreleased] — staging
 
+### Added
+- **Backdated meal logging** — record a meal for an earlier day, which the UI never exposed
+  before (the backend accepted a date but no screen sent one). Two surfaces: a guardian
+  **"Add a meal"** form on **Manage Logs** (food + meal + portion for the selected child/date),
+  and a small, understated **➕** beside "Registar comida" on the child **History** page that
+  opens the normal food picker carrying that day's date (with a subtle "logging for <date>"
+  banner). Time is derived server-side from the meal's start time — no time picker; new
+  `clampLogDate()` rejects future/malformed dates and `defaultLogTimeForDate()` keeps med_window
+  stamping sensible. Reuses `logFood()`. Tests: `tests/run.php` Phase N (helpers + backdated
+  round-trip); full suite 343 green. **No schema change.** _(Note: `manage-logs.php` POST forms
+  remain CSRF-unprotected — a pre-existing gap on that page, tracked for a separate fix.)_
+
 ### Fixed
 - **Base framework's legacy green `--primary` retargeted to teal** — `assets/css/pico.min.css`
   defines `--primary:#4CAF50` and styles every `<button>` as `background:var(--primary)`, so any

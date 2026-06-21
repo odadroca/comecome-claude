@@ -2085,6 +2085,64 @@ ok(strpos($niJson, 'log_time') === false && strpos($niJson, '18:00:00') === fals
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
+ * PHASE N — backdated meal logging (child history link + guardian add form).
+ * -------------------------------------------------------------------------
+ *   The UI lets a guardian (Manage Logs add-form) and a child (history "add a past
+ *   meal" link) record a meal for an earlier day. Both go through logFood() with a
+ *   clamped date and a meal-derived time (no time picker). N1 unit-tests the two pure
+ *   helpers (clampLogDate, defaultLogTimeForDate); N2 proves a backdated logFood()
+ *   lands on the right date and is read back by getFoodLogByDate().
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE N — backdated meal logging ###\n";
+
+ok(function_exists('clampLogDate') && function_exists('defaultLogTimeForDate'),
+   "N backdate helpers loaded");
+
+echo "\n-- N1. date clamp + time default (pure) --\n";
+$todayStr = date('Y-m-d');
+$pastStr  = date('Y-m-d', strtotime('-3 days'));
+$futureStr = date('Y-m-d', strtotime('+3 days'));
+ok(clampLogDate($pastStr) === $pastStr, "N1 a valid past date passes through");
+ok(clampLogDate($futureStr) === $todayStr, "N1 a future date is clamped to today");
+ok(clampLogDate('not-a-date') === $todayStr, "N1 a malformed date is clamped to today");
+ok(clampLogDate('2026-13-99') === $todayStr, "N1 an impossible date is clamped to today");
+
+// Fresh DB so foods + meals (with time_start) are seeded.
+foreach (array_keys($GLOBALS) as $gname) {
+    if ($GLOBALS[$gname] instanceof PDO || $GLOBALS[$gname] instanceof PDOStatement) {
+        $GLOBALS[$gname] = null;
+    }
+}
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+$ndb = getDB();
+
+// Pick a meal with a known time_start and a food.
+$mealRow = $ndb->query("SELECT id, time_start FROM meals WHERE time_start IS NOT NULL ORDER BY sort_order LIMIT 1")->fetch();
+$nMealId = (int) $mealRow['id'];
+$expectTime = (strlen($mealRow['time_start']) === 5) ? $mealRow['time_start'] . ':00' : $mealRow['time_start'];
+ok(defaultLogTimeForDate($nMealId, $pastStr) === $expectTime,
+   "N1 past-date time defaults to the meal's start time [" . $expectTime . "]");
+ok(preg_match('/^\d{2}:\d{2}:\d{2}$/', defaultLogTimeForDate($nMealId, $todayStr)) === 1,
+   "N1 today's time default is a valid HH:MM:SS (wall clock)");
+
+echo "\n-- N2. backdated logFood() lands on the right day --\n";
+$nKid = createUser('BackdateKid', 'child', '0000');
+$nFoodId = (int) $ndb->query("SELECT id FROM foods WHERE name_key = 'food_chicken'")->fetchColumn();
+$newId = logFood($nKid, $nFoodId, $nMealId, 'some', $pastStr, defaultLogTimeForDate($nMealId, $pastStr));
+ok($newId > 0, "N2 logFood returned a row id for a backdated entry");
+$rowsPast = getFoodLogByDate($nKid, $pastStr);
+ok(count($rowsPast) === 1, "N2 the backdated entry is read back on the past date");
+ok(($rowsPast[0]['log_time'] ?? '') === $expectTime, "N2 stored time = the meal start (sensible default)");
+ok(count(getFoodLogByDate($nKid, $todayStr)) === 0, "N2 nothing leaked onto today");
+
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
  * VERDICT.
  * ------------------------------------------------------------------------- */
 echo "\n==========================================================\n";

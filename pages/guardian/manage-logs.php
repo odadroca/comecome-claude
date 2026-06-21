@@ -33,6 +33,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$portion, $mealId, $logId]);
             $message = t('changes_saved');
         }
+    } elseif ($action === 'add_food_log') {
+        // Backdated guardian entry for the selected child + date (the "log a meal I
+        // forgot" path). Reuses logFood() so med_window stamping + the row contract
+        // match the child flow; time is derived from the meal (no time picker).
+        $foodId = (int) ($_POST['food_id'] ?? 0);
+        $mealId = (int) ($_POST['meal_id'] ?? 0);
+        $portion = $_POST['portion'] ?? '';
+        if ($selectedChild && $foodId && $mealId && in_array($portion, ['little', 'some', 'lot', 'all'])) {
+            logFood($selectedChild, $foodId, $mealId, $portion, $selectedDate, defaultLogTimeForDate($mealId, $selectedDate));
+            $message = t('changes_saved');
+        }
     } elseif ($action === 'delete_checkin') {
         $checkinId = (int) ($_POST['checkin_id'] ?? 0);
         if ($checkinId) {
@@ -91,6 +102,10 @@ if ($selectedChild) {
 $stmt = $db->query("SELECT * FROM meals WHERE active = 1 ORDER BY sort_order");
 $meals = $stmt->fetchAll();
 
+// All active foods for the "add a meal" dropdown (grouped by category order).
+$stmt = $db->query("SELECT id, name_key, emoji FROM foods WHERE active = 1 ORDER BY category_id, sort_order");
+$allFoods = $stmt->fetchAll();
+
 ob_start();
 ?>
 
@@ -135,6 +150,39 @@ ob_start();
         <!-- Food Logs -->
         <section class="management-section">
             <h2>🍽️ <?php echo t('log_food'); ?> (<?php echo count($foodLogs); ?>)</h2>
+
+            <!-- Add a meal for the selected child + date (backdated entry). Time is
+                 derived from the meal start server-side (no time picker). -->
+            <form method="POST" class="inline-edit" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end;margin-bottom:1rem;">
+                <input type="hidden" name="action" value="add_food_log">
+                <label style="margin:0;flex:2;min-width:150px;">
+                    <?php echo t('food'); ?>
+                    <select name="food_id" required>
+                        <?php foreach ($allFoods as $f): ?>
+                        <option value="<?php echo $f['id']; ?>"><?php echo $f['emoji'] . ' ' . t($f['name_key']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label style="margin:0;flex:1;min-width:130px;">
+                    <?php echo t('meal_name'); ?>
+                    <select name="meal_id" required>
+                        <?php foreach ($meals as $m): ?>
+                        <option value="<?php echo $m['id']; ?>"><?php echo t($m['name_key']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label style="margin:0;flex:1;min-width:120px;">
+                    <?php echo t('portion'); ?>
+                    <select name="portion" required>
+                        <option value="little"><?php echo t('portion_little'); ?></option>
+                        <option value="some" selected><?php echo t('portion_some'); ?></option>
+                        <option value="lot"><?php echo t('portion_lot'); ?></option>
+                        <option value="all"><?php echo t('portion_all'); ?></option>
+                    </select>
+                </label>
+                <button type="submit" class="btn-small btn-primary">➕ <?php echo t('add_entry'); ?></button>
+            </form>
+
             <?php if (empty($foodLogs)): ?>
                 <p style="opacity:0.6;"><?php echo t('no_logs_today'); ?></p>
             <?php else: ?>

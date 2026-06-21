@@ -523,5 +523,10 @@
   "rec_tag_low_hydrating": "Hydrating foods/fluids are low ({rate}/week); stimulants blunt thirst cues.",
   "rec_tag_drop": "\"{tag}\" servings dropped this week (from {earlier} to {recent}).",
   "rec_growth_falling": "Weight-for-age percentile is trending down ({from}→{to}). Prioritize calorie-dense, easy-to-eat foods in the best appetite window.",
-  "rec_sleep_low": "Sleep quality has been low ({avg}/5); poor sleep can further reduce next-day appetite."
+  "rec_sleep_low": "Sleep quality has been low ({avg}/5); poor sleep can further reduce next-day appetite.",
+
+  "_backdated_logging": "=== BACKDATED MEAL LOGGING ===",
+  "log_past_meal": "Log a meal from another day",
+  "logging_for_date": "Logging for {date}",
+  "add_entry": "Add"
 }

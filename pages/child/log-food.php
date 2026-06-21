@@ -8,6 +8,14 @@ $user = getCurrentUser();
 $currentMeal = getCurrentMeal();
 $selectedMeal = $_GET['meal'] ?? ($currentMeal ? $currentMeal['id'] : null);
 
+// Optional backdating: when the child arrives from the history "add a past meal" link,
+// a ?date= carries the day being viewed. Clamp it (no future / malformed dates). When
+// backdating, the POST sends log_date and the server derives a sensible time from the
+// meal (no time picker — keeps the child surface flat).
+$logDate = clampLogDate($_GET['date'] ?? date('Y-m-d'));
+$isBackdate = $logDate !== date('Y-m-d');
+$dateParam = $isBackdate ? '&date=' . $logDate : '';
+
 // Get meals for selection
 $db = getDB();
 $stmt = $db->query("SELECT * FROM meals WHERE active = 1 ORDER BY sort_order");
@@ -63,7 +71,12 @@ ob_start();
         <section class="log-food-section">
             <h2 style="text-align: center;"><?php echo t('whats_the_meal'); ?></h2>
 
-            <?php if ($todayCount > 0): ?>
+            <?php if ($isBackdate): ?>
+            <p style="text-align:center;font-size:0.9rem;color:#0F5563;margin-bottom:1rem;">
+                📅 <?php echo t('logging_for_date', ['date' => formatDate($logDate, 'd/m/Y')]); ?>
+                <a href="?page=log-food">(<?php echo t('today'); ?>)</a>
+            </p>
+            <?php elseif ($todayCount > 0): ?>
             <p style="text-align:center;font-size:0.85rem;color:#0F5563;margin-bottom:1rem;">
                 <?php echo t('today_logged_count', ['count' => $todayCount]); ?>
             </p>
@@ -72,7 +85,7 @@ ob_start();
             <!-- Meal Selection -->
             <div class="meal-selection">
                 <?php foreach ($meals as $meal): ?>
-                <a href="?page=log-food&meal=<?php echo $meal['id']; ?>"
+                <a href="?page=log-food&meal=<?php echo $meal['id']; ?><?php echo $dateParam; ?>"
                    class="meal-btn <?php echo $selectedMeal == $meal['id'] ? 'active' : ''; ?>">
                     <span style="font-size:1.5rem;"><?php echo $mealEmojis[$meal['name_key']] ?? '🍴'; ?></span>
                     <?php echo t($meal['name_key']); ?>
@@ -206,7 +219,7 @@ ob_start();
             <button class="btn-secondary" onclick="location.reload()">
                 <?php echo t('add_another'); ?> ➕
             </button>
-            <button class="btn-primary" onclick="window.location='index.php?page=log-food'" style="flex:1;">
+            <button class="btn-primary" onclick="window.location='<?php echo $isBackdate ? 'index.php?page=history&date=' . $logDate : 'index.php?page=log-food'; ?>'" style="flex:1;">
                 <?php echo t('done'); ?> ✨
             </button>
         </footer>
@@ -216,6 +229,8 @@ ob_start();
 <script>
 let selectedFood = null;
 let selectedMeal = <?php echo json_encode($selectedMeal); ?>;
+let logDate = <?php echo json_encode($logDate); ?>;
+let isBackdate = <?php echo json_encode($isBackdate); ?>;
 let longPressTimer = null;
 let isLongPress = false;
 let wasTouchScroll = false;
@@ -380,11 +395,12 @@ function logFood(foodId, portion) {
         method: 'POST',
         // Sprint security Phase 3 — attach the per-session CSRF token (window.CSRF_TOKEN).
         headers: {'Content-Type': 'application/json', [window.CSRF_HEADER || 'X-CSRF-Token']: window.CSRF_TOKEN || ''},
-        body: JSON.stringify({
-            food_id: foodId,
-            meal_id: selectedMeal,
-            portion: portion
-        })
+        // When backdating (from the history "add a past meal" link) include log_date;
+        // the server derives a sensible time from the meal and clamps the date.
+        body: JSON.stringify(Object.assign(
+            { food_id: foodId, meal_id: selectedMeal, portion: portion },
+            isBackdate ? { log_date: logDate } : {}
+        ))
     })
     .then(r => r.json())
     .then(data => {

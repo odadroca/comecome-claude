@@ -105,7 +105,17 @@ ob_start();
 
         <!-- Food Log -->
         <section class="food-log-section">
-            <h3><?php echo t('log_food'); ?> 🍽️</h3>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+                <h3 style="margin:0;"><?php echo t('log_food'); ?> 🍽️</h3>
+                <!-- Small, deliberately understated link to log a meal for the day being
+                     viewed (the "I forgot to log it" path). Carries the selected date to
+                     the normal food picker; the child surface stays flat. -->
+                <a href="index.php?page=log-food&date=<?php echo $selectedDate; ?>"
+                   class="add-past-meal-link"
+                   title="<?php echo t('log_past_meal'); ?>"
+                   aria-label="<?php echo t('log_past_meal'); ?>"
+                   style="font-size:1.25rem;line-height:1;text-decoration:none;opacity:0.45;">➕</a>
+            </div>
 
             <?php if (count($foodLog) > 0): ?>
             <div class="food-log-list">
