@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Child demographics (optional) — power the WHO growth percentiles. Stored
         // only for children; validated against the users.gender CHECK + a real date.
         $gender = ($type === 'child' && in_array($_POST['gender'] ?? '', ['male', 'female'], true)) ? $_POST['gender'] : null;
-        $dob = ($type === 'child' && !empty($_POST['date_of_birth'])) ? $_POST['date_of_birth'] : null;
+        $dob = ($type === 'child') ? validBirthDate($_POST['date_of_birth'] ?? '') : null;
 
         if ($name && $pin && in_array($type, ['child', 'guardian'])) {
             createUser($name, $type, $pin, $avatar, $gender, $dob);
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // for a guardian, pass the '__keep__' sentinel so they are never touched.
             $isChild = ($targetUser['type'] === 'child');
             $gender = $isChild ? (in_array($_POST['gender'] ?? '', ['male', 'female'], true) ? $_POST['gender'] : null) : '__keep__';
-            $dob = $isChild ? (!empty($_POST['date_of_birth']) ? $_POST['date_of_birth'] : null) : '__keep__';
+            $dob = $isChild ? validBirthDate($_POST['date_of_birth'] ?? '') : '__keep__';
             updateUser($id, $name, $targetUser['type'], $pin ?: null, $avatar, $active, $gender, $dob);
         }
         header('Location: ?page=manage-users&msg=saved');
