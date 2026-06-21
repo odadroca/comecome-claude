@@ -6,6 +6,12 @@
 $user = getCurrentUser();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Sprint security — every state-changing action requires a valid CSRF
+    // token; a forged cross-site POST lacks it and is bounced before any DB write.
+    if (function_exists('verifyCsrf') && !verifyCsrf()) {
+        header('Location: ?page=settings&msg=csrf_error');
+        exit;
+    }
     setSetting('show_food_journal', $_POST['show_food_journal'] ?? '0');
     setSetting('show_checkin', $_POST['show_checkin'] ?? '0');
     setSetting('show_weight_tracking', $_POST['show_weight_tracking'] ?? '0');
@@ -66,6 +72,7 @@ ob_start();
         <?php endif; ?>
 
         <form method="POST">
+            <?php echo csrfField(); ?>
             <section class="management-section">
                 <h3><?php echo t('child_features'); ?></h3>
                 <small style="opacity:0.7;display:block;margin-bottom:1rem;">

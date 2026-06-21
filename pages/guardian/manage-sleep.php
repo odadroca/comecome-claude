@@ -14,6 +14,12 @@ $selectedDate = $_GET['date'] ?? date('Y-m-d');
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Sprint security — every state-changing action requires a valid CSRF
+    // token; a forged cross-site POST lacks it and is bounced before any DB write.
+    if (function_exists('verifyCsrf') && !verifyCsrf()) {
+        header('Location: ?page=manage-sleep&msg=csrf_error');
+        exit;
+    }
     $action = $_POST['action'] ?? '';
 
     if ($action === 'save_sleep') {
@@ -68,7 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (isset($_GET['msg'])) {
-    $message = t('changes_saved');
+    // A POST without a valid CSRF token redirects here with msg=csrf_error — show
+    // an error, NOT the green "saved" notice (the write was blocked, not applied).
+    $message = ($_GET['msg'] === 'csrf_error') ? t('error_invalid_request') : t('changes_saved');
 }
 
 // Get sleep data for selected child and date
@@ -87,8 +95,9 @@ ob_start();
         <h1>😴 <?php echo t('manage_sleep'); ?></h1>
 
         <?php if ($message): ?>
-        <div class="alert alert-success">
-            ✅ <?php echo $message; ?>
+        <?php $isErrorMsg = ($message === t('error_invalid_request')); ?>
+        <div class="alert <?php echo $isErrorMsg ? 'alert-error' : 'alert-success'; ?>">
+            <?php echo $isErrorMsg ? '❌' : '✅'; ?> <?php echo $message; ?>
         </div>
         <?php endif; ?>
 
@@ -121,6 +130,7 @@ ob_start();
         <section class="management-section">
             <h2>🌙 <?php echo t('night_sleep'); ?></h2>
             <form method="POST">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="save_sleep">
                 <input type="hidden" name="user_id" value="<?php echo $selectedChildId; ?>">
                 <input type="hidden" name="log_date" value="<?php echo $selectedDate; ?>">
@@ -157,6 +167,7 @@ ob_start();
         <section class="management-section">
             <h2>💤 <?php echo t('add_nap'); ?></h2>
             <form method="POST">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="save_sleep">
                 <input type="hidden" name="user_id" value="<?php echo $selectedChildId; ?>">
                 <input type="hidden" name="log_date" value="<?php echo $selectedDate; ?>">
@@ -200,6 +211,7 @@ ob_start();
                         <?php echo $entry['sleep_type'] === 'night' ? '🌙 ' . t('night_sleep') : '💤 ' . t('nap'); ?>
                     </strong>
                     <form method="POST" style="display:inline;" onsubmit="return confirm('<?php echo t('delete_confirmation'); ?>')">
+                        <?php echo csrfField(); ?>
                         <input type="hidden" name="action" value="delete_sleep">
                         <input type="hidden" name="id" value="<?php echo $entry['id']; ?>">
                         <input type="hidden" name="child_id" value="<?php echo $selectedChildId; ?>">
@@ -247,6 +259,7 @@ ob_start();
                         <span style="opacity:0.7;">(<?php echo sanitize($int['reason']); ?>)</span>
                         <?php endif; ?>
                         <form method="POST" style="display:inline;">
+                            <?php echo csrfField(); ?>
                             <input type="hidden" name="action" value="delete_interruption">
                             <input type="hidden" name="id" value="<?php echo $int['id']; ?>">
                             <input type="hidden" name="child_id" value="<?php echo $selectedChildId; ?>">
@@ -262,6 +275,7 @@ ob_start();
                 <details style="margin-top:0.5rem;">
                     <summary style="font-size:0.85rem;cursor:pointer;"><?php echo t('add_interruption'); ?></summary>
                     <form method="POST" style="margin-top:0.5rem;">
+                        <?php echo csrfField(); ?>
                         <input type="hidden" name="action" value="add_interruption">
                         <input type="hidden" name="sleep_log_id" value="<?php echo $entry['id']; ?>">
                         <input type="hidden" name="child_id" value="<?php echo $selectedChildId; ?>">

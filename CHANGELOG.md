@@ -14,8 +14,8 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   banner). Time is derived server-side from the meal's start time — no time picker; new
   `clampLogDate()` rejects future/malformed dates and `defaultLogTimeForDate()` keeps med_window
   stamping sensible. Reuses `logFood()`. Tests: `tests/run.php` Phase N (helpers + backdated
-  round-trip); full suite 343 green. **No schema change.** _(Note: `manage-logs.php` POST forms
-  remain CSRF-unprotected — a pre-existing gap on that page, tracked for a separate fix.)_
+  round-trip); full suite 343 green. **No schema change.** _(`manage-logs.php` POST forms — and the
+  other guardian pages' — are now CSRF-protected; see **Security** below.)_
 
 ### Fixed
 - **Base framework's legacy green `--primary` retargeted to teal** — `assets/css/pico.min.css`
@@ -24,6 +24,15 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   targeted symptom of this). The theme now remaps `--primary`/`--primary-hover` to the Lagoon teal
   at `:root` (late-bound via `var(--cc-primary)`, so it follows light & dark automatically) — the
   root fix. `sw.js` cache → `comecome-v0.11.1`.
+
+### Security
+- **CSRF protection completed across the guardian pages** — six guardian pages had state-changing
+  POST forms with **no CSRF token** (`manage-foods`, `manage-meals`, `manage-medications`,
+  `manage-sleep`, `manage-children`, `settings`), and `manage-logs` was only partly covered. Added
+  the canonical `verifyCsrf()` gate to each POST handler and `csrfField()` to **every** form (~23
+  forms), matching the already-protected `manage-users` / `database` / `export` pages. Forged
+  cross-site POSTs are now bounced (redirect, no DB write) before any state change. No change to
+  legitimate flows (the token is minted per session and embedded in each form); full suite 343 green.
 
 ## [0.11.0] — 2026-06-21 — staging
 

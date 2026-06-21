@@ -13,6 +13,12 @@ $children = getAllUsers('child');
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Sprint security — every state-changing action requires a valid CSRF
+    // token; a forged cross-site POST lacks it and is bounced before any DB write.
+    if (function_exists('verifyCsrf') && !verifyCsrf()) {
+        header('Location: ?page=manage-medications&msg=csrf_error');
+        exit;
+    }
     $action = $_POST['action'] ?? '';
 
     if ($action === 'create') {
@@ -104,7 +110,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (isset($_GET['msg'])) {
-    $message = t('changes_saved');
+    // A POST without a valid CSRF token redirects here with msg=csrf_error — show
+    // an error, NOT the green "saved" notice (the write was blocked, not applied).
+    $message = ($_GET['msg'] === 'csrf_error') ? t('error_invalid_request') : t('changes_saved');
 }
 
 // Get all medications (including inactive).
@@ -176,8 +184,9 @@ ob_start();
         <h1><?php echo t('manage_medications'); ?></h1>
 
         <?php if ($message): ?>
-        <div class="alert alert-success">
-            ✅ <?php echo $message; ?>
+        <?php $isErrorMsg = ($message === t('error_invalid_request')); ?>
+        <div class="alert <?php echo $isErrorMsg ? 'alert-error' : 'alert-success'; ?>">
+            <?php echo $isErrorMsg ? '❌' : '✅'; ?> <?php echo $message; ?>
         </div>
         <?php endif; ?>
 
@@ -185,6 +194,7 @@ ob_start();
         <section class="management-section">
             <h2><?php echo $editMed ? '✏️ ' . t('edit') : '➕ ' . t('add_new'); ?></h2>
             <form method="POST">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="<?php echo $editMed ? 'update' : 'create'; ?>">
                 <?php if ($editMed): ?>
                 <input type="hidden" name="id" value="<?php echo $editMed['id']; ?>">
@@ -244,6 +254,7 @@ ob_start();
                             <td style="white-space:nowrap;">
                                 <a href="?page=manage-medications&edit=<?php echo $med['id']; ?>" class="btn-small">✏️</a>
                                 <form method="POST" style="display:inline;" onsubmit="return confirm('<?php echo t('delete_confirmation'); ?>')">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="id" value="<?php echo $med['id']; ?>">
                                     <button type="submit" class="btn-small btn-danger">🗑️</button>
@@ -267,6 +278,7 @@ ob_start();
             <details style="margin-bottom:0.5rem;">
                 <summary><?php echo sanitize($med['name']); ?> (<?php echo sanitize($med['dose']); ?>)</summary>
                 <form method="POST" style="margin-top:0.5rem;padding-left:1rem;">
+                    <?php echo csrfField(); ?>
                     <input type="hidden" name="action" value="assign">
                     <input type="hidden" name="medication_id" value="<?php echo $med['id']; ?>">
                     <?php foreach ($children as $child): ?>
@@ -379,6 +391,7 @@ ob_start();
                                 <td style="white-space:nowrap;">
                                     <a href="?page=manage-medications&edit_schedule=<?php echo $sch['id']; ?>#schedules" class="btn-small">✏️</a>
                                     <form method="POST" style="display:inline;" onsubmit="return confirm('<?php echo t('delete_confirmation'); ?>')">
+                                        <?php echo csrfField(); ?>
                                         <input type="hidden" name="action" value="schedule_delete">
                                         <input type="hidden" name="id" value="<?php echo $sch['id']; ?>">
                                         <button type="submit" class="btn-small btn-danger">🗑️</button>
@@ -396,6 +409,7 @@ ob_start();
                 <!-- Add a new schedule for this child -->
                 <?php if (!$editSchedule || $editSchedule['user_id'] != $child['id']): ?>
                 <form method="POST" class="med-schedule-form" style="margin-top:0.75rem;border-top:1px dashed #ddd;padding-top:0.75rem;">
+                    <?php echo csrfField(); ?>
                     <input type="hidden" name="action" value="schedule_create">
                     <input type="hidden" name="schedule_user_id" value="<?php echo $child['id']; ?>">
                     <div class="form-grid">
@@ -436,6 +450,7 @@ ob_start();
                 <!-- Edit an existing schedule for this child -->
                 <?php if ($editSchedule && $editSchedule['user_id'] == $child['id']): ?>
                 <form method="POST" class="med-schedule-form" style="margin-top:0.75rem;border-top:2px solid #1FA4B5;padding-top:0.75rem;">
+                    <?php echo csrfField(); ?>
                     <input type="hidden" name="action" value="schedule_update">
                     <input type="hidden" name="id" value="<?php echo $editSchedule['id']; ?>">
                     <h4 style="margin:0 0 0.5rem;">✏️ <?php echo t('edit'); ?></h4>
