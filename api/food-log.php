@@ -28,8 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $foodId = $data['food_id'] ?? null;
     $mealId = $data['meal_id'] ?? null;
     $portion = $data['portion'] ?? null;
-    $logDate = $data['log_date'] ?? date('Y-m-d');
-    $logTime = $data['log_time'] ?? date('H:i:s');
+    // Optional backdating (child history "add a past meal" link). Validate + clamp the
+    // client-supplied date (never trust it: no future dates, no malformed strings);
+    // derive a sensible time from the meal when none is given (no time picker).
+    $logDate = clampLogDate($data['log_date'] ?? date('Y-m-d'));
+    $logTime = $data['log_time'] ?? defaultLogTimeForDate($mealId, $logDate);
 
     if (!$foodId || !$mealId || !$portion) {
         jsonResponse(['success' => false, 'error' => 'missing_fields'], 400);

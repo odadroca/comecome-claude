@@ -17,6 +17,43 @@ require_once __DIR__ . '/percentiles.php';
 require_once __DIR__ . '/nutrition.php';
 
 /**
+ * Sensible log_time for a (possibly backdated) food entry — used by the child
+ * history "add a past meal" link and the guardian Manage-Logs add form, so neither
+ * needs a time picker (decision: meal + portion only).
+ *
+ * For TODAY, use the real wall-clock time (the child is logging "now"). For a PAST
+ * date, use the selected meal's start time (e.g. supper ~19:00) — a sensible default
+ * that keeps the server-side med_window stamping roughly accurate for backdated rows.
+ * Falls back to noon if the meal has no start time. Returns "HH:MM:SS".
+ */
+function defaultLogTimeForDate($mealId, $logDate) {
+    if ($logDate === date('Y-m-d')) {
+        return date('H:i:s');
+    }
+    $db = getDB();
+    $stmt = $db->prepare("SELECT time_start FROM meals WHERE id = ?");
+    $stmt->execute([$mealId]);
+    $t = $stmt->fetchColumn();
+    if ($t) {
+        // meals.time_start is stored as 'HH:MM'; normalize to 'HH:MM:SS'.
+        return (strlen($t) === 5) ? $t . ':00' : $t;
+    }
+    return '12:00:00';
+}
+
+/**
+ * Validate a 'Y-m-d' string and clamp anything invalid or in the future to today.
+ * Used to sanitize a client-supplied log_date (e.g. the child backdate link).
+ */
+function clampLogDate($logDate) {
+    $today = date('Y-m-d');
+    if (!is_string($logDate) || $logDate === '') return $today;
+    $d = DateTime::createFromFormat('Y-m-d', $logDate);
+    if (!$d || $d->format('Y-m-d') !== $logDate) return $today;   // malformed
+    return ($logDate > $today) ? $today : $logDate;               // no future dates
+}
+
+/**
  * Convert portion text to numeric value for calculations
  */
 function portionToValue($portion) {
