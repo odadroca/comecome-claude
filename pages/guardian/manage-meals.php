@@ -10,6 +10,12 @@ $message = '';
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Sprint security — every state-changing action requires a valid CSRF
+    // token; a forged cross-site POST lacks it and is bounced before any DB write.
+    if (function_exists('verifyCsrf') && !verifyCsrf()) {
+        header('Location: ?page=manage-meals&msg=csrf_error');
+        exit;
+    }
     $action = $_POST['action'] ?? '';
 
     if ($action === 'create') {
@@ -109,6 +115,7 @@ ob_start();
         <section class="management-section">
             <h2><?php echo $editMeal ? '✏️ ' . t('edit') : '➕ ' . t('add_new'); ?></h2>
             <form method="POST">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="<?php echo $editMeal ? 'update' : 'create'; ?>">
                 <?php if ($editMeal): ?>
                 <input type="hidden" name="id" value="<?php echo $editMeal['id']; ?>">
@@ -188,6 +195,7 @@ ob_start();
                             <td style="white-space:nowrap;">
                                 <a href="?page=manage-meals&edit=<?php echo $meal['id']; ?>" class="btn-small">✏️</a>
                                 <form method="POST" style="display:inline;" onsubmit="return confirm('<?php echo t('delete_confirmation'); ?>')">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="id" value="<?php echo $meal['id']; ?>">
                                     <button type="submit" class="btn-small btn-danger">🗑️</button>

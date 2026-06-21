@@ -15,6 +15,12 @@ $message = '';
 
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Sprint security — every state-changing action here requires a valid CSRF token.
+    // A forged cross-site POST lacks it and is bounced back before any DB write.
+    if (function_exists('verifyCsrf') && !verifyCsrf()) {
+        header('Location: ?page=manage-logs&child=' . $selectedChild . '&date=' . $selectedDate);
+        exit;
+    }
     $action = $_POST['action'] ?? '';
 
     if ($action === 'delete_food_log') {
@@ -154,6 +160,7 @@ ob_start();
             <!-- Add a meal for the selected child + date (backdated entry). Time is
                  derived from the meal start server-side (no time picker). -->
             <form method="POST" class="inline-edit" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end;margin-bottom:1rem;">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="add_food_log">
                 <label style="margin:0;flex:2;min-width:150px;">
                     <?php echo t('food'); ?>
@@ -203,6 +210,7 @@ ob_start();
                             <td><?php echo $log['emoji'] . ' ' . t($log['food_name_key']); ?></td>
                             <td>
                                 <form method="POST" style="display:inline;" class="inline-edit">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="update_food_log">
                                     <input type="hidden" name="log_id" value="<?php echo $log['id']; ?>">
                                     <input type="hidden" name="portion" value="<?php echo $log['portion']; ?>">
@@ -217,6 +225,7 @@ ob_start();
                             </td>
                             <td>
                                 <form method="POST" style="display:inline;" class="inline-edit">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="update_food_log">
                                     <input type="hidden" name="log_id" value="<?php echo $log['id']; ?>">
                                     <input type="hidden" name="meal_id" value="<?php echo $log['meal_id']; ?>">
@@ -231,6 +240,7 @@ ob_start();
                             <td style="font-size:0.875rem;"><?php echo substr($log['log_time'], 0, 5); ?></td>
                             <td>
                                 <form method="POST" style="display:inline;" onsubmit="return confirm('<?php echo t('delete_confirmation'); ?>')">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="delete_food_log">
                                     <input type="hidden" name="log_id" value="<?php echo $log['id']; ?>">
                                     <button type="submit" class="btn-small btn-danger">🗑️</button>
@@ -251,6 +261,7 @@ ob_start();
                 <p style="opacity:0.6;"><?php echo t('no_data'); ?></p>
             <?php else: ?>
             <form method="POST">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="update_checkin">
                 <input type="hidden" name="checkin_id" value="<?php echo $checkIn['id']; ?>">
                 <div class="form-grid">
@@ -285,6 +296,7 @@ ob_start();
                 <div style="display:flex;gap:0.5rem;">
                     <button type="submit" class="btn-primary"><?php echo t('save_changes'); ?></button>
                     <form method="POST" style="display:inline;" onsubmit="return confirm('<?php echo t('delete_confirmation'); ?>')">
+                        <?php echo csrfField(); ?>
                         <input type="hidden" name="action" value="delete_checkin">
                         <input type="hidden" name="checkin_id" value="<?php echo $checkIn['id']; ?>">
                         <button type="submit" class="btn-small btn-danger">🗑️ <?php echo t('delete'); ?></button>
@@ -300,6 +312,7 @@ ob_start();
             <h2>⚖️ <?php echo t('weight'); ?></h2>
             <p><?php echo $weightEntry['weight_kg']; ?> kg</p>
             <form method="POST" style="display:inline;" onsubmit="return confirm('<?php echo t('delete_confirmation'); ?>')">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="delete_weight">
                 <input type="hidden" name="weight_id" value="<?php echo $weightEntry['id']; ?>">
                 <button type="submit" class="btn-small btn-danger">🗑️ <?php echo t('delete'); ?></button>
