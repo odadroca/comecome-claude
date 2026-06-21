@@ -5,7 +5,13 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 
 ## [Unreleased] — staging
 
-_Nothing yet._
+### Fixed
+- **Base framework's legacy green `--primary` retargeted to teal** — `assets/css/pico.min.css`
+  defines `--primary:#4CAF50` and styles every `<button>` as `background:var(--primary)`, so any
+  button/link/focus the app didn't explicitly colour leaked green (the food-card-hover patch was a
+  targeted symptom of this). The theme now remaps `--primary`/`--primary-hover` to the Lagoon teal
+  at `:root` (late-bound via `var(--cc-primary)`, so it follows light & dark automatically) — the
+  root fix. `sw.js` cache → `comecome-v0.11.1`.
 
 ## [0.11.0] — 2026-06-21 — staging
 
