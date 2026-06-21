@@ -71,6 +71,14 @@
 
   --cc-font-display:"Lexend",system-ui,-apple-system,sans-serif;
   --cc-font-body:"Atkinson Hyperlegible","Lexend",system-ui,sans-serif;
+
+  /* Retarget the base framework's legacy green --primary (assets/css/pico.min.css
+     sets --primary:#4CAF50; it styles every <button> as background:var(--primary)).
+     Remap to the Lagoon teal so ANY unstyled framework button/link/focus is on-brand
+     instead of green — the root fix behind the food-card-hover patch. Late-bound via
+     var(--cc-primary)/(--cc-primary-hover), so it follows light & dark automatically. */
+  --primary: var(--cc-primary);
+  --primary-hover: var(--cc-primary-hover);
 }
 
 /* ---- Typography -------------------------------------------------------------- */
