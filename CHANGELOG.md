@@ -14,7 +14,8 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   **"será guardado como `food_maca`"** preview (JS mirrors the PHP, NFD-normalised). A collapsed
   **Advanced** disclosure still exposes the raw key for power users (reused translation keys). On a
   genuine clash the friendly **"already exists"** message (see Fixed) is the backstop. Applies to all
-  three create forms; `slugifyTranslationKey()` covered by `tests/run.php` Phase N (356 green).
+  three create forms; `slugifyTranslationKey()` covered by `tests/run.php` Phase N — incl. decomposed
+  (NFD) + capital-accent folding so the server key matches the JS preview on any host (359 green).
 - **Child sex + date-of-birth input** — the WHO growth-percentile engine (and the `show_percentiles`
   toggle) need each child's sex + DOB, but **no input UI existed** on the live page: `manage-children.php`
   had the fields, yet `index.php` routes both `manage-children` and `manage-users` to `manage-users.php`
