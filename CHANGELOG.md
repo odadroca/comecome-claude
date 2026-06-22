@@ -6,6 +6,15 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 ## [Unreleased] — staging
 
 ### Added
+- **Guardian add-item forms auto-derive the i18n key** — adding a food / category / meal no longer
+  asks the guardian to hand-author the internal translation key (e.g. `food_mango`), which they had
+  no way to know the convention for or which keys were taken (the source of the duplicate-key 500s).
+  They now type only the display name; a new `slugifyTranslationKey()` helper derives a stable,
+  accent-folded, prefixed key server-side ("Maçã" → `food_maca`), shown live as a read-only
+  **"será guardado como `food_maca`"** preview (JS mirrors the PHP, NFD-normalised). A collapsed
+  **Advanced** disclosure still exposes the raw key for power users (reused translation keys). On a
+  genuine clash the friendly **"already exists"** message (see Fixed) is the backstop. Applies to all
+  three create forms; `slugifyTranslationKey()` covered by `tests/run.php` Phase N (356 green).
 - **Child sex + date-of-birth input** — the WHO growth-percentile engine (and the `show_percentiles`
   toggle) need each child's sex + DOB, but **no input UI existed** on the live page: `manage-children.php`
   had the fields, yet `index.php` routes both `manage-children` and `manage-users` to `manage-users.php`

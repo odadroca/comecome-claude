@@ -70,6 +70,43 @@ function validBirthDate($dob) {
 }
 
 /**
+ * Derive a stable i18n translation key from a human display name, so guardians
+ * adding a food/meal/category never have to hand-author the internal key (the
+ * source of the old duplicate-key 500s and "what's the convention?" confusion).
+ *
+ * "Maçã" => "food_maca", "Morning Snack" => "meal_morning_snack". Accents are
+ * transliterated to ASCII (no intl/iconv dependency — a small Latin map covers
+ * pt/en), everything non-alphanumeric collapses to single underscores, and the
+ * result is trimmed and prefixed. Empty/garbage input degrades to "<prefix>item"
+ * rather than producing a bare prefix. The JS preview in the add forms mirrors
+ * this (NFD-normalised) so "será guardado como …" matches what is stored.
+ *
+ * NOTE: this does NOT guarantee uniqueness — a collision (e.g. a second "Maçã")
+ * still hits the UNIQUE(name_key) constraint, which the create handlers catch and
+ * surface as a friendly "already exists" message. Stable + readable, not unique.
+ */
+function slugifyTranslationKey($prefix, $text) {
+    $accents = [
+        'á'=>'a','à'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a',
+        'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e',
+        'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i',
+        'ó'=>'o','ò'=>'o','ô'=>'o','õ'=>'o','ö'=>'o',
+        'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u',
+        'ç'=>'c','ñ'=>'n',
+    ];
+    $text = (string) $text;
+    // Lowercase first (mb-aware so accented capitals map correctly), then strip accents.
+    $text = function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+    $text = strtr($text, $accents);
+    $text = preg_replace('/[^a-z0-9]+/', '_', $text);   // any other run => single _
+    $text = trim($text, '_');
+    if ($text === '') {
+        $text = 'item';
+    }
+    return $prefix . $text;
+}
+
+/**
  * Convert portion text to numeric value for calculations
  */
 function portionToValue($portion) {
