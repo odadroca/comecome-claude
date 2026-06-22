@@ -302,13 +302,21 @@ Sprints 0–2 (bug fixes, feature toggles, sleep tracking) shipped in v0.9; Spri
 
 ## 📄 License
 
-Open Source - Free to use, modify, and distribute.
+ComeCome is licensed under the **GNU Affero General Public License v3.0 or later**
+(`SPDX-License-Identifier: AGPL-3.0-or-later`). See [`LICENSE`](LICENSE) for the full text.
+
+Third-party components and reference data are attributed in [`NOTICE`](NOTICE); medical and
+liability disclaimers are in [`DISCLAIMER.md`](DISCLAIMER.md); security reporting is described in
+[`SECURITY.md`](SECURITY.md).
 
 ## ❤️ Acknowledgments
 
 Built with love for all children navigating ADHD with courage.
 
 Special thanks to parents and caregivers who provided insights into real-world challenges.
+
+Typography: **Lexend** and **Atkinson Hyperlegible** (SIL OFL 1.1). Charts: **Chart.js** (MIT).
+Growth references: **WHO** Child Growth Standards. Full attributions in [`NOTICE`](NOTICE).
 
 ---
 
