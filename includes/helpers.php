@@ -70,6 +70,67 @@ function validBirthDate($dob) {
 }
 
 /**
+ * Derive a stable i18n translation key from a human display name, so guardians
+ * adding a food/meal/category never have to hand-author the internal key (the
+ * source of the old duplicate-key 500s and "what's the convention?" confusion).
+ *
+ * "Maçã" => "food_maca", "Morning Snack" => "meal_morning_snack". Accents fold to
+ * ASCII, everything non-alphanumeric collapses to single underscores, and the
+ * result is trimmed and prefixed. Empty/garbage input degrades to "<prefix>item"
+ * rather than producing a bare prefix.
+ *
+ * Must produce the SAME key as the add-form JS preview, which does
+ * normalize('NFD') + strip-combining-marks + lowercase. To match that on any host
+ * — with or without the intl/mbstring extensions — folding is done three ways that
+ * all converge: (1) decompose via intl when present, (2) strip combining marks so
+ * DECOMPOSED accents (base letter + U+0300..U+036F) fold like the browser, and
+ * (3) a precomposed Latin map (BOTH cases, so a capital accent folds even with no
+ * mbstring to lowercase it first). Without this, "Água" / a decomposed "Maçã"
+ * would store as food__gua / food_mac_a — diverging from the preview and letting
+ * visually identical names slip past the UNIQUE(name_key) collision check.
+ *
+ * NOTE: this does NOT guarantee uniqueness — a real collision (a second "Maçã")
+ * still hits the UNIQUE(name_key) constraint, which the create handlers catch and
+ * surface as a friendly "already exists" message. Stable + readable, not unique.
+ */
+function slugifyTranslationKey($prefix, $text) {
+    // Precomposed Latin accents -> ASCII. Both cases listed so a capital accent
+    // folds correctly regardless of whether mbstring is available to lowercase it.
+    $accents = [
+        'á'=>'a','à'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a','Á'=>'a','À'=>'a','Â'=>'a','Ã'=>'a','Ä'=>'a','Å'=>'a',
+        'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e','É'=>'e','È'=>'e','Ê'=>'e','Ë'=>'e',
+        'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i','Í'=>'i','Ì'=>'i','Î'=>'i','Ï'=>'i',
+        'ó'=>'o','ò'=>'o','ô'=>'o','õ'=>'o','ö'=>'o','Ó'=>'o','Ò'=>'o','Ô'=>'o','Õ'=>'o','Ö'=>'o',
+        'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u','Ú'=>'u','Ù'=>'u','Û'=>'u','Ü'=>'u',
+        'ç'=>'c','Ç'=>'c','ñ'=>'n','Ñ'=>'n',
+    ];
+    $text = (string) $text;
+    // (1) Decompose when intl is present, so even unmapped accents split into
+    //     base + combining mark for the strip in (2) — mirrors normalize('NFD').
+    if (class_exists('Normalizer')) {
+        $decomposed = Normalizer::normalize($text, Normalizer::FORM_D);
+        if (is_string($decomposed)) {
+            $text = $decomposed;
+        }
+    }
+    // (2) Strip combining diacritical marks: folds DECOMPOSED input the same way
+    //     the JS preview does. /u needs valid UTF-8; keep the original on failure.
+    $stripped = preg_replace('/\p{Mn}+/u', '', $text);
+    if ($stripped !== null) {
+        $text = $stripped;
+    }
+    // (3) Fold any remaining PRECOMPOSED accents (hosts without intl), then lowercase.
+    $text = strtr($text, $accents);
+    $text = function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+    $text = preg_replace('/[^a-z0-9]+/', '_', $text);   // any other run => single _
+    $text = trim($text, '_');
+    if ($text === '') {
+        $text = 'item';
+    }
+    return $prefix . $text;
+}
+
+/**
  * Convert portion text to numeric value for calculations
  */
 function portionToValue($portion) {

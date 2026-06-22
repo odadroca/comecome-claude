@@ -22,24 +22,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // surface as a raw 500 — catch it and redirect with a friendly message.
     try {
     if ($action === 'create') {
-        $nameKey = trim($_POST['name_key'] ?? '');
+        $nameKey = trim($_POST['name_key'] ?? '');          // optional "Advanced" override
+        $displayName = trim($_POST['display_name'] ?? '');
         $timeStart = $_POST['time_start'] ?? '';
         $timeEnd = $_POST['time_end'] ?? '';
         $sortOrder = (int) ($_POST['sort_order'] ?? 99);
 
-        if ($nameKey && $timeStart && $timeEnd) {
-            if (strpos($nameKey, 'meal_') !== 0) {
-                $nameKey = 'meal_' . preg_replace('/[^a-z0-9_]/', '_', strtolower($nameKey));
-            }
+        // Derive the i18n key from the display name; an Advanced key still wins.
+        if ($nameKey === '') {
+            $nameKey = slugifyTranslationKey('meal_', $displayName);
+        } elseif (strpos($nameKey, 'meal_') !== 0) {
+            $nameKey = slugifyTranslationKey('meal_', $nameKey);
+        }
+
+        if ($displayName && $timeStart && $timeEnd) {
             $stmt = $db->prepare("INSERT INTO meals (name_key, sort_order, time_start, time_end) VALUES (?, ?, ?, ?)");
             $stmt->execute([$nameKey, $sortOrder, $timeStart, $timeEnd]);
 
-            $displayName = $_POST['display_name'] ?? '';
-            if ($displayName) {
-                $locale = getAppLocale();
-                $stmtT = $db->prepare("INSERT OR REPLACE INTO translations (locale, \"key\", value) VALUES (?, ?, ?)");
-                $stmtT->execute([$locale, $nameKey, $displayName]);
-            }
+            $locale = getAppLocale();
+            $stmtT = $db->prepare("INSERT OR REPLACE INTO translations (locale, \"key\", value) VALUES (?, ?, ?)");
+            $stmtT->execute([$locale, $nameKey, $displayName]);
         }
         header('Location: ?page=manage-meals&msg=saved');
         exit;
@@ -140,17 +142,15 @@ ob_start();
                 <?php endif; ?>
 
                 <div class="form-grid">
-                    <?php if (!$editMeal): ?>
-                    <label>
-                        <?php echo t('name'); ?> (chave i18n)
-                        <input type="text" name="name_key" required placeholder="meal_brunch" pattern="[a-z0-9_]+">
-                        <small>Apenas letras minúsculas, números e _</small>
-                    </label>
-                    <?php endif; ?>
-
                     <label>
                         <?php echo t('name'); ?> (<?php echo getAppLocale(); ?>)
-                        <input type="text" name="display_name" value="<?php echo $editMeal ? sanitize(t($editMeal['name_key'])) : ''; ?>" required placeholder="Brunch">
+                        <input type="text" name="display_name"
+                               value="<?php echo $editMeal ? sanitize(t($editMeal['name_key'])) : ''; ?>"
+                               required placeholder="<?php echo $editMeal ? '' : 'Brunch'; ?>"
+                               <?php if (!$editMeal): ?>data-slug-prefix="meal_" data-slug-target="#mealSlugPreview" data-slug-override="#mealKeyOverride"<?php endif; ?>>
+                        <?php if (!$editMeal): ?>
+                        <small class="slug-preview"><?php echo t('saved_as'); ?> <code id="mealSlugPreview">meal_…</code></small>
+                        <?php endif; ?>
                     </label>
 
                     <label>
@@ -178,6 +178,17 @@ ob_start();
                     </label>
                     <?php endif; ?>
                 </div>
+
+                <?php if (!$editMeal): ?>
+                <details class="advanced-key">
+                    <summary><?php echo t('advanced'); ?></summary>
+                    <label>
+                        <?php echo t('i18n_key'); ?>
+                        <input type="text" name="name_key" id="mealKeyOverride" placeholder="meal_brunch" pattern="[a-z0-9_]+">
+                        <small><?php echo t('i18n_key_hint'); ?></small>
+                    </label>
+                </details>
+                <?php endif; ?>
 
                 <div style="display:flex;gap:1rem;">
                     <button type="submit" class="btn-primary"><?php echo t('save'); ?></button>
@@ -226,6 +237,32 @@ ob_start();
         </section>
     </main>
 </div>
+
+<script>
+// Live "será guardado como meal_x" preview — mirrors slugifyTranslationKey() in
+// includes/helpers.php. An Advanced override, if filled, wins.
+(function () {
+    function slugify(s) {
+        s = (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+        s = s.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        return s || 'item';
+    }
+    document.querySelectorAll('[data-slug-prefix]').forEach(function (input) {
+        var prefix = input.getAttribute('data-slug-prefix');
+        var out = document.querySelector(input.getAttribute('data-slug-target'));
+        var ovSel = input.getAttribute('data-slug-override');
+        var ov = ovSel ? document.querySelector(ovSel) : null;
+        if (!out) return;
+        function render() {
+            var o = ov && ov.value.trim();
+            out.textContent = o ? (o.indexOf(prefix) === 0 ? o : prefix + slugify(o)) : prefix + slugify(input.value);
+        }
+        input.addEventListener('input', render);
+        if (ov) ov.addEventListener('input', render);
+        render();
+    });
+})();
+</script>
 
 <?php
 $content = ob_get_clean();

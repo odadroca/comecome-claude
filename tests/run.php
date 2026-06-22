@@ -2115,6 +2115,22 @@ ok(validBirthDate('not-a-date') === null, "N1 validBirthDate rejects a malformed
 ok(validBirthDate('2026-13-99') === null, "N1 validBirthDate rejects an impossible date");
 ok(validBirthDate('') === null, "N1 validBirthDate rejects an empty DOB");
 
+// slugifyTranslationKey(): derive a stable, prefixed i18n key from a display name
+// (guardians no longer hand-author keys). Accents transliterate; non-alnum collapses.
+ok(function_exists('slugifyTranslationKey'), "N1 slugifyTranslationKey() helper present");
+ok(slugifyTranslationKey('food_', 'Mango') === 'food_mango', "N1 slug: simple name");
+ok(slugifyTranslationKey('food_', 'Maçã') === 'food_maca', "N1 slug: accents -> ASCII");
+ok(slugifyTranslationKey('meal_', 'Morning Snack') === 'meal_morning_snack', "N1 slug: spaces -> _");
+ok(slugifyTranslationKey('category_', 'Sopas & Caldos') === 'category_sopas_caldos', "N1 slug: punctuation collapses");
+ok(slugifyTranslationKey('food_', '   ') === 'food_item', "N1 slug: empty/garbage -> <prefix>item");
+ok(slugifyTranslationKey('food_', 'Banana 123') === 'food_banana_123', "N1 slug: digits kept");
+// Must match the JS preview (NFD + strip-marks + lowercase) on any host:
+ok(slugifyTranslationKey('food_', 'Água') === 'food_agua', "N1 slug: precomposed capital accent folds (food_agua, not food__gua)");
+$nfdMaca = "Mac\u{0327}a\u{0303}"; // "Maçã" DECOMPOSED: base letters + combining cedilla/tilde
+ok(slugifyTranslationKey('food_', $nfdMaca) === 'food_maca', "N1 slug: decomposed accents fold like the browser");
+$nfdAgua = "A\u{0301}gua";          // "Água" DECOMPOSED: capital A + combining acute
+ok(slugifyTranslationKey('food_', $nfdAgua) === 'food_agua', "N1 slug: decomposed capital accent folds");
+
 // Fresh DB so foods + meals (with time_start) are seeded.
 foreach (array_keys($GLOBALS) as $gname) {
     if ($GLOBALS[$gname] instanceof PDO || $GLOBALS[$gname] instanceof PDOStatement) {
