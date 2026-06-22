@@ -11,6 +11,10 @@ $translations = getAllTranslations($selectedLocale);
 
 // Handle updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (function_exists('verifyCsrf') && !verifyCsrf()) {
+        header('Location: ?page=translations&locale=' . urlencode($selectedLocale) . '&msg=csrf_error');
+        exit;
+    }
     $key = $_POST['key'] ?? '';
     $value = $_POST['value'] ?? '';
     $locale = $_POST['locale'] ?? $selectedLocale;
@@ -53,6 +57,7 @@ ob_start();
         <section class="management-section">
             <h2><?php echo t('edit'); ?>: <?php echo $editKey; ?></h2>
             <form method="POST">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="locale" value="<?php echo $selectedLocale; ?>">
                 <input type="hidden" name="key" value="<?php echo $editKey; ?>">
                 <label>
