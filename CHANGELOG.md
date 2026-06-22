@@ -29,6 +29,12 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   other guardian pages' — are now CSRF-protected; see **Security** below.)_
 
 ### Fixed
+- **Dashboard charts now stack (regression from the guardian-cards pass)** — Block A put the two
+  chart cards side-by-side in a 2-col grid, which left them too small/cramped (especially the
+  legend-heavy food chart) on mobile and narrow screens. The dashboard grid is now a single column,
+  so "Evolução do Peso" and "Evolução da Alimentação" stack full-width, one above the other (the
+  grid only ever existed to pair the charts; every other card was already full-width). Removed the
+  now-redundant `:has(.chart-container)` half-width rule + the 900px media query. `sw.js` → `comecome-v0.11.2`.
 - **Base framework's legacy green `--primary` retargeted to teal** — `assets/css/pico.min.css`
   defines `--primary:#4CAF50` and styles every `<button>` as `background:var(--primary)`, so any
   button/link/focus the app didn't explicitly colour leaked green (the food-card-hover patch was a
