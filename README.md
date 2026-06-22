@@ -315,8 +315,22 @@ Built with love for all children navigating ADHD with courage.
 
 Special thanks to parents and caregivers who provided insights into real-world challenges.
 
-Typography: **Lexend** and **Atkinson Hyperlegible** (SIL OFL 1.1). Charts: **Chart.js** (MIT).
-Growth references: **WHO** Child Growth Standards. Full attributions in [`NOTICE`](NOTICE).
+### Built on free & open technology
+
+ComeCome exists because of the free and open-source ecosystem — a small, independent tool for
+families could be built and given away precisely because these foundations are free to use. With
+gratitude to:
+
+- **PHP** — the language and runtime (The PHP Group · PHP License)
+- **SQLite** — the embedded, zero-config database (public domain)
+- **libsodium** — modern cryptography behind the optional at-rest encryption (ISC License)
+- **Chart.js** — charts (MIT)
+- **Lexend** & **Atkinson Hyperlegible** — accessible, readable typography (SIL OFL 1.1)
+- **WHO** Child Growth Standards — growth reference data
+- and the web platform, plus the maintainers of the countless free tools and standards that make
+  independent software like this possible.
+
+Full third-party attribution and license terms are in [`NOTICE`](NOTICE).
 
 ---
 
