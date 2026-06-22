@@ -26,6 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $action = $_POST['action'] ?? '';
 
+    // A duplicate i18n key (UNIQUE name_key) or any other DB error must not
+    // surface as a raw 500 — catch it and redirect with a friendly message.
+    try {
     if ($action === 'create') {
         $nameKey = trim($_POST['name_key'] ?? '');
         $emoji = trim($_POST['emoji'] ?? '🍽️');
@@ -124,12 +127,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ?page=manage-foods&msg=saved');
         exit;
     }
+    } catch (PDOException $e) {
+        error_log('manage-foods POST failed: ' . $e->getMessage());
+        $code = (stripos($e->getMessage(), 'UNIQUE constraint') !== false) ? 'duplicate' : 'error';
+        header('Location: ?page=manage-foods&msg=' . $code);
+        exit;
+    }
 }
 
+$isErrorMsg = false;
 if (isset($_GET['msg'])) {
-    // A POST without a valid CSRF token redirects here with msg=csrf_error — show
-    // an error, NOT the green "saved" notice (the write was blocked, not applied).
-    $message = ($_GET['msg'] === 'csrf_error') ? t('error_invalid_request') : t('changes_saved');
+    // Map the redirect code to a message. csrf_error / duplicate / error are all
+    // failures (red); anything else is the green "saved" confirmation.
+    switch ($_GET['msg']) {
+        case 'csrf_error': $message = t('error_invalid_request'); $isErrorMsg = true; break;
+        case 'duplicate':  $message = t('error_already_exists');  $isErrorMsg = true; break;
+        case 'error':      $message = t('error_database');        $isErrorMsg = true; break;
+        default:           $message = t('changes_saved');
+    }
 }
 
 // Reload foods after any changes
@@ -165,7 +180,6 @@ ob_start();
         <h1><?php echo t('manage_foods'); ?></h1>
 
         <?php if ($message): ?>
-        <?php $isErrorMsg = ($message === t('error_invalid_request')); ?>
         <div class="alert <?php echo $isErrorMsg ? 'alert-error' : 'alert-success'; ?>">
             <?php echo $isErrorMsg ? '❌' : '✅'; ?> <?php echo $message; ?>
         </div>

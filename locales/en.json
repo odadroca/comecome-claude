@@ -411,6 +411,7 @@
   "error_unauthorized": "Unauthorized",
   "error_expired": "Link expired",
   "error_invalid_request": "Invalid request. Please refresh the page and try again.",
+  "error_already_exists": "That item already exists (duplicate key). Please choose another name.",
 
   "_greetings": "=== TIME-BASED GREETINGS ===",
   "greeting_morning": "Good morning! Ready for a new day?",

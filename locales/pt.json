@@ -411,6 +411,7 @@
   "error_unauthorized": "Não autorizado",
   "error_expired": "Link expirado",
   "error_invalid_request": "Pedido inválido. Atualiza a página e tenta novamente.",
+  "error_already_exists": "Esse item já existe (chave duplicada). Escolhe outro nome.",
 
   "_greetings": "=== SAUDAÇÕES POR HORA ===",
   "greeting_morning": "Bom dia! Pronto para um novo dia?",
