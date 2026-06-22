@@ -29,6 +29,14 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   other guardian pages' — are now CSRF-protected; see **Security** below.)_
 
 ### Fixed
+- **Guardian "add food category / meal" no longer 500s on a duplicate name** — `food_categories`,
+  `foods` and `meals` each have a `UNIQUE name_key`, but the create handlers ran the `INSERT`
+  unguarded under `PDO::ERRMODE_EXCEPTION`, so adding an item whose generated i18n key collided with
+  an existing one (e.g. a category typed "Fruits" → the already-seeded `category_fruits`) threw an
+  uncaught `PDOException` and returned a raw **500**. `manage-foods` and `manage-meals` now wrap the
+  POST dispatch in try/catch: a UNIQUE collision redirects with a friendly **"that item already
+  exists"** notice (new `error_already_exists` key, pt+en), any other DB error with a generic
+  database-error notice — never a raw 500. Verified end-to-end against a real seeded DB.
 - **Dashboard charts now stack (regression from the guardian-cards pass)** — Block A put the two
   chart cards side-by-side in a 2-col grid, which left them too small/cramped (especially the
   legend-heavy food chart) on mobile and narrow screens. The dashboard grid is now a single column,
@@ -50,6 +58,8 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   forms), matching the already-protected `manage-users` / `database` / `export` pages. Forged
   cross-site POSTs are now bounced (redirect, no DB write) before any state change. No change to
   legitimate flows (the token is minted per session and embedded in each form); full suite 343 green.
+  A follow-up also covered `pages/translations.php` (guardian-gated but living at the `pages/` root,
+  so the first `pages/guardian/`-scoped sweep missed it) — **every** guardian POST page now carries CSRF.
 
 ## [0.11.0] — 2026-06-21 — staging
 
