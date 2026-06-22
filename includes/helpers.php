@@ -54,6 +54,22 @@ function clampLogDate($logDate) {
 }
 
 /**
+ * Validate a client-supplied date of birth. Returns the YYYY-MM-DD string only if it
+ * is a real calendar date that is NOT in the future; otherwise null. Unlike a log
+ * date we do NOT clamp a bad value to today — a "today" DOB is nonsensical and would
+ * yield a bogus age — we reject it to null so the missing-DOB prompts still fire and
+ * the percentile engine never derives an age from a future/malformed value. The
+ * browser's max= only guards the picker; this is the server-side guarantee.
+ */
+function validBirthDate($dob) {
+    if (!is_string($dob) || trim($dob) === '') return null;
+    $dob = trim($dob);
+    $d = DateTime::createFromFormat('Y-m-d', $dob);
+    if (!$d || $d->format('Y-m-d') !== $dob) return null;         // malformed / impossible date
+    return ($dob > date('Y-m-d')) ? null : $dob;                  // no future DOB
+}
+
+/**
  * Convert portion text to numeric value for calculations
  */
 function portionToValue($portion) {

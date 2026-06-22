@@ -234,6 +234,7 @@
   "gender_male": "Male",
   "gender_female": "Female",
   "date_of_birth": "Date of Birth",
+  "child_demographics_hint": "Optional — sex and date of birth enable the WHO growth percentiles.",
   "dob_optional_hint": "Optional — used to calculate age and, later, growth percentiles.",
   "age": "Age",
   "year": "year",

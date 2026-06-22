@@ -6,6 +6,17 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 ## [Unreleased] — staging
 
 ### Added
+- **Child sex + date-of-birth input** — the WHO growth-percentile engine (and the `show_percentiles`
+  toggle) need each child's sex + DOB, but **no input UI existed** on the live page: `manage-children.php`
+  had the fields, yet `index.php` routes both `manage-children` and `manage-users` to `manage-users.php`
+  (which lacked them), so the demographics — and thus the whole percentile feature — were unreachable.
+  Added the **Sex** (radios) + **Date of birth** fields to the add/edit form on **Manage Users** (shown
+  for children; guardian rows untouched via the `updateUser` `__keep__` sentinel). Server-side validation:
+  sex against the `users.gender` CHECK, and DOB via a new `validBirthDate()` helper that **rejects**
+  malformed/future dates to null (not clamped — a bogus DOB would silently break percentile age + fool the
+  missing-DOB prompt); `max=today` also guards the picker. `createUser`/`updateUser` already accepted these
+  — only the form + handler wiring was missing. _(The orphaned `manage-children.php` is now redundant —
+  flagged for cleanup.)_
 - **Backdated meal logging** — record a meal for an earlier day, which the UI never exposed
   before (the backend accepted a date but no screen sent one). Two surfaces: a guardian
   **"Add a meal"** form on **Manage Logs** (food + meal + portion for the selected child/date),

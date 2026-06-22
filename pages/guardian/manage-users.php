@@ -24,9 +24,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pin = $_POST['pin'] ?? '';
         $avatar = $_POST['avatar'] ?? '😊';
         $type = $_POST['type'] ?? 'child';
+        // Child demographics (optional) — power the WHO growth percentiles. Stored
+        // only for children; validated against the users.gender CHECK + a real date.
+        $gender = ($type === 'child' && in_array($_POST['gender'] ?? '', ['male', 'female'], true)) ? $_POST['gender'] : null;
+        $dob = ($type === 'child') ? validBirthDate($_POST['date_of_birth'] ?? '') : null;
 
         if ($name && $pin && in_array($type, ['child', 'guardian'])) {
-            createUser($name, $type, $pin, $avatar);
+            createUser($name, $type, $pin, $avatar, $gender, $dob);
         }
         header('Location: ?page=manage-users&msg=saved');
         exit;
@@ -39,7 +43,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $targetUser = getUserById($id);
 
         if ($id && $name && $targetUser) {
-            updateUser($id, $name, $targetUser['type'], $pin ?: null, $avatar, $active);
+            // For a child, set demographics from the form (empty -> null clears them);
+            // for a guardian, pass the '__keep__' sentinel so they are never touched.
+            $isChild = ($targetUser['type'] === 'child');
+            $gender = $isChild ? (in_array($_POST['gender'] ?? '', ['male', 'female'], true) ? $_POST['gender'] : null) : '__keep__';
+            $dob = $isChild ? validBirthDate($_POST['date_of_birth'] ?? '') : '__keep__';
+            updateUser($id, $name, $targetUser['type'], $pin ?: null, $avatar, $active, $gender, $dob);
         }
         header('Location: ?page=manage-users&msg=saved');
         exit;
@@ -209,6 +218,29 @@ ob_start();
                             <option value="1" <?php echo $editUser['active'] == 1 ? 'selected' : ''; ?>><?php echo t('active'); ?></option>
                             <option value="0" <?php echo $editUser['active'] == 0 ? 'selected' : ''; ?>><?php echo t('inactive'); ?></option>
                         </select>
+                    </label>
+                    <?php endif; ?>
+
+                    <?php // Child demographics — sex + DOB drive the WHO growth percentiles.
+                          // Shown for children only (new users default to child). ?>
+                    <?php if (!$editUser || $editUser['type'] === 'child'): ?>
+                    <?php $childGender = $editUser['gender'] ?? ''; $childDob = $editUser['date_of_birth'] ?? ''; ?>
+                    <fieldset style="flex:1;min-width:200px;margin:0;padding:0;border:none;">
+                        <legend style="font-weight:600;padding:0;"><?php echo t('gender'); ?></legend>
+                        <label style="display:inline-flex;align-items:center;gap:0.35rem;margin-right:1.25rem;font-weight:400;">
+                            <input type="radio" name="gender" value="male" <?php echo $childGender === 'male' ? 'checked' : ''; ?>>
+                            <?php echo t('gender_male'); ?>
+                        </label>
+                        <label style="display:inline-flex;align-items:center;gap:0.35rem;font-weight:400;">
+                            <input type="radio" name="gender" value="female" <?php echo $childGender === 'female' ? 'checked' : ''; ?>>
+                            <?php echo t('gender_female'); ?>
+                        </label>
+                    </fieldset>
+
+                    <label style="flex:1;min-width:200px;">
+                        <?php echo t('date_of_birth'); ?>
+                        <input type="date" name="date_of_birth" value="<?php echo sanitize($childDob); ?>" max="<?php echo date('Y-m-d'); ?>">
+                        <small style="opacity:0.7;display:block;"><?php echo t('child_demographics_hint'); ?></small>
                     </label>
                     <?php endif; ?>
                 </div>

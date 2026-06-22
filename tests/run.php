@@ -2107,6 +2107,14 @@ ok(clampLogDate($futureStr) === $todayStr, "N1 a future date is clamped to today
 ok(clampLogDate('not-a-date') === $todayStr, "N1 a malformed date is clamped to today");
 ok(clampLogDate('2026-13-99') === $todayStr, "N1 an impossible date is clamped to today");
 
+// validBirthDate(): rejects (null) rather than clamps — a bad DOB must NOT become today.
+ok(function_exists('validBirthDate'), "N1 validBirthDate() helper present");
+ok(validBirthDate($pastStr) === $pastStr, "N1 validBirthDate keeps a valid past DOB");
+ok(validBirthDate($futureStr) === null, "N1 validBirthDate rejects a future DOB (null, not clamped)");
+ok(validBirthDate('not-a-date') === null, "N1 validBirthDate rejects a malformed DOB string");
+ok(validBirthDate('2026-13-99') === null, "N1 validBirthDate rejects an impossible date");
+ok(validBirthDate('') === null, "N1 validBirthDate rejects an empty DOB");
+
 // Fresh DB so foods + meals (with time_start) are seeded.
 foreach (array_keys($GLOBALS) as $gname) {
     if ($GLOBALS[$gname] instanceof PDO || $GLOBALS[$gname] instanceof PDOStatement) {
