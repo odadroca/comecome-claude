@@ -46,6 +46,18 @@ echo "==========================================================\n";
 $tmpDb = tempnam(sys_get_temp_dir(), 'comecome_csrf_') . '.db';
 @unlink($tmpDb);
 
+// Launch S2 — the API layer now requires guardian consent before writes. This
+// smoke tests the CSRF gate (not consent), so initialise the throwaway DB and
+// record consent up front; the spawned server then reuses this DB. Without it,
+// the api POSTs would 403 'consent_required' instead of exercising the CSRF gate.
+define('DB_PATH', $tmpDb);
+define('DB_SCHEMA', $ROOT . '/db/schema.sql');
+define('DB_SEED', $ROOT . '/db/seed.sql');
+require_once $ROOT . '/includes/db.php';
+initializeDatabase();
+setSetting('guardian_consent_version', '1');
+gc_collect_cycles();
+
 // --- Pick a free port -------------------------------------------------------
 $host = '127.0.0.1';
 $pickSock = @stream_socket_server("tcp://$host:0", $pErrno, $pErrstr);
