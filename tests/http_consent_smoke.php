@@ -198,17 +198,22 @@ ok($hasAgree, "B: consent page body contains the consent_agree label");
 // ==========================================================================
 echo "\n--- C. CSRF guard on consent POST ---\n";
 
-// POST to consent WITHOUT a CSRF token
+// POST to consent WITHOUT a CSRF token — must be rejected
 $noTokenPost = 'curl -c ' . escapeshellarg($guardianJar) . ' -b ' . escapeshellarg($guardianJar)
     . ' -X POST'
     . ' ' . escapeshellarg($consentUrl);
-[$npc, $npbody] = curlReq($noTokenPost);
-// After a bad CSRF POST, the gate must still be active
+[$npc, $npheaders, $npbody] = curlReqWithHeaders($noTokenPost);
+// verifyCsrf() returns false -> consent.php does: header('Location: ...?msg=csrf_error'); exit;
+// So the no-token POST must itself be a redirect (3xx) back to the consent page with an error param.
+ok(($npc >= 300 && $npc < 400) || strpos($npbody, 'csrf') !== false || strpos($npbody, 'error') !== false,
+   "C: consent POST without CSRF token is rejected (3xx redirect or error in body) [got $npc]");
+
+// After a bad CSRF POST, the gate must still be active (consent was NOT recorded)
 [$dc2, $dh2, $db2] = curlReqWithHeaders(
     'curl -b ' . escapeshellarg($guardianJar) . ' ' . escapeshellarg($dashUrl)
 );
 ok($dc2 === 302 && strpos($dh2, 'page=consent') !== false,
-   "C: after consent POST without CSRF, dashboard still 302→consent [got $dc2]");
+   "C: after consent POST without CSRF, dashboard still 302->consent [got $dc2]");
 
 // ==========================================================================
 // GROUP E — Child sees neutral blocked page (not the consent form)
@@ -245,6 +250,21 @@ ok($hasBlocked, "E: child block page contains the 'not set up yet' message");
 $hasAgreeInChild = (strpos($chbody, 'I understand and consent') !== false)
                 || (strpos($chbody, 'Compreendo e consinto') !== false);
 ok(!$hasAgreeInChild, "E: child block page does NOT contain the consent_agree label");
+
+// ==========================================================================
+// GROUP F — manage-users bypass is CLOSED (non-default PIN + no consent)
+// ==========================================================================
+echo "\n--- F. manage-users bypass is closed ---\n";
+
+// The guardian already has a non-default PIN and no consent recorded yet.
+// GETting manage-users must 302 redirect to page=consent, not render the page.
+$manageUsersUrl = "$base/index.php?page=manage-users";
+[$muc, $muheaders, $mubody] = curlReqWithHeaders(
+    'curl -b ' . escapeshellarg($guardianJar) . ' ' . escapeshellarg($manageUsersUrl)
+);
+ok($muc === 302, "F: manage-users GET returns 302 (bypass blocked) [got $muc]");
+ok(strpos($muheaders, 'page=consent') !== false,
+   "F: manage-users Location header contains page=consent [headers: " . substr(preg_replace('/\r?\n/', ' ', $muheaders), 0, 200) . "]");
 
 // ==========================================================================
 // GROUP D — Valid consent POST clears the gate

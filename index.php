@@ -56,12 +56,17 @@ if (!in_array($page, ['login', 'guest-report', 'logout'], true)
 // is intercepted here (AFTER the default-PIN gate so PIN-change keeps precedence).
 // Guardians are redirected to the consent screen; children see a neutral
 // "not set up yet" message (never the consent form).
-// Pages exempt: login, logout, guest-report, consent itself, and the PIN-change
-// pages (manage-users / manage-children) so the default-PIN gate keeps precedence
-// and the two gates cannot form a redirect loop for a first-boot guardian.
-if (!in_array($page, ['login', 'logout', 'guest-report', 'consent',
-                       'manage-users', 'manage-children'], true)
-    && isLoggedIn() && !guardianConsentCurrent()) {
+// Gate logic:
+//   * While the PIN is still the factory default ('0000'), the default-PIN gate
+//     (above) routes the guardian to manage-users to change it; the consent gate
+//     stays dormant for that flow so the two gates cannot form a redirect loop.
+//   * Once the PIN is non-default, the consent gate blocks EVERY page except
+//     login/logout/guest-report/consent -- INCLUDING manage-users/manage-children --
+//     so a guardian with a changed PIN but no consent cannot bypass the gate by
+//     navigating directly to those pages.
+if (!in_array($page, ['login', 'logout', 'guest-report', 'consent'], true)
+    && isLoggedIn() && !guardianConsentCurrent()
+    && !(isGuardian() && guardianPinIsDefault())) {
     if (isGuardian()) {
         header('Location: index.php?page=consent');
         exit;
