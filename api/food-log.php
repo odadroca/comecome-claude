@@ -19,6 +19,7 @@ if (!isLoggedIn()) {
 // X-CSRF-Token header (injected into the page; the inline fetch() callers attach it).
 // GET reads are never gated. Rejected requests get a 403 'invalid_csrf' JSON error.
 requireCsrfForApi();
+requireConsentForApi(); // block writes until the guardian has consented
 
 $user = getCurrentUser();
 

@@ -252,6 +252,30 @@ $hasAgreeInChild = (strpos($chbody, 'I understand and consent') !== false)
 ok(!$hasAgreeInChild, "E: child block page does NOT contain the consent_agree label");
 
 // ==========================================================================
+// GROUP E2 — API WRITE is blocked pre-consent (CSRF alone is NOT enough)
+// The child holds a valid session + CSRF token (from the neutral page), but
+// the consent gate must also cover the api/*.php write surface, not just the
+// page router. Runs while consent is NOT yet recorded (before group D).
+// ==========================================================================
+echo "\n--- E2. API write blocked pre-consent ---\n";
+
+// Scrape the child's CURRENT (post-login) CSRF token from the neutral page body.
+$childCsrf = '';
+if (preg_match('/<meta name="csrf-token" content="([a-f0-9]+)"/', $chbody, $cmm)) { $childCsrf = $cmm[1]; }
+ok($childCsrf !== '', "E2: scraped child CSRF token from the neutral page [got '$childCsrf']");
+
+$apiUrl  = "$base/api/check-in.php";
+$apiPost = 'curl -b ' . escapeshellarg($childJar)
+    . ' -X POST -H ' . escapeshellarg('X-CSRF-Token: ' . $childCsrf)
+    . ' -H ' . escapeshellarg('Content-Type: application/json')
+    . ' --data ' . escapeshellarg('{"appetite_level":3,"mood_level":3}')
+    . ' ' . escapeshellarg($apiUrl);
+[$aec, $aebody] = curlReq($apiPost);
+ok($aec === 403, "E2: child API POST with a VALID CSRF token is 403 pre-consent [got $aec]");
+ok(strpos($aebody, 'consent_required') !== false,
+   "E2: API rejection body is 'consent_required' (consent gate covers api/, not just the router)");
+
+// ==========================================================================
 // GROUP F — manage-users bypass is CLOSED (non-default PIN + no consent)
 // ==========================================================================
 echo "\n--- F. manage-users bypass is closed ---\n";
@@ -295,6 +319,17 @@ ok($vpc >= 300 && $vpc < 400, "D: valid consent POST redirects (3xx) [got $vpc]"
     'curl -b ' . escapeshellarg($guardianJar) . ' -L ' . escapeshellarg($dashUrl)
 );
 ok($dc3 === 200, "D: after valid consent, dashboard GET returns 200 (gate cleared) [got $dc3]");
+
+// ==========================================================================
+// GROUP D2 — API WRITE is allowed post-consent (same child POST, now cleared)
+// Consent is app-wide, so the guardian's acknowledgement above unblocks the
+// child's API writes too. Re-uses the exact request from E2.
+// ==========================================================================
+echo "\n--- D2. API write allowed post-consent ---\n";
+[$aec2, $aebody2] = curlReq($apiPost);
+ok($aec2 !== 403, "D2: child API POST is no longer 403 after consent [got $aec2]");
+ok(strpos($aebody2, 'consent_required') === false,
+   "D2: API response is no longer 'consent_required' once consent is recorded");
 
 // --- Cleanup ----------------------------------------------------------------
 $cleanup();
