@@ -60,6 +60,7 @@ Guardian Settings toggles (key/value in `settings`, via `getSetting('key','defau
 - Logic in `includes/`, presentation in `pages/`, constants in `config.php`.
 - **Every schema change** = an additive, version-gated `migrateDatabase()` block **mirrored in `db/schema.sql`**, and update the `tests/run.php` `schema_version` + exact-table-set asserts.
 - **Bump `sw.js CACHE_NAME`** on any child-page/asset change. Keep the four export surfaces (HTML/CSV/JSON/guest-report) in parity; whitelist the JSON projection (never emit `pin`/raw `date_of_birth`).
+- **Access gates cover BOTH write surfaces.** Data can be written two ways — the `?page=` switch router (`index.php`) and the `api/*.php` endpoints — so any gate that must block writes (e.g. the guardian **consent** gate) has to be enforced in **both**: a router-level check in `index.php` AND a guard in every API endpoint (alongside `requireCsrfForApi()` — see `requireConsentForApi()`), sharing one predicate (e.g. `guardianConsentCurrent()`), with a **regression test at each surface** (the consent smoke asserts the `manage-users` page redirect *and* a 403 `consent_required` on `api/check-in` pre-consent). **CSRF is not an access gate** — it stops cross-site forgery, not an authenticated-but-unauthorized actor. Adding such a guard usually means updating sibling API smokes that didn't set up the new precondition.
 
 ## Page Organization
 - `pages/child/` — log-food, check-in, weight (becomes "Growth" when `show_percentiles` on), history. Own data only; shared footer.
