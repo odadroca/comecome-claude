@@ -48,6 +48,25 @@ function sessionIsExpired($lastActivity, $now, $lifetime) {
 }
 
 /**
+ * Launch Sprint 2 — guardian consent state helpers (settings-backed, no schema change).
+ *
+ * guardianConsentCurrent() — returns true iff the guardian has acknowledged the current
+ *   version of the privacy/consent notice (CONSENT_NOTICE_VERSION from config.php).
+ *   Side-effect-free and assertable in the CLI harness.
+ *
+ * recordGuardianConsent() — stamps guardian_consent_version to the current version
+ *   and guardian_consent_at to a UTC ISO-8601 timestamp, marking acknowledgement.
+ */
+function guardianConsentCurrent(): bool {
+    return getSetting('guardian_consent_version', '') === (string) CONSENT_NOTICE_VERSION;
+}
+
+function recordGuardianConsent(): void {
+    setSetting('guardian_consent_version', (string) CONSENT_NOTICE_VERSION);
+    setSetting('guardian_consent_at', gmdate('c'));
+}
+
+/**
  * Check if user is logged in
  *
  * Sprint security Phase 0 — also enforces the idle timeout: a session idle past

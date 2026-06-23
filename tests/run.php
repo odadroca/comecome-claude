@@ -339,6 +339,9 @@ define('DEFAULT_LOCALE', 'pt');
 define('LOCALES_PATH', $ROOT . '/locales');
 define('SESSION_LIFETIME', 86400);
 define('GUEST_TOKEN_LIFETIME', 604800);
+// Launch Sprint 2 — consent-notice version (mirrors config.php; defined here because
+// config.php cannot be loaded by the CLI harness due to session_start side-effects).
+define('CONSENT_NOTICE_VERSION', 1);
 date_default_timezone_set('Europe/Lisbon');
 
 require_once $ROOT . '/includes/db.php';
@@ -2164,6 +2167,67 @@ ok(count($rowsPast) === 1, "N2 the backdated entry is read back on the past date
 ok(($rowsPast[0]['log_time'] ?? '') === $expectTime, "N2 stored time = the meal start (sensible default)");
 ok(count(getFoodLogByDate($nKid, $todayStr)) === 0, "N2 nothing leaked onto today");
 
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE O — Launch Sprint 2: guardian consent state helper.
+ * -------------------------------------------------------------------------
+ *   CONSENT_NOTICE_VERSION (defined in config.php, mirrored above for the CLI
+ *   harness) and two thin settings-backed helpers in includes/auth.php:
+ *     guardianConsentCurrent() — true iff the stored version matches the constant
+ *     recordGuardianConsent()  — stamps guardian_consent_version + guardian_consent_at
+ *
+ *   O1. fresh DB => guardianConsentCurrent() returns false (no version stored)
+ *   O2. after recordGuardianConsent() => returns true
+ *   O3. stored version altered to a different value => returns false again
+ *   O4. stored version restored to CONSENT_NOTICE_VERSION => returns true again
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE O — Launch S2 (guardian consent state helper) ###\n";
+
+// auth.php was already loaded in PHASE G; guardianConsentCurrent / recordGuardianConsent
+// must be present now.
+ok(function_exists('guardianConsentCurrent') && function_exists('recordGuardianConsent'),
+   "O consent helpers present in includes/auth.php");
+
+// Rebuild a clean DB for this phase (sweep handles first to avoid Windows lock).
+foreach (array_keys($GLOBALS) as $_gname) {
+    if (isset($GLOBALS[$_gname]) && ($GLOBALS[$_gname] instanceof PDO || $GLOBALS[$_gname] instanceof PDOStatement)) {
+        $GLOBALS[$_gname] = null;
+    }
+}
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// O1 — fresh DB: consent not yet recorded => false.
+ok(guardianConsentCurrent() === false,
+   "O1 fresh DB: guardianConsentCurrent() is false (no version stored)");
+
+// O2 — after recordGuardianConsent(): version stored => true.
+recordGuardianConsent();
+ok(guardianConsentCurrent() === true,
+   "O2 after recordGuardianConsent(): guardianConsentCurrent() is true");
+
+// Confirm the timestamp was stored as well.
+$consentAt = getSetting('guardian_consent_at', '');
+ok($consentAt !== '' && strpos($consentAt, 'T') !== false,
+   "O2 guardian_consent_at is stored as an ISO-8601 timestamp [got: $consentAt]");
+
+// O3 — version tampered to a different value => false.
+setSetting('guardian_consent_version', '999');
+ok(guardianConsentCurrent() === false,
+   "O3 after version tampered to '999': guardianConsentCurrent() is false again");
+
+// O4 — version restored => true.
+setSetting('guardian_consent_version', (string) CONSENT_NOTICE_VERSION);
+ok(guardianConsentCurrent() === true,
+   "O4 after version restored to current: guardianConsentCurrent() is true again");
+
+// PHASE O cleanup.
+gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
