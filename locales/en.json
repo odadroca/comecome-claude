@@ -534,5 +534,12 @@
   "_backdated_logging": "=== BACKDATED MEAL LOGGING ===",
   "log_past_meal": "Log a meal from another day",
   "logging_for_date": "Logging for {date}",
-  "add_entry": "Add"
+  "add_entry": "Add",
+
+  "_consent": "=== GUARDIAN CONSENT ===",
+  "consent_title": "Before you start",
+  "consent_body": "ComeCome stores health-related information about your child (food, mood, medication, growth, sleep). As the person running this app you are responsible for that data. Please review the privacy notice and disclaimer.",
+  "consent_agree": "I understand and consent",
+  "consent_privacy_link": "Privacy notice",
+  "consent_disclaimer_link": "Disclaimer"
 }
