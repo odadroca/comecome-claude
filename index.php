@@ -51,6 +51,29 @@ if (!in_array($page, ['login', 'guest-report', 'logout'], true)
     }
 }
 
+// Launch Sprint 2 — guardian consent gate.
+// A logged-in user who has not acknowledged the current privacy/consent notice
+// is intercepted here (AFTER the default-PIN gate so PIN-change keeps precedence).
+// Guardians are redirected to the consent screen; children see a neutral
+// "not set up yet" message (never the consent form).
+// Pages exempt: login, logout, guest-report, consent itself, and the PIN-change
+// pages (manage-users / manage-children) so the default-PIN gate keeps precedence
+// and the two gates cannot form a redirect loop for a first-boot guardian.
+if (!in_array($page, ['login', 'logout', 'guest-report', 'consent',
+                       'manage-users', 'manage-children'], true)
+    && isLoggedIn() && !guardianConsentCurrent()) {
+    if (isGuardian()) {
+        header('Location: index.php?page=consent');
+        exit;
+    } elseif (isChild()) {
+        $content = '<main class="container" style="max-width:640px;margin:3rem auto;">'
+            . '<article><h2>' . t('consent_child_blocked_title') . '</h2>'
+            . '<p>' . t('consent_child_blocked_body') . '</p></article></main>';
+        renderLayout(t('consent_child_blocked_title'), $content);
+        exit;
+    }
+}
+
 // Route to appropriate page
 switch ($page) {
     case 'login':
@@ -159,6 +182,11 @@ switch ($page) {
         logout();
         header('Location: index.php');
         exit;
+
+    case 'consent':
+        requireGuardian();
+        include 'pages/consent.php';
+        break;
 
     case 'home':
     default:

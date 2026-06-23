@@ -46,6 +46,7 @@
  *            - tests/http_smoke.php          (Phase 0 cookie flags over HTTP)
  *            - tests/http_throttle_smoke.php (Phase 1 lockout message over HTTP)
  *            - tests/http_secrets_smoke.php  (Phase 4 .env override + secret privacy)
+ *            - tests/http_consent_smoke.php  (Launch S2 guardian consent gate)
  *   PHASE C  Negative self-test: re-invoke THIS file in --selftest-negative mode
  *            (which deliberately fails an assertion) and assert it exits NON-zero.
  *            Proves the runner actually catches a broken case.
@@ -784,6 +785,7 @@ $httpSmokes = [
     'tests/http_csrf_child_smoke.php',
     'tests/http_secrets_smoke.php',
     'tests/http_field_encryption_smoke.php',
+    'tests/http_consent_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;

@@ -541,5 +541,7 @@
   "consent_body": "ComeCome stores health-related information about your child (food, mood, medication, growth, sleep). As the person running this app you are responsible for that data. Please review the privacy notice and disclaimer.",
   "consent_agree": "I understand and consent",
   "consent_privacy_link": "Privacy notice",
-  "consent_disclaimer_link": "Disclaimer"
+  "consent_disclaimer_link": "Disclaimer",
+  "consent_child_blocked_title": "Almost ready!",
+  "consent_child_blocked_body": "ComeCome isn't set up yet. Please ask your grown-up to finish setting it up."
 }

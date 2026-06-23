@@ -541,5 +541,7 @@
   "consent_body": "O ComeCome armazena informações de saúde sobre o seu filho (alimentação, humor, medicação, crescimento, sono). Como responsável pela utilização desta aplicação, é você quem responde por esses dados. Por favor, leia o aviso de privacidade e o aviso legal.",
   "consent_agree": "Compreendo e consinto",
   "consent_privacy_link": "Aviso de privacidade",
-  "consent_disclaimer_link": "Aviso legal"
+  "consent_disclaimer_link": "Aviso legal",
+  "consent_child_blocked_title": "Quase pronto!",
+  "consent_child_blocked_body": "O ComeCome ainda não está configurado. Pede ao teu responsável que termine a configuração."
 }
