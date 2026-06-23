@@ -6,6 +6,16 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 ## [Unreleased] — staging
 
 ### Added
+- **Guardian consent gate (privacy/data-governance, Launch Sprint 2)** — before any child data is
+  used, a guardian must acknowledge a one-time privacy/consent notice. A router-level gate in
+  `index.php` (after the default-PIN gate, and dormant while the PIN is still `0000` so the two never
+  loop) redirects an un-consented guardian to a new `pages/consent.php` (CSRF-gated POST →
+  `recordGuardianConsent()`); a child reaching the app before consent sees a neutral "not set up yet"
+  view and **never** the consent form. State is the `guardian_consent_version` setting vs a
+  `CONSENT_NOTICE_VERSION` constant (bump to re-prompt) — **no schema change**. Covered by a new
+  `tests/http_consent_smoke.php` (21 assertions incl. a regression test that a non-default-PIN,
+  un-consented guardian cannot reach `manage-users`). _Consent screen links to `PRIVACY.md`/
+  `DISCLAIMER.md`, which arrive with the licensing/privacy docs._
 - **Guardian add-item forms auto-derive the i18n key** — adding a food / category / meal no longer
   asks the guardian to hand-author the internal translation key (e.g. `food_mango`), which they had
   no way to know the convention for or which keys were taken (the source of the duplicate-key 500s).

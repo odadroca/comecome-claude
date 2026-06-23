@@ -24,7 +24,7 @@ The **single dependency-free regression entry point** (no Composer/PHPUnit). Run
 
 ## Architecture
 
-**Routing**: `index.php` is the single entry point. Routes via `?page=` (switch-case router); server-rendered PHP buffered through `renderLayout()` (which also injects the CSRF meta token). A router gate redirects a still-default-`0000` guardian to change their PIN.
+**Routing**: `index.php` is the single entry point. Routes via `?page=` (switch-case router); server-rendered PHP buffered through `renderLayout()` (which also injects the CSRF meta token). A router gate redirects a still-default-`0000` guardian to change their PIN. A second gate (Launch Sprint 2) holds any guardian who hasn't acknowledged the current privacy/consent notice on `pages/consent.php` until they consent — state is the `guardian_consent_version` `settings` row vs the `CONSENT_NOTICE_VERSION` constant (helpers `guardianConsentCurrent()`/`recordGuardianConsent()` in `includes/auth.php`); it is conditioned on `!guardianPinIsDefault()` so it never loops with the PIN gate, and a child reaching the app pre-consent sees a neutral "not set up yet" view, never the consent form.
 
 **Auth & sessions**: PIN-based (4-digit, hashed). Roles `child`/`guardian` with `requireAuth()`/`requireGuardian()`. `includes/session.php` hardens cookies (HttpOnly / SameSite / env-gated Secure) via `configureSessionCookieParams()` and enforces TLS + HSTS; login calls `session_regenerate_id()`; idle timeout uses `SESSION_LIFETIME`. PIN brute-force is throttled in `includes/throttle.php` (single aggregated `login_attempts` row; per-user primary + loose per-IP). Guest tokens (now **revocable**) give time-limited clinician access.
 
