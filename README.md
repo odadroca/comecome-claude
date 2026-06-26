@@ -302,13 +302,35 @@ Sprints 0–2 (bug fixes, feature toggles, sleep tracking) shipped in v0.9; Spri
 
 ## 📄 License
 
-Open Source - Free to use, modify, and distribute.
+ComeCome is licensed under the **GNU Affero General Public License v3.0 or later**
+(`SPDX-License-Identifier: AGPL-3.0-or-later`). See [`LICENSE`](LICENSE) for the full text.
+
+Third-party components and reference data are attributed in [`NOTICE`](NOTICE); medical and
+liability disclaimers are in [`DISCLAIMER.md`](DISCLAIMER.md); security reporting is described in
+[`SECURITY.md`](SECURITY.md).
 
 ## ❤️ Acknowledgments
 
 Built with love for all children navigating ADHD with courage.
 
 Special thanks to parents and caregivers who provided insights into real-world challenges.
+
+### Built on free & open technology
+
+ComeCome exists because of the free and open-source ecosystem — a small, independent tool for
+families could be built and given away precisely because these foundations are free to use. With
+gratitude to:
+
+- **PHP** — the language and runtime (The PHP Group · PHP License)
+- **SQLite** — the embedded, zero-config database (public domain)
+- **libsodium** — modern cryptography behind the optional at-rest encryption (ISC License)
+- **Chart.js** — charts (MIT)
+- **Lexend** & **Atkinson Hyperlegible** — accessible, readable typography (SIL OFL 1.1)
+- **WHO** Child Growth Standards — growth reference data
+- and the web platform, plus the maintainers of the countless free tools and standards that make
+  independent software like this possible.
+
+Full third-party attribution and license terms are in [`NOTICE`](NOTICE).
 
 ---
 
