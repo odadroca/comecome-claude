@@ -43,6 +43,10 @@ define('DB_SEED', __DIR__ . '/db/seed.sql');
 // Application configuration
 define('APP_NAME', 'ComeCome');
 define('APP_VERSION', '0.11.0');
+// Consent-notice version. Bump this integer whenever the privacy/consent notice
+// text changes materially; guardianConsentCurrent() returns false until the guardian
+// re-acknowledges the new version.
+define('CONSENT_NOTICE_VERSION', 1);
 define('DEFAULT_LOCALE', 'pt');
 define('LOCALES_PATH', __DIR__ . '/locales');
 

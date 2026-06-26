@@ -48,6 +48,49 @@ function sessionIsExpired($lastActivity, $now, $lifetime) {
 }
 
 /**
+ * Launch Sprint 2 — guardian consent state helpers (settings-backed, no schema change).
+ *
+ * guardianConsentCurrent() — returns true iff the guardian has acknowledged the current
+ *   version of the privacy/consent notice (CONSENT_NOTICE_VERSION from config.php).
+ *   Side-effect-free and assertable in the CLI harness.
+ *
+ * recordGuardianConsent() — stamps guardian_consent_version to the current version
+ *   and guardian_consent_at to a UTC ISO-8601 timestamp, marking acknowledgement.
+ */
+function guardianConsentCurrent(): bool {
+    return getSetting('guardian_consent_version', '') === (string) CONSENT_NOTICE_VERSION;
+}
+
+function recordGuardianConsent(): void {
+    setSetting('guardian_consent_version', (string) CONSENT_NOTICE_VERSION);
+    setSetting('guardian_consent_at', gmdate('c'));
+}
+
+/**
+ * Block API WRITES until the guardian has acknowledged the consent notice.
+ *
+ * The page-router consent gate (index.php) only covers requests routed through
+ * index.php; the api/*.php endpoints are a separate write surface. A logged-in
+ * child holds a valid session + CSRF token (login/blocked pages expose one), so
+ * without this guard they could POST food/check-in/weight data directly before
+ * the guardian consents. Mirrors requireCsrfForApi(): only state-changing
+ * methods are gated (GET reads pass — there is nothing to read pre-consent),
+ * and a blocked request gets a 403 JSON 'consent_required'.
+ */
+function requireConsentForApi($method = null) {
+    if ($method === null) {
+        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    }
+    $method = strtoupper((string) $method);
+    if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+        return;
+    }
+    if (!guardianConsentCurrent()) {
+        jsonResponse(['success' => false, 'error' => 'consent_required'], 403);
+    }
+}
+
+/**
  * Check if user is logged in
  *
  * Sprint security Phase 0 — also enforces the idle timeout: a session idle past

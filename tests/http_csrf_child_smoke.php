@@ -67,6 +67,10 @@ initializeDatabase();
 $childPin = '2580';
 $childId = createUser('SmokeKid', 'child', $childPin, '🧒');
 ok($childId > 0, "seeded a child user (id=$childId) into the throwaway DB");
+// Launch S2 — the API layer now requires guardian consent before writes. This
+// smoke exercises the CSRF gate (not consent), so record consent up front so the
+// food-log POST/DELETE reach the CSRF/handler path instead of a 403 consent_required.
+setSetting('guardian_consent_version', '1');
 // Release the PDO handle so the spawned server gets a clean lock on the file.
 gc_collect_cycles();
 

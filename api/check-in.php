@@ -17,6 +17,7 @@ if (!isLoggedIn()) {
 
 // Sprint security Phase 3 — state-changing POSTs require a valid X-CSRF-Token header.
 requireCsrfForApi();
+requireConsentForApi(); // block writes until the guardian has consented
 
 $user = getCurrentUser();
 

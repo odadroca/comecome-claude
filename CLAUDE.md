@@ -24,7 +24,7 @@ The **single dependency-free regression entry point** (no Composer/PHPUnit). Run
 
 ## Architecture
 
-**Routing**: `index.php` is the single entry point. Routes via `?page=` (switch-case router); server-rendered PHP buffered through `renderLayout()` (which also injects the CSRF meta token). A router gate redirects a still-default-`0000` guardian to change their PIN.
+**Routing**: `index.php` is the single entry point. Routes via `?page=` (switch-case router); server-rendered PHP buffered through `renderLayout()` (which also injects the CSRF meta token). A router gate redirects a still-default-`0000` guardian to change their PIN. A second gate (Launch Sprint 2) holds any guardian who hasn't acknowledged the current privacy/consent notice on `pages/consent.php` until they consent — state is the `guardian_consent_version` `settings` row vs the `CONSENT_NOTICE_VERSION` constant (helpers `guardianConsentCurrent()`/`recordGuardianConsent()` in `includes/auth.php`); it is conditioned on `!guardianPinIsDefault()` so it never loops with the PIN gate, and a child reaching the app pre-consent sees a neutral "not set up yet" view, never the consent form.
 
 **Auth & sessions**: PIN-based (4-digit, hashed). Roles `child`/`guardian` with `requireAuth()`/`requireGuardian()`. `includes/session.php` hardens cookies (HttpOnly / SameSite / env-gated Secure) via `configureSessionCookieParams()` and enforces TLS + HSTS; login calls `session_regenerate_id()`; idle timeout uses `SESSION_LIFETIME`. PIN brute-force is throttled in `includes/throttle.php` (single aggregated `login_attempts` row; per-user primary + loose per-IP). Guest tokens (now **revocable**) give time-limited clinician access.
 
@@ -62,6 +62,7 @@ Guardian Settings toggles (key/value in `settings`, via `getSetting('key','defau
 - Logic in `includes/`, presentation in `pages/`, constants in `config.php`.
 - **Every schema change** = an additive, version-gated `migrateDatabase()` block **mirrored in `db/schema.sql`**, and update the `tests/run.php` `schema_version` + exact-table-set asserts.
 - **Bump `sw.js CACHE_NAME`** on any child-page/asset change. Keep the four export surfaces (HTML/CSV/JSON/guest-report) in parity; whitelist the JSON projection (never emit `pin`/raw `date_of_birth`).
+- **Access gates cover BOTH write surfaces.** Data can be written two ways — the `?page=` switch router (`index.php`) and the `api/*.php` endpoints — so any gate that must block writes (e.g. the guardian **consent** gate) has to be enforced in **both**: a router-level check in `index.php` AND a guard in every API endpoint (alongside `requireCsrfForApi()` — see `requireConsentForApi()`), sharing one predicate (e.g. `guardianConsentCurrent()`), with a **regression test at each surface** (the consent smoke asserts the `manage-users` page redirect *and* a 403 `consent_required` on `api/check-in` pre-consent). **CSRF is not an access gate** — it stops cross-site forgery, not an authenticated-but-unauthorized actor. Adding such a guard usually means updating sibling API smokes that didn't set up the new precondition.
 
 ## Page Organization
 - `pages/child/` — log-food, check-in, weight (becomes "Growth" when `show_percentiles` on), history. Own data only; shared footer.
