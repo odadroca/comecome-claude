@@ -47,6 +47,15 @@ define('APP_VERSION', '0.11.0');
 // text changes materially; guardianConsentCurrent() returns false until the guardian
 // re-acknowledges the new version.
 define('CONSENT_NOTICE_VERSION', 1);
+
+// Sprint 2 (A4) — child-safeguarding thresholds. Deterministic, mood-only.
+// A child is flagged when, within the last SAFEGUARD_WINDOW_DAYS *calendar days*
+// and among UNREVIEWED check-ins: any mood_level <= CRITICAL, OR
+// >= LOW_COUNT check-ins with mood_level <= LOW. Tune here without code changes.
+define('SAFEGUARD_MOOD_CRITICAL', 1);   // a single 😢 flags immediately
+define('SAFEGUARD_MOOD_LOW', 2);        // 🙁-or-worse counts as a "low" day
+define('SAFEGUARD_LOW_COUNT', 2);       // how many low days trip the flag
+define('SAFEGUARD_WINDOW_DAYS', 7);     // rolling look-back, calendar days
 define('DEFAULT_LOCALE', 'pt');
 define('LOCALES_PATH', __DIR__ . '/locales');
 
