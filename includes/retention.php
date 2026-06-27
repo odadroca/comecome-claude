@@ -19,3 +19,25 @@ function writeDeletionAudit(PDO $db, string $scope, ?int $actorId, ?int $targetI
     );
     $stmt->execute([$actorId, $targetId, $scope, json_encode($counts)]);
 }
+
+/**
+ * Erase a child and ALL their data (whole-child). Counts are gathered BEFORE the
+ * delete (so the audit reflects what was removed), then the users row is deleted and
+ * ON DELETE CASCADE wipes the time-series tables. Writes a PII-free 'child' audit row.
+ * @return array per-table counts that were erased.
+ */
+function eraseChildData(PDO $db, int $childId, ?int $actorId = null): array {
+    // The child time-series tables (sleep_interruptions cascades via sleep_log).
+    $tables = ['food_log', 'daily_checkin', 'weight_log', 'height_log', 'sleep_log'];
+    $counts = [];
+    foreach ($tables as $t) {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM $t WHERE user_id = ?");
+        $stmt->execute([$childId]);
+        $counts[$t] = (int) $stmt->fetchColumn();
+    }
+    // Delete the user row; FKs (ON DELETE CASCADE) remove the time-series rows.
+    $db->prepare("DELETE FROM users WHERE id = ? AND type = 'child'")->execute([$childId]);
+
+    writeDeletionAudit($db, 'child', $actorId, $childId, $counts);
+    return $counts;
+}

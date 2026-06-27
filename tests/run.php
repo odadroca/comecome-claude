@@ -2315,6 +2315,39 @@ gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
+ * PHASE Q — S2 / A15: whole-child erasure helper (eraseChildData).
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE Q — S2 A15 whole-child erasure (eraseChildData) ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// --- Phase A7: whole-child erasure (S2 / A15) ------------------------------
+$erDb = getDB();
+$erDb->exec("INSERT INTO users (type,name,pin,active) VALUES ('child','Erase Me','x',1)");
+$erChild = (int) $erDb->lastInsertId();
+$erDb->prepare("INSERT INTO daily_checkin (user_id,check_date,mood_level) VALUES (?,?,?)")->execute([$erChild,'2026-06-01',3]);
+$erDb->prepare("INSERT INTO food_log (user_id,food_id,meal_id,portion,log_date,log_time) VALUES (?,?,?,?,?,?)")->execute([$erChild,1,1,'some','2026-06-01','08:00']);
+$counts = eraseChildData($erDb, $erChild, 1);
+ok($counts['daily_checkin'] === 1 && $counts['food_log'] === 1, 'A7 erase returns per-table counts');
+ok(getUserById($erChild) === null || getUserById($erChild) === false, 'A7 child user row deleted');
+ok((int)$erDb->query("SELECT COUNT(*) FROM daily_checkin WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped daily_checkin');
+ok((int)$erDb->query("SELECT COUNT(*) FROM food_log WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped food_log');
+$aud = $erDb->query("SELECT * FROM data_deletion_log WHERE scope='child' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+ok((int)$aud['target_user_id'] === $erChild, 'A7 child audit row written with target id');
+ok(strpos($aud['record_counts'], 'Erase Me') === false, 'A7 audit row holds NO name (PII-free)');
+
+// PHASE Q cleanup.
+$erDb = null;
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
  * VERDICT.
  * ------------------------------------------------------------------------- */
 echo "\n==========================================================\n";
