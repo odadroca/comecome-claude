@@ -23,18 +23,36 @@ function writeDeletionAudit(PDO $db, string $scope, ?int $actorId, ?int $targetI
 /**
  * Erase a child and ALL their data (whole-child). Counts are gathered BEFORE the
  * delete (so the audit reflects what was removed), then the users row is deleted and
- * ON DELETE CASCADE wipes the time-series tables. Writes a PII-free 'child' audit row.
- * @return array per-table counts that were erased.
+ * ON DELETE CASCADE wipes ALL referencing tables. Writes a PII-free 'child' audit row.
+ *
+ * Tables counted (all 9 direct-FK tables via user_id, plus sleep_interruptions via
+ * transitive cascade through sleep_log):
+ *   food_log, daily_checkin, weight_log, height_log, sleep_log,
+ *   user_favorites, user_medications, medication_schedules, guest_tokens,
+ *   sleep_interruptions (counted via JOIN to sleep_log — no user_id column).
+ *
+ * @return array per-table counts that were erased (covers ALL cascaded tables).
  */
 function eraseChildData(PDO $db, int $childId, ?int $actorId = null): array {
-    // The child time-series tables (sleep_interruptions cascades via sleep_log).
-    $tables = ['food_log', 'daily_checkin', 'weight_log', 'height_log', 'sleep_log'];
+    // All 9 tables with a direct user_id FK to users(id) ON DELETE CASCADE.
+    $tables = [
+        'food_log', 'daily_checkin', 'weight_log', 'height_log', 'sleep_log',
+        'user_favorites', 'user_medications', 'medication_schedules', 'guest_tokens',
+    ];
     $counts = [];
     foreach ($tables as $t) {
         $stmt = $db->prepare("SELECT COUNT(*) FROM $t WHERE user_id = ?");
         $stmt->execute([$childId]);
         $counts[$t] = (int) $stmt->fetchColumn();
     }
+    // sleep_interruptions cascades transitively via sleep_log(id) — it has no user_id.
+    $stmt = $db->prepare(
+        "SELECT COUNT(*) FROM sleep_interruptions si
+           JOIN sleep_log sl ON sl.id = si.sleep_log_id
+          WHERE sl.user_id = ?"
+    );
+    $stmt->execute([$childId]);
+    $counts['sleep_interruptions'] = (int) $stmt->fetchColumn();
     // FK enforcement is OFF globally in getDB(), so deleting the users row would NOT
     // cascade. Every users(id) FK is ON DELETE CASCADE, so enable enforcement just for
     // this delete — it wipes all referencing tables in one statement — then restore it.

@@ -2338,6 +2338,10 @@ $erDb->prepare("INSERT INTO weight_log (user_id,weight_kg,log_date) VALUES (?,?,
 $erDb->prepare("INSERT INTO sleep_log (user_id,log_date,sleep_type) VALUES (?,?,?)")->execute([$erChild, '2026-06-01', 'night']);
 $erSleepId = (int) $erDb->lastInsertId();
 $erDb->prepare("INSERT INTO sleep_interruptions (sleep_log_id,wake_time,reason) VALUES (?,?,?)")->execute([$erSleepId, '2026-06-01 02:00:00', 'woke']);
+// Seed user_favorites (user_id + food_id; food_id=1 exists from seed.sql).
+$erDb->prepare("INSERT INTO user_favorites (user_id,food_id) VALUES (?,?)")->execute([$erChild, 1]);
+// Seed guest_tokens (token TEXT PK, user_id, expires_at NOT NULL, is_revoked NOT NULL DEFAULT 0).
+$erDb->prepare("INSERT INTO guest_tokens (token,user_id,expires_at) VALUES (?,?,?)")->execute(['er-test-token', $erChild, '2099-12-31 23:59:59']);
 $counts = eraseChildData($erDb, $erChild, 1);
 ok($counts['daily_checkin'] === 1 && $counts['food_log'] === 1, 'A7 erase returns per-table counts');
 ok(getUserById($erChild) === null || getUserById($erChild) === false, 'A7 child user row deleted');
@@ -2349,6 +2353,11 @@ ok(strpos($aud['record_counts'], 'Erase Me') === false, 'A7 audit row holds NO n
 ok($counts['weight_log'] === 1 && $counts['sleep_log'] === 1, 'A7 counts cover weight_log + sleep_log');
 ok((int)$erDb->query("SELECT COUNT(*) FROM sleep_log WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped sleep_log');
 ok((int)$erDb->query("SELECT COUNT(*) FROM sleep_interruptions WHERE sleep_log_id = $erSleepId")->fetchColumn() === 0, 'A7 cascade wiped sleep_interruptions (via sleep_log)');
+ok($counts['user_favorites'] === 1, 'A7 counts include user_favorites');
+ok($counts['sleep_interruptions'] === 1, 'A7 counts include sleep_interruptions (transitive)');
+ok(array_key_exists('medication_schedules', $counts) && array_key_exists('guest_tokens', $counts), 'A7 audit counts cover all cascaded tables');
+ok((int)$erDb->query("SELECT COUNT(*) FROM user_favorites WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped user_favorites');
+ok((int)$erDb->query("SELECT COUNT(*) FROM guest_tokens WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped guest_tokens');
 
 // PHASE Q cleanup.
 $erDb = null;
