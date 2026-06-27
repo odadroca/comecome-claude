@@ -2292,6 +2292,23 @@ $sgDb->exec("DELETE FROM daily_checkin");
 $ins->execute([$sgChild, '2026-06-27', 5, 4, 'i feel so sad and hopeless']);
 ok(count(computeSafeguardingFlags($sgDb, $ANCHOR)) === 0, 'A5 worrying note + happy mood: no flag (notes not scanned)');
 
+// (h) REGRESSION (timezone): a default "now" review must clear TODAY's local flag.
+// The review stamp uses the APP-LOCAL clock (date()), not UTC (gmdate()). Under the
+// production timezone (Europe/Lisbon), in the post-midnight local hour the UTC date is
+// still "yesterday"; a UTC stamp would record an earlier date than today's check-in and
+// leave the just-reviewed flag visible. The harness does NOT load config.php, so set the
+// TZ here explicitly. (Always passes the fixed code; catches the UTC bug in the window.)
+$tzPrev = date_default_timezone_get();
+date_default_timezone_set('Europe/Lisbon');
+$sgDb->exec("DELETE FROM daily_checkin");
+setSetting('safeguard_reviewed_' . $sgChild, '');            // clear any prior acknowledgment
+$localToday = date('Y-m-d');
+$ins->execute([$sgChild, $localToday, 1, 2, null]);          // today's critical (mood=1) flag, local date
+ok(count(computeSafeguardingFlags($sgDb, $localToday)) === 1, 'A5(h) today-local flag present before review');
+markSafeguardingReviewed($sgChild);                          // DEFAULT $at -> app-local now (date('c'))
+ok(count(computeSafeguardingFlags($sgDb, $localToday)) === 0, 'A5(h) default review clears today-local flag (local-clock stamp)');
+date_default_timezone_set($tzPrev);
+
 // PHASE P cleanup.
 gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }

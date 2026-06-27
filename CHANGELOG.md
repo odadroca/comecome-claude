@@ -5,6 +5,13 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 
 ## [Unreleased] — staging
 
+### Fixed
+- **Safeguarding review timestamp stamped in UTC instead of app-local time** — `markSafeguardingReviewed()`
+  recorded the review with `gmdate()` (UTC) while the flag comparison uses the local
+  `daily_checkin.check_date` / `date('Y-m-d')` (Europe/Lisbon). In the post-midnight local window the UTC
+  date lagged a day, so a just-reviewed wellbeing flag stayed visible after the POST. Now stamped on the
+  app-local clock (`date('c')`); regression test added (`A5(h)`).
+
 ### Added
 - **Child-safeguarding escalation (privacy/data-governance, Launch Sprint 2)** — a guardian-only
   **"Wellbeing"** view (`pages/guardian/safeguarding.php`) surfaces per-child flags when the
