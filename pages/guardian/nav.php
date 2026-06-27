@@ -3,6 +3,15 @@
  * Guardian Navigation Component (collapsible on mobile)
  */
 $currentPage = $_GET['page'] ?? 'dashboard';
+// config.php defines these constants in the real app; guard here so nav.php is
+// self-contained in any include context that loads db.php but not config.php.
+if (!defined('SAFEGUARD_MOOD_CRITICAL')) { define('SAFEGUARD_MOOD_CRITICAL', 1); }
+if (!defined('SAFEGUARD_MOOD_LOW'))      { define('SAFEGUARD_MOOD_LOW', 2); }
+if (!defined('SAFEGUARD_LOW_COUNT'))     { define('SAFEGUARD_LOW_COUNT', 2); }
+if (!defined('SAFEGUARD_WINDOW_DAYS'))   { define('SAFEGUARD_WINDOW_DAYS', 7); }
+require_once __DIR__ . '/../../includes/safeguarding.php';
+$sgEnabled = getSetting('show_safeguarding_alerts', '1') === '1';
+$sgCount   = $sgEnabled ? count(computeSafeguardingFlags(getDB())) : 0;
 ?>
 
 <nav class="guardian-nav">
@@ -37,6 +46,12 @@ $currentPage = $_GET['page'] ?? 'dashboard';
         <li><a href="?page=manage-sleep" class="<?php echo $currentPage === 'manage-sleep' ? 'active' : ''; ?>">
             😴 <?php echo t('manage_sleep'); ?>
         </a></li>
+        <?php if ($sgEnabled): ?>
+        <li><a href="?page=safeguarding" class="<?php echo $currentPage === 'safeguarding' ? 'active' : ''; ?>">
+            🛟 <?php echo t('safeguarding_nav'); ?>
+            <?php if ($sgCount > 0): ?><span class="nav-badge"><?php echo (int) $sgCount; ?></span><?php endif; ?>
+        </a></li>
+        <?php endif; ?>
         <li><a href="?page=manage-logs" class="<?php echo $currentPage === 'manage-logs' ? 'active' : ''; ?>">
             📋 <?php echo t('manage_logs'); ?>
         </a></li>
