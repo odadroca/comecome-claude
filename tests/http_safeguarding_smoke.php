@@ -44,6 +44,8 @@ echo "==========================================================\n";
 
 // --- Throwaway DB + seeded users --------------------------------------------
 $tmpDb = tempnam(sys_get_temp_dir(), 'comecome_safeguarding_') . '.db';
+ok($tmpDb !== '' && $tmpDb !== false, 'temp DB path is non-empty (never falls back to real db/data.db)');
+if ($tmpDb === '' || $tmpDb === false) { fwrite(STDERR, "no temp DB path\n"); exit(1); }
 @unlink($tmpDb);
 
 // Seed a fresh app DB.
@@ -210,12 +212,12 @@ ok($clc >= 200 && $clc < 400, "A: child login POST completes [got $clc]");
     'curl -b ' . escapeshellarg($childJar) . ' ' . escapeshellarg($sgUrl)
 );
 ok($sgc === 302, "A: child GET ?page=safeguarding returns 302 (requireGuardian bounces) [got $sgc]");
-// requireGuardian() -> Location: index.php (not ?page=... — it bounces to the root index).
-$locationOk = (stripos($sgh, 'Location: index.php') !== false)
-           || (stripos($sgh, 'location: index.php') !== false);
-ok($locationOk,
-   "A: Location header points to index.php [headers: "
-   . substr(preg_replace('/\r?\n/', ' | ', $sgh), 0, 200) . "]");
+// requireGuardian() -> Location: index.php (bare, no ?page=login).
+// Must prove an authenticated child was bounced by requireGuardian, NOT an anonymous user
+// bounced to login (which would also contain 'index.php' but with 'page=login').
+ok($sgc === 302 && stripos($sgh, 'index.php') !== false && stripos($sgh, 'page=login') === false,
+   'child blocked from safeguarding by requireGuardian (not a login redirect) [headers: '
+   . substr(preg_replace('/\r?\n/', ' | ', $sgh), 0, 200) . ']');
 
 // ==========================================================================
 // GROUP B — Render: guardian → safeguarding → 200 with child name + button
@@ -276,8 +278,8 @@ echo "\n--- C. CSRF: POST without token leaves flag intact ---\n";
     . ' --data-urlencode ' . escapeshellarg('child_id=' . $childId)
     . ' ' . escapeshellarg($sgUrl)
 );
-ok(($noTokenC >= 300 && $noTokenC < 400) || strpos($noTokenBody, 'csrf') !== false,
-   "C: POST without CSRF token is rejected (3xx or csrf error in body) [got $noTokenC]");
+ok($noTokenC >= 300 && $noTokenC < 400,
+   "C: POST without CSRF token is rejected (3xx redirect) [got $noTokenC]");
 
 // Follow-up GET must still show the flag (child name + mark-reviewed button still present).
 [$sgcAfterBad, $sgbodyAfterBad] = curlReq(
