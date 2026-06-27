@@ -2333,6 +2333,10 @@ $erDb->exec("INSERT INTO users (type,name,pin,active) VALUES ('child','Erase Me'
 $erChild = (int) $erDb->lastInsertId();
 $erDb->prepare("INSERT INTO daily_checkin (user_id,check_date,mood_level) VALUES (?,?,?)")->execute([$erChild,'2026-06-01',3]);
 $erDb->prepare("INSERT INTO food_log (user_id,food_id,meal_id,portion,log_date,log_time) VALUES (?,?,?,?,?,?)")->execute([$erChild,1,1,'some','2026-06-01','08:00']);
+$erDb->prepare("INSERT INTO weight_log (user_id,weight_kg,log_date) VALUES (?,?,?)")->execute([$erChild, 20.0, '2026-06-01']);
+$erDb->prepare("INSERT INTO sleep_log (user_id,log_date,sleep_type) VALUES (?,?,?)")->execute([$erChild, '2026-06-01', 'night']);
+$erSleepId = (int) $erDb->lastInsertId();
+$erDb->prepare("INSERT INTO sleep_interruptions (sleep_log_id,wake_time,reason) VALUES (?,?,?)")->execute([$erSleepId, '2026-06-01 02:00:00', 'woke']);
 $counts = eraseChildData($erDb, $erChild, 1);
 ok($counts['daily_checkin'] === 1 && $counts['food_log'] === 1, 'A7 erase returns per-table counts');
 ok(getUserById($erChild) === null || getUserById($erChild) === false, 'A7 child user row deleted');
@@ -2341,6 +2345,9 @@ ok((int)$erDb->query("SELECT COUNT(*) FROM food_log WHERE user_id = $erChild")->
 $aud = $erDb->query("SELECT * FROM data_deletion_log WHERE scope='child' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
 ok((int)$aud['target_user_id'] === $erChild, 'A7 child audit row written with target id');
 ok(strpos($aud['record_counts'], 'Erase Me') === false, 'A7 audit row holds NO name (PII-free)');
+ok($counts['weight_log'] === 1 && $counts['sleep_log'] === 1, 'A7 counts cover weight_log + sleep_log');
+ok((int)$erDb->query("SELECT COUNT(*) FROM sleep_log WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped sleep_log');
+ok((int)$erDb->query("SELECT COUNT(*) FROM sleep_interruptions WHERE sleep_log_id = $erSleepId")->fetchColumn() === 0, 'A7 cascade wiped sleep_interruptions (via sleep_log)');
 
 // PHASE Q cleanup.
 $erDb = null;

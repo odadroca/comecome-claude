@@ -40,8 +40,11 @@ function eraseChildData(PDO $db, int $childId, ?int $actorId = null): array {
     // this delete — it wipes all referencing tables in one statement — then restore it.
     // Only a DELETE runs here, so the FK-loose medication INSERT path is never tripped.
     $db->exec('PRAGMA foreign_keys = ON');
-    $db->prepare("DELETE FROM users WHERE id = ? AND type = 'child'")->execute([$childId]);
-    $db->exec('PRAGMA foreign_keys = OFF');
+    try {
+        $db->prepare("DELETE FROM users WHERE id = ? AND type = 'child'")->execute([$childId]);
+    } finally {
+        $db->exec('PRAGMA foreign_keys = OFF');
+    }
 
     writeDeletionAudit($db, 'child', $actorId, $childId, $counts);
     return $counts;
