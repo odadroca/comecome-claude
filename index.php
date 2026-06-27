@@ -169,6 +169,11 @@ switch ($page) {
         include 'pages/guardian/settings.php';
         break;
 
+    case 'safeguarding':
+        requireGuardian();
+        include 'pages/guardian/safeguarding.php';
+        break;
+
     case 'database':
         requireGuardian();
         include 'pages/guardian/database.php';
