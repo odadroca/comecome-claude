@@ -9,7 +9,10 @@ requireGuardian();
 // Mark-reviewed POST. Router-only write surface — there is deliberately NO api/
 // endpoint for this, so there is no second surface to gate.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verifyCsrf();
+    if (function_exists('verifyCsrf') && !verifyCsrf()) {
+        header('Location: index.php?page=safeguarding');
+        exit;
+    }
     $childId = (int) ($_POST['child_id'] ?? 0);
     if ($childId > 0) {
         markSafeguardingReviewed($childId);
@@ -51,7 +54,7 @@ ob_start();
                 $child = $childrenById[$flag['user_id']] ?? null;
                 if (!$child) { continue; } ?>
                 <article>
-                    <h2><?php echo $child['avatar_emoji']; ?> <?php echo sanitize($child['name']); ?></h2>
+                    <h2><?php echo sanitize($child['avatar_emoji']); ?> <?php echo sanitize($child['name']); ?></h2>
                     <table>
                         <thead>
                             <tr>
