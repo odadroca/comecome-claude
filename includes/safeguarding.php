@@ -80,9 +80,15 @@ function computeSafeguardingFlags(PDO $db, ?string $today = null): array {
  * Record guardian review of a child's current flags. computeSafeguardingFlags()
  * then ignores triggers dated on/before this date until a NEW low-mood check-in arrives.
  *
+ * Stamps the **app-local** clock (`date()`, Europe/Lisbon per config.php), NOT UTC:
+ * the comparison in computeSafeguardingFlags() is against `daily_checkin.check_date`
+ * (a local date) and its `date('Y-m-d')` default `$today`. Using `gmdate()` here would,
+ * in the post-midnight local window where the UTC date is still "yesterday", stamp an
+ * earlier date than today's check-in and leave the just-reviewed flag visible.
+ *
  * @param string|null $at  optional ISO-8601 timestamp (injectable for deterministic
- *                         tests); defaults to now.
+ *                         tests); defaults to the app-local now.
  */
 function markSafeguardingReviewed(int $userId, ?string $at = null): void {
-    setSetting('safeguard_reviewed_' . $userId, $at ?? gmdate('c'));
+    setSetting('safeguard_reviewed_' . $userId, $at ?? date('c'));
 }
