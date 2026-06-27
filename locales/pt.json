@@ -536,6 +536,9 @@
   "logging_for_date": "A registar para {date}",
   "add_entry": "Adicionar",
 
+  "show_safeguarding_alerts": "Alertas de bem-estar",
+  "show_safeguarding_alerts_hint": "Mostra ao guardião um separador exclusivo de bem-estar que destaca padrões de humor baixo nos check-ins dos seus filhos. Apenas visível na aplicação; nunca mostrado às crianças.",
+
   "_safeguarding": "=== PROTEÇÃO / BEM-ESTAR ===",
   "safeguarding_nav": "Bem-estar",
   "safeguarding_title": "Verificação de bem-estar",

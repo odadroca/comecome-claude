@@ -536,6 +536,9 @@
   "logging_for_date": "Logging for {date}",
   "add_entry": "Add",
 
+  "show_safeguarding_alerts": "Wellbeing flags",
+  "show_safeguarding_alerts_hint": "Show a guardian-only wellbeing tab that highlights low-mood patterns in your children's check-ins. In-app only; never shown to children.",
+
   "_safeguarding": "=== SAFEGUARDING / WELLBEING ===",
   "safeguarding_nav": "Wellbeing",
   "safeguarding_title": "Wellbeing check",
