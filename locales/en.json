@@ -536,6 +536,23 @@
   "logging_for_date": "Logging for {date}",
   "add_entry": "Add",
 
+  "show_safeguarding_alerts": "Wellbeing flags",
+  "show_safeguarding_alerts_hint": "Show a guardian-only wellbeing tab that highlights low-mood patterns in your children's check-ins. In-app only; never shown to children.",
+
+  "_safeguarding": "=== SAFEGUARDING / WELLBEING ===",
+  "safeguarding_nav": "Wellbeing",
+  "safeguarding_title": "Wellbeing check",
+  "safeguarding_intro": "Children whose recent mood check-ins suggest they may be having a hard time. This is a simple pattern in the check-in faces — not a diagnosis.",
+  "safeguarding_none": "No wellbeing flags right now.",
+  "safeguarding_playbook_1": "These flags come from the mood faces your child picked — they are a prompt to pay attention, not a medical judgement.",
+  "safeguarding_playbook_2": "Consider gently talking with your child, and if you are concerned, speak with a professional such as your GP or a school counsellor.",
+  "safeguarding_playbook_3": "In an emergency, contact your local emergency services.",
+  "safeguarding_mark_reviewed": "Mark reviewed",
+  "safeguarding_col_date": "Date",
+  "safeguarding_col_mood": "Mood",
+  "safeguarding_col_appetite": "Appetite",
+  "safeguarding_col_notes": "Notes (context only)",
+
   "_consent": "=== GUARDIAN CONSENT ===",
   "consent_title": "Before you start",
   "consent_body": "ComeCome stores health-related information about your child (food, mood, medication, growth, sleep). As the person running this app you are responsible for that data. Please review the privacy notice and disclaimer.",

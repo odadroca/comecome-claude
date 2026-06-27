@@ -786,6 +786,7 @@ $httpSmokes = [
     'tests/http_secrets_smoke.php',
     'tests/http_field_encryption_smoke.php',
     'tests/http_consent_smoke.php',
+    'tests/http_safeguarding_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;
@@ -2229,6 +2230,69 @@ ok(guardianConsentCurrent() === true,
    "O4 after version restored to current: guardianConsentCurrent() is true again");
 
 // PHASE O cleanup.
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE P — Launch S2 (A4): child-safeguarding detection helper.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE P — Launch S2 A4 (child-safeguarding detection helper) ###\n";
+
+// --- Phase A5: child-safeguarding detection (S2) --------------------------
+// Define SAFEGUARD_* constants inline (cannot require config.php from the CLI
+// harness — it calls session_start() and re-defines constants).
+if (!defined('SAFEGUARD_MOOD_CRITICAL')) { define('SAFEGUARD_MOOD_CRITICAL', 1); }
+if (!defined('SAFEGUARD_MOOD_LOW'))      { define('SAFEGUARD_MOOD_LOW', 2); }
+if (!defined('SAFEGUARD_LOW_COUNT'))     { define('SAFEGUARD_LOW_COUNT', 2); }
+if (!defined('SAFEGUARD_WINDOW_DAYS'))   { define('SAFEGUARD_WINDOW_DAYS', 7); }
+require_once $ROOT . '/includes/safeguarding.php';
+$sgDb = getDB();
+$sgDb->exec("DELETE FROM daily_checkin");      // isolate this block
+setSetting('show_safeguarding_alerts', '1');   // default-on baseline
+
+$sgDb->exec("INSERT INTO users (type,name,pin,active) VALUES ('child','SG Child','x',1)");
+$sgChild = (int) $sgDb->lastInsertId();
+$ANCHOR  = '2026-06-27';                        // fixed 'today' for deterministic windows
+$ins = $sgDb->prepare("INSERT INTO daily_checkin (user_id,check_date,mood_level,appetite_level,notes) VALUES (?,?,?,?,?)");
+
+// (a) happy mood within window -> no flag
+$ins->execute([$sgChild, '2026-06-26', 5, 4, null]);
+ok(count(computeSafeguardingFlags($sgDb, $ANCHOR)) === 0, 'A5 happy mood: no flag');
+
+// (b) a single critical mood (1) -> flagged; the happy row is not a trigger
+$ins->execute([$sgChild, '2026-06-27', 1, 2, 'context note — never scanned']);
+$f = computeSafeguardingFlags($sgDb, $ANCHOR);
+ok(count($f) === 1 && $f[0]['user_id'] === $sgChild, 'A5 single mood=1: flagged');
+ok(count($f[0]['triggers']) === 1, 'A5 only low rows are triggers');
+
+// (c) acknowledge AT the anchor date (inject $at so the test is time-independent)
+markSafeguardingReviewed($sgChild, $ANCHOR . 'T12:00:00+00:00');
+ok(count(computeSafeguardingFlags($sgDb, $ANCHOR)) === 0, 'A5 after review: flag cleared');
+
+// (d) NEW low days AFTER the review date -> re-flag once >= 2 unreviewed low days
+$ins->execute([$sgChild, '2026-06-28', 2, 3, null]);
+ok(count(computeSafeguardingFlags($sgDb, '2026-06-28')) === 0, 'A5 one low day post-review: not yet (<2)');
+$ins->execute([$sgChild, '2026-06-29', 2, 3, null]);
+ok(count(computeSafeguardingFlags($sgDb, '2026-06-29')) === 1, 'A5 two low days post-review: re-flagged');
+
+// (e) low rows OUTSIDE the 7-day window -> ignored
+$sgDb->exec("DELETE FROM daily_checkin WHERE user_id = $sgChild");
+setSetting('safeguard_reviewed_' . $sgChild, '');       // clear acknowledgment (empty == none)
+$ins->execute([$sgChild, '2026-06-01', 1, 1, null]);    // 26 days before anchor
+ok(count(computeSafeguardingFlags($sgDb, $ANCHOR)) === 0, 'A5 old mood=1 outside window: no flag');
+
+// (f) toggle OFF -> fully off even with a fresh critical row
+$ins->execute([$sgChild, '2026-06-27', 1, 1, null]);
+setSetting('show_safeguarding_alerts', '0');
+ok(computeSafeguardingFlags($sgDb, $ANCHOR) === [], 'A5 toggle off: empty (fully off)');
+setSetting('show_safeguarding_alerts', '1');            // restore for later phases
+
+// (g) a concerning NOTE but a happy mood must NOT flag (proves notes are never scanned)
+$sgDb->exec("DELETE FROM daily_checkin");
+$ins->execute([$sgChild, '2026-06-27', 5, 4, 'i feel so sad and hopeless']);
+ok(count(computeSafeguardingFlags($sgDb, $ANCHOR)) === 0, 'A5 worrying note + happy mood: no flag (notes not scanned)');
+
+// PHASE P cleanup.
 gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
