@@ -2238,7 +2238,12 @@ if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 echo "\n### PHASE P — Launch S2 A4 (child-safeguarding detection helper) ###\n";
 
 // --- Phase A5: child-safeguarding detection (S2) --------------------------
-require_once $ROOT . '/config.php';            // SAFEGUARD_* constants
+// Define SAFEGUARD_* constants inline (cannot require config.php from the CLI
+// harness — it calls session_start() and re-defines constants).
+if (!defined('SAFEGUARD_MOOD_CRITICAL')) { define('SAFEGUARD_MOOD_CRITICAL', 1); }
+if (!defined('SAFEGUARD_MOOD_LOW'))      { define('SAFEGUARD_MOOD_LOW', 2); }
+if (!defined('SAFEGUARD_LOW_COUNT'))     { define('SAFEGUARD_LOW_COUNT', 2); }
+if (!defined('SAFEGUARD_WINDOW_DAYS'))   { define('SAFEGUARD_WINDOW_DAYS', 7); }
 require_once $ROOT . '/includes/safeguarding.php';
 $sgDb = getDB();
 $sgDb->exec("DELETE FROM daily_checkin");      // isolate this block
@@ -2280,6 +2285,11 @@ $ins->execute([$sgChild, '2026-06-27', 1, 1, null]);
 setSetting('show_safeguarding_alerts', '0');
 ok(computeSafeguardingFlags($sgDb, $ANCHOR) === [], 'A5 toggle off: empty (fully off)');
 setSetting('show_safeguarding_alerts', '1');            // restore for later phases
+
+// (g) a concerning NOTE but a happy mood must NOT flag (proves notes are never scanned)
+$sgDb->exec("DELETE FROM daily_checkin");
+$ins->execute([$sgChild, '2026-06-27', 5, 4, 'i feel so sad and hopeless']);
+ok(count(computeSafeguardingFlags($sgDb, $ANCHOR)) === 0, 'A5 worrying note + happy mood: no flag (notes not scanned)');
 
 // PHASE P cleanup.
 gc_collect_cycles();
