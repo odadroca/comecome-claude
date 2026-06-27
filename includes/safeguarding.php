@@ -8,6 +8,15 @@
  */
 require_once __DIR__ . '/db.php';   // getDB / getSetting / setSetting
 
+// SAFEGUARD_* thresholds are authoritatively defined (and documented as tunable)
+// in config.php. These guarded fallbacks make this helper self-contained when it
+// is loaded in a context that does not bootstrap config.php (e.g. the CLI test
+// smoke subprocess). config.php loads first in production, so these are no-ops there.
+if (!defined('SAFEGUARD_MOOD_CRITICAL')) { define('SAFEGUARD_MOOD_CRITICAL', 1); }
+if (!defined('SAFEGUARD_MOOD_LOW'))      { define('SAFEGUARD_MOOD_LOW', 2); }
+if (!defined('SAFEGUARD_LOW_COUNT'))     { define('SAFEGUARD_LOW_COUNT', 2); }
+if (!defined('SAFEGUARD_WINDOW_DAYS'))   { define('SAFEGUARD_WINDOW_DAYS', 7); }
+
 /**
  * @param PDO         $db
  * @param string|null $today  YYYY-MM-DD window anchor (injectable for tests; defaults to today).
