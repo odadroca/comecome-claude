@@ -2355,6 +2355,40 @@ gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
+ * PHASE R — S2 / A15: export-all (per-child full-history + whole-DB bundle).
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE R — S2 A15 export-all (buildFullHistoryReport + buildWholeDbExport) ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// --- Phase A8: export-all (S2 / A15) ---------------------------------------
+require_once $ROOT . '/includes/helpers.php';
+$exDb = getDB();
+$exDb->exec("INSERT INTO users (type,name,pin,active) VALUES ('child','Export Kid','x',1)");
+$exKid = (int) $exDb->lastInsertId();
+$exDb->prepare("INSERT INTO weight_log (user_id,weight_kg,log_date) VALUES (?,?,?)")->execute([$exKid, 20.5, '2020-01-01']); // ancient row
+$full = buildFullHistoryReport($exKid);
+ok(isset($full['user']) && !isset($full['user']['pin']), 'A8 per-child full report whitelisted (no pin)');
+ok(!isset($full['user']['date_of_birth']), 'A8 per-child full report omits raw DOB');
+// Full history must include the 2020 row (proves it is NOT a 30-day window).
+$json = json_encode($full);
+ok(strpos($json, '2020-01-01') !== false, 'A8 full history reaches old rows (not a recent window)');
+$bundle = buildWholeDbExport();
+ok(isset($bundle['children']) && is_array($bundle['children']) && count($bundle['children']) >= 1, 'A8 whole-DB bundle has children array');
+ok(strpos(json_encode($bundle), '"pin"') === false, 'A8 whole-DB bundle emits no pin field');
+
+// PHASE R cleanup.
+$exDb = null;
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
  * VERDICT.
  * ------------------------------------------------------------------------- */
 echo "\n==========================================================\n";

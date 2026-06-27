@@ -572,5 +572,7 @@
   "consent_privacy_link": "Privacy notice",
   "consent_disclaimer_link": "Disclaimer",
   "consent_child_blocked_title": "Almost ready!",
-  "consent_child_blocked_body": "ComeCome isn't set up yet. Please ask your grown-up to finish setting it up."
+  "consent_child_blocked_body": "ComeCome isn't set up yet. Please ask your grown-up to finish setting it up.",
+  "export_all_child": "Export all data (JSON)",
+  "export_all_db": "Export everything (all children, JSON)"
 }

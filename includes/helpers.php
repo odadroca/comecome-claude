@@ -1183,6 +1183,28 @@ function projectReportForJson($reportData) {
 }
 
 /**
+ * A15 — full-history, whitelisted export of one child (GDPR Art. 20 portability).
+ * Reuses getReportData over a maximal date range + the projectReportForJson whitelist,
+ * so it can NEVER emit pin / raw date_of_birth.
+ */
+function buildFullHistoryReport(int $childId): array {
+    $report = getReportData($childId, '1970-01-01', date('Y-m-d'));
+    return projectReportForJson($report);
+}
+
+/**
+ * A15 — whole-DB "export everything": every child's whitelisted full-history projection.
+ */
+function buildWholeDbExport(): array {
+    $children = getAllUsers('child');
+    $out = [];
+    foreach ($children as $c) {
+        $out[] = buildFullHistoryReport((int) $c['id']);
+    }
+    return ['exported_at' => gmdate('c'), 'children' => $out];
+}
+
+/**
  * Get time-based greeting key for i18n
  */
 function getTimeGreeting() {

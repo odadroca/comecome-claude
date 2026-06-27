@@ -572,5 +572,7 @@
   "consent_privacy_link": "Aviso de privacidade",
   "consent_disclaimer_link": "Aviso legal",
   "consent_child_blocked_title": "Quase pronto!",
-  "consent_child_blocked_body": "O ComeCome ainda não está configurado. Pede ao teu responsável que termine a configuração."
+  "consent_child_blocked_body": "O ComeCome ainda não está configurado. Pede ao teu responsável que termine a configuração.",
+  "export_all_child": "Exportar todos os dados (JSON)",
+  "export_all_db": "Exportar tudo (todas as crianças, JSON)"
 }
