@@ -6,6 +6,22 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 ## [Unreleased] — staging
 
 ### Added
+- **Child-safeguarding escalation (privacy/data-governance, Launch Sprint 2)** — a guardian-only
+  **"Wellbeing"** view (`pages/guardian/safeguarding.php`) surfaces per-child flags when the
+  check-in history crosses a deterministic, **mood-only** threshold: a single `mood=1` (😢) check-in
+  within the last 7 calendar days flags immediately, OR `mood<=2` on 2 or more check-ins within that
+  window. **Notes are never scanned for detection** — they appear as context only after a flag is
+  already triggered by mood. Thresholds are tunable via `SAFEGUARD_MOOD_CRITICAL` /
+  `SAFEGUARD_MOOD_LOW` / `SAFEGUARD_LOW_COUNT` / `SAFEGUARD_WINDOW_DAYS` constants in `config.php`
+  without code changes. Guardians can **"Mark reviewed"** per child (CSRF-gated router POST only —
+  no `api/` endpoint was added, so there is no second surface to gate); acknowledgment state is
+  stored as a `safeguard_reviewed_<id>` row in `settings` (**no schema change**). The feature is
+  controlled by a `show_safeguarding_alerts` toggle (default `'1'`, on); the toggle is enforced
+  inside `computeSafeguardingFlags()` in `includes/safeguarding.php` so every consumer (nav badge
+  in `pages/guardian/nav.php`, the page itself) inherits "off = fully off" from a single predicate.
+  **In-app only** — nothing is transmitted externally. Covered by `tests/http_safeguarding_smoke.php`
+  (5 groups: child gate, guardian render, CSRF rejection, mark-reviewed flow, toggle-off) plus
+  in-process Phase-A5 unit checks.
 - **Guardian consent gate (privacy/data-governance, Launch Sprint 2)** — before any child data is
   used, a guardian must acknowledge a one-time privacy/consent notice. A router-level gate in
   `index.php` (after the default-PIN gate, and dormant while the PIN is still `0000` so the two never
