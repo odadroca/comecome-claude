@@ -35,8 +35,13 @@ function eraseChildData(PDO $db, int $childId, ?int $actorId = null): array {
         $stmt->execute([$childId]);
         $counts[$t] = (int) $stmt->fetchColumn();
     }
-    // Delete the user row; FKs (ON DELETE CASCADE) remove the time-series rows.
+    // FK enforcement is OFF globally in getDB(), so deleting the users row would NOT
+    // cascade. Every users(id) FK is ON DELETE CASCADE, so enable enforcement just for
+    // this delete — it wipes all referencing tables in one statement — then restore it.
+    // Only a DELETE runs here, so the FK-loose medication INSERT path is never tripped.
+    $db->exec('PRAGMA foreign_keys = ON');
     $db->prepare("DELETE FROM users WHERE id = ? AND type = 'child'")->execute([$childId]);
+    $db->exec('PRAGMA foreign_keys = OFF');
 
     writeDeletionAudit($db, 'child', $actorId, $childId, $counts);
     return $counts;
