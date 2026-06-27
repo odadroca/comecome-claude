@@ -59,6 +59,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: ?page=manage-users&msg=saved');
         exit;
+    } elseif ($action === 'erase_child') {
+        $childId   = (int) ($_POST['child_id'] ?? 0);
+        $typedName = trim((string) ($_POST['confirm_name'] ?? ''));
+        $typedWord = trim((string) ($_POST['confirm_word'] ?? ''));
+        $child     = $childId > 0 ? getUserById($childId) : null;
+        $wordOk    = ($typedWord === t('erase_child_word'));
+        if ($child && $child['type'] === 'child' && $wordOk && $typedName === $child['name']) {
+            require_once __DIR__ . '/../../includes/retention.php';
+            eraseChildData(getDB(), $childId, $user['id']);
+            header('Location: ?page=manage-users&msg=erased');
+            exit;
+        }
+        header('Location: ?page=manage-users&msg=erase_mismatch');
+        exit;
     } elseif ($action === 'update_self') {
         $name = $_POST['name'] ?? '';
         $pin = $_POST['pin'] ?? '';
@@ -103,6 +117,12 @@ if (isset($_GET['msg'])) {
     } elseif ($_GET['msg'] === 'csrf_error') {
         // Sprint security Phase 3 — a POST arrived without a valid CSRF token.
         $message = t('error_invalid_request');
+    } elseif ($_GET['msg'] === 'erased') {
+        // S2/A15 — whole-child erasure succeeded.
+        $message = t('erase_child_done');
+    } elseif ($_GET['msg'] === 'erase_mismatch') {
+        // S2/A15 — name or confirm-word did not match; nothing deleted.
+        $message = t('erase_child_mismatch');
     } else {
         $message = t('changes_saved');
     }
@@ -137,7 +157,7 @@ ob_start();
         <?php endif; ?>
 
         <?php if ($message): ?>
-        <?php $isErrorMsg = ($message === t('login_error') || $message === t('login_locked') || $message === t('error_invalid_request')); ?>
+        <?php $isErrorMsg = ($message === t('login_error') || $message === t('login_locked') || $message === t('error_invalid_request') || $message === t('erase_child_mismatch')); ?>
         <div class="alert <?php echo $isErrorMsg ? 'alert-error' : 'alert-success'; ?>">
             <?php echo $isErrorMsg ? '❌' : '✅'; ?> <?php echo $message; ?>
         </div>
@@ -333,6 +353,31 @@ ob_start();
                     </tbody>
                 </table>
             </div>
+        </section>
+
+        <!-- Danger Zone: whole-child erasure (S2/A15) -->
+        <section class="management-section danger-zone" style="border:1px solid var(--danger,#c0392b);border-radius:8px;padding:1rem;margin-top:2rem;">
+            <h2>⚠️ <?php echo t('danger_zone'); ?></h2>
+            <h3><?php echo t('erase_child_title'); ?></h3>
+            <p style="opacity:0.85;"><?php echo t('erase_child_desc'); ?></p>
+            <form method="POST" onsubmit="return confirm('<?php echo t('erase_child_desc'); ?>');">
+                <?php echo csrfField(); ?>
+                <input type="hidden" name="action" value="erase_child">
+                <label><?php echo t('erase_child_pick'); ?>
+                    <select name="child_id" required>
+                        <?php foreach ($children as $c): ?>
+                        <option value="<?php echo (int) $c['id']; ?>"><?php echo $c['avatar_emoji']; ?> <?php echo sanitize($c['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label><?php echo t('erase_child_type_name'); ?>
+                    <input type="text" name="confirm_name" autocomplete="off" required>
+                </label>
+                <label><?php echo sprintf(t('erase_child_type_word'), '<strong>' . sanitize(t('erase_child_word')) . '</strong>'); ?>
+                    <input type="text" name="confirm_word" autocomplete="off" required>
+                </label>
+                <button type="submit" class="btn-danger"><?php echo t('erase_child_button'); ?></button>
+            </form>
         </section>
     </main>
 </div>
