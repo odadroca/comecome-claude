@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 Notable changes to ComeCome. This repo (`comecome-claude`) is **staging**; entries are promoted
 to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
@@ -32,6 +32,23 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   `tests/http_consent_smoke.php` (21 assertions incl. a regression test that a non-default-PIN,
   un-consented guardian cannot reach `manage-users`). _Consent screen links to `PRIVACY.md`/
   `DISCLAIMER.md`, which arrive with the licensing/privacy docs._
+- **Data deletion, erasure & export-all (privacy/data-governance, Launch Sprint 2 — A15 part 1)** —
+  **`data_deletion_log`** (schema **v8**, PII-free: `id`, `actor_user_id`, `target_user_id`,
+  `scope` (`'child'`|`'retention_purge'`), `record_counts` JSON, `deleted_at`) is the audit table
+  for all data-removal events; written by `writeDeletionAudit()` in `includes/retention.php`. A
+  guardian **"Danger zone"** on `pages/guardian/manage-users.php` lets a guardian permanently erase
+  a child and all their data: the form requires the child's exact **name** AND a typed confirm word
+  (`DELETE` / pt `ELIMINAR`) before the POST is accepted (CSRF-gated); the server enables FK
+  cascades for that single delete (FK enforcement is off app-wide — enabled locally for this one
+  operation only), gathers per-table row counts first, then writes a `'child'` audit row via
+  `eraseChildData()` in `includes/retention.php`. **Export-all** (data portability) is available
+  from `pages/guardian/export.php`: a per-child **full-history JSON**
+  (`?page=export&child_id=<id>&format=json&generate=1&full=1`) and a **whole-DB bundle** of every
+  child (`?page=export&export=all-json`); both are projected through the existing
+  `projectReportForJson()` whitelist (never emits `pin` / raw `date_of_birth`). Builders:
+  `buildFullHistoryReport()` / `buildWholeDbExport()` in `includes/helpers.php`. Covered by Phase
+  A6/A7/A8 unit checks + `tests/http_erasure_smoke.php` (397 passed, 0 failed). **Auto-purge
+  (retention periods) is a separate follow-up — A15 part 2 / Plan 3b — not in this change.**
 - **Guardian add-item forms auto-derive the i18n key** — adding a food / category / meal no longer
   asks the guardian to hand-author the internal translation key (e.g. `food_mango`), which they had
   no way to know the convention for or which keys were taken (the source of the duplicate-key 500s).
