@@ -217,7 +217,7 @@ require_once $ROOT . '/includes/auth.php';
 require_once $ROOT . '/includes/helpers.php';
 
 $ver = (int) getSetting('schema_version', '0');
-ok($ver === 7, "schema_version reaches 7 (Sprint 11 food_growth_tags) [got " . var_export($ver, true) . "]");
+ok($ver === 8, "schema_version reaches 8 (Sprint 11 food_growth_tags; S2/A15 data_deletion_log) [got " . var_export($ver, true) . "]");
 
 // --- 2. Guardian id=1 / pin=0000 auth path (Sprint 0+) ----------------------
 echo "\n-- Auth path (guardian id=1 / pin=0000) --\n";
@@ -326,8 +326,8 @@ $s3end   = date('Y-m-d');
 //     page / height_log), Sprint 9 to 5 (medication timing), and security Phase 1
 //     to 6 (login_attempts). We assert the current shipped version (6) here; the
 //     Sprint-3 "no new schema" property is preserved historically.
-ok((int)getSetting('schema_version', '0') === 7,
-   "shipped schema_version is 7 (security Phase 1 login_attempts; Sprint 11 food_growth_tags)");
+ok((int)getSetting('schema_version', '0') === 8,
+   "shipped schema_version is 8 (security Phase 1 login_attempts; Sprint 11 food_growth_tags; S2/A15 data_deletion_log)");
 // (a2) Sprint 5 positive check: demographics columns exist on the running DB.
 $smokeDb = getDB();
 $userCols = $smokeDb->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
@@ -532,8 +532,8 @@ ok(function_exists('calculateZScore')
 // (b) NO schema change / NO migration: Sprint 7 is library-only — it added no
 //     migration of its own. The freshly initialised DB reflects the current shipped
 //     version (6, from security Phase 1); Sprint 7's "no new schema" property is historical.
-ok((int) getSetting('schema_version', '0') === 7,
-   "Sprint 7: shipped schema_version is 7 (engine itself added NO migration; Sprint 11 bumped 6->7)");
+ok((int) getSetting('schema_version', '0') === 8,
+   "Sprint 7: shipped schema_version is 8 (engine itself added NO migration; Sprint 11 bumped 6->7; S2/A15 bumped 7->8)");
 
 // (c) NO UI change: the Sprint-6 show_percentiles toggle exists and stays OFF by
 //     default — Sprint 7 does not surface percentiles anywhere yet.
@@ -587,8 +587,8 @@ echo "\n-- Sprint 8 acceptance (percentiles display; guardian + clinician only) 
 
 // (a) NO migration: Sprint 8 is display-only and added no migration of its own; the
 //     shipped version is now 6 (security Phase 1 login_attempts).
-ok((int) getSetting('schema_version', '0') === 7,
-   "Sprint 8: shipped schema_version is 7 (Sprint 8 display-only added NO migration; Sprint 11 bumped 6->7)");
+ok((int) getSetting('schema_version', '0') === 8,
+   "Sprint 8: shipped schema_version is 8 (Sprint 8 display-only added NO migration; Sprint 11 bumped 6->7; S2/A15 bumped 7->8)");
 
 // Turn the feature ON for the display path (it defaults OFF).
 setSetting('show_percentiles', '1');
@@ -798,8 +798,8 @@ echo "\n-- Sprint 10 acceptance (nutrition intelligence DISCOVERY spike; docs-on
 // (a) The Sprint 10 discovery spike itself added no schema. The running DB now reflects
 //     the current shipped version (7) because Sprint 11 has since landed its v6->v7
 //     food_growth_tags migration.
-ok((int) getSetting('schema_version', '0') === 7,
-   "Sprint 10/11: schema_version is 7 (spike added none; Sprint 11 bumped 6->7 for food_growth_tags)");
+ok((int) getSetting('schema_version', '0') === 8,
+   "Sprint 10/11: schema_version is 8 (spike added none; Sprint 11 bumped 6->7 for food_growth_tags; S2/A15 bumped 7->8)");
 
 // (b) The decision document exists and concretely resolves items (1)-(5).
 $s10doc = @file_get_contents($ROOT . '/docs/roadmap/SPRINT-10-nutrition-discovery.md');

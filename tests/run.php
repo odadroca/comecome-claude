@@ -348,15 +348,15 @@ date_default_timezone_set('Europe/Lisbon');
 require_once $ROOT . '/includes/db.php';
 
 // --- A1. initializeDatabase() on a fresh temp DB ----------------------------
-echo "\n-- A1. initializeDatabase(): tables + schema_version=7 --\n";
+echo "\n-- A1. initializeDatabase(): tables + schema_version=8 --\n";
 ok(!file_exists($initDb), "A1 precondition: temp DB does not exist before init");
 initializeDatabase(); // DB_PATH = $initDb
 $a1 = getDB();
 
 // The full set of tables the shipped schema + migration must produce at the
-// current schema_version (7). Sprint 6 adds height_log; Sprint 9 adds
+// current schema_version (8). Sprint 6 adds height_log; Sprint 9 adds
 // medication_schedules; security Phase 1 adds login_attempts; Sprint 11 adds
-// food_growth_tags.
+// food_growth_tags; S2/A15 adds data_deletion_log.
 $expectedTables = [
     'users', 'meals', 'food_categories', 'meal_categories', 'foods',
     'user_favorites', 'food_log', 'medications', 'user_medications',
@@ -364,6 +364,7 @@ $expectedTables = [
     'daily_checkin', 'weight_log', 'height_log', 'settings', 'guest_tokens',
     'translations', 'sleep_log', 'sleep_interruptions', 'login_attempts',
     'food_growth_tags',
+    'data_deletion_log',
 ];
 $gotTables = listTables($a1);
 foreach ($expectedTables as $t) {
@@ -376,7 +377,7 @@ ok($expSorted === $gotSorted,
    "A1 table set exactly matches expected (" . count($expectedTables) . " tables)");
 
 $a1ver = readSchemaVersion($a1);
-ok($a1ver === 7, "A1 schema_version reaches 7 on fresh init [got " . var_export($a1ver, true) . "]");
+ok($a1ver === 8, "A1 schema_version reaches 8 on fresh init [got " . var_export($a1ver, true) . "]");
 
 // Sprint 11 — seed growth tags are present on a fresh init (mirrored schema.sql table +
 // the v6->v7 seed). A few representative foods, not the whole map.
@@ -491,8 +492,8 @@ ok(!$threwFwd, "A2 forward migrateDatabase() did not throw");
 
 // Post-state: the Sprint-2, Sprint-5, Sprint-6, Sprint-9, security-Phase-1 AND
 // Sprint-11 deliverables now exist. The fixture migrates forward through every gated
-// block (v1->v2->v3->v4->v5->v6->v7) in one call.
-ok(readSchemaVersion($m) === 7, "A2 schema_version is 7 after forward migrate");
+// block (v1->v2->v3->v4->v5->v6->v7->v8) in one call.
+ok(readSchemaVersion($m) === 8, "A2 schema_version is 8 after forward migrate");
 ok(in_array('food_growth_tags', listTables($m), true),
    "A2 food_growth_tags exists after migrate (v7)");
 ok(columnExists($m, 'daily_checkin', 'sleep_quality'),
@@ -589,7 +590,7 @@ ok(!$threwAgain, "A2 re-running migrateDatabase() twice did not throw");
 $verAfter = readSchemaVersion($m);
 $tablesAfter = listTables($m); sort($tablesAfter);
 ok($verAfter === $verBefore, "A2 schema_version unchanged on re-run ($verBefore -> $verAfter)");
-ok($verAfter === 7, "A2 schema_version stays at 7 on idempotent re-run");
+ok($verAfter === 8, "A2 schema_version stays at 8 on idempotent re-run");
 ok($tablesAfter === $tablesBefore, "A2 table set unchanged on re-run (no-op migration)");
 $usersColsAfter = $m->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
 sort($usersColsAfter);
@@ -658,6 +659,22 @@ if ($haveBackup && $haveRestore) {
     // tidy the backup artifact so it doesn't linger in db/.
     if ($backupPath && file_exists($backupPath)) { @unlink($backupPath); }
 }
+
+// --- Phase A6: deletion audit table + writer (S2 / A15) --------------------
+require_once $ROOT . '/includes/retention.php';
+$adDb = getDB();
+ok(in_array('data_deletion_log', listTables($adDb), true), 'A6 data_deletion_log table exists');
+writeDeletionAudit($adDb, 'child', 1, 42, ['food_log' => 3, 'daily_checkin' => 5]);
+$row = $adDb->query("SELECT * FROM data_deletion_log ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+ok($row['scope'] === 'child', 'A6 audit row scope stored');
+ok((int)$row['actor_user_id'] === 1 && (int)$row['target_user_id'] === 42, 'A6 audit ids stored');
+$counts = json_decode($row['record_counts'], true);
+ok($counts['food_log'] === 3 && $counts['daily_checkin'] === 5, 'A6 record_counts JSON stored');
+// PII-free: the row's columns must be EXACTLY the non-identifying set (no name/notes columns).
+$cols = array_map(fn($c) => $c['name'], $adDb->query("PRAGMA table_info(data_deletion_log)")->fetchAll(PDO::FETCH_ASSOC));
+sort($cols);
+ok($cols === ['actor_user_id','deleted_at','id','record_counts','scope','target_user_id'],
+   'A6 audit table is PII-free (only id/actor/target/scope/counts/timestamp)');
 
 // PHASE A cleanup of temp DBs.
 foreach ([$initDb, $migDb] as $p) { if ($p && file_exists($p)) { @unlink($p); } }
@@ -787,6 +804,7 @@ $httpSmokes = [
     'tests/http_field_encryption_smoke.php',
     'tests/http_consent_smoke.php',
     'tests/http_safeguarding_smoke.php',
+    'tests/http_erasure_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;
@@ -1054,8 +1072,8 @@ ok(($json['user']['age_months'] ?? null) !== null,
 ok(isset($json['percentiles']) && ($json['percentiles']['available'] ?? null) === true
    && isset($json['percentiles']['current']['weight']['rank']),
    "E3 JSON includes the whitelisted percentile block (ranks/zones/trends)");
-ok((int) getSetting('schema_version', '0') === 7,
-   "E3 schema_version at 7 after full init (Sprint 9 bumped 4->5; security Phase 1 bumped 5->6; Sprint 11 bumped 6->7)");
+ok((int) getSetting('schema_version', '0') === 8,
+   "E3 schema_version at 8 after full init (Sprint 9 bumped 4->5; security Phase 1 bumped 5->6; Sprint 11 bumped 6->7; S2/A15 bumped 7->8)");
 
 // --- E4. FOUR-SURFACE PARITY: same current ranks everywhere ------------------
 echo "\n-- E4. four-surface parity (dashboard / html / csv / json) --\n";
@@ -1589,9 +1607,10 @@ ok($revokedCount === 3,
    "J2 list reports 3 revoked + 1 active (tok4) token states [revoked=$revokedCount]");
 
 // Fully-initialized DB sits at the current schema_version. Security Phase 3 added to
-// the existing v6 block (no bump); Sprint 11 then bumped 6->7 for food_growth_tags.
-ok((int) getSetting('schema_version', '0') === 7,
-   "J2 schema_version at 7 (security Phase 3 additive to v6; Sprint 11 bumped 6->7)");
+// the existing v6 block (no bump); Sprint 11 then bumped 6->7 for food_growth_tags;
+// S2/A15 bumped 7->8 for data_deletion_log.
+ok((int) getSetting('schema_version', '0') === 8,
+   "J2 schema_version at 8 (security Phase 3 additive to v6; Sprint 11 bumped 6->7; S2/A15 bumped 7->8)");
 
 // PHASE J cleanup.
 gc_collect_cycles();
@@ -1705,8 +1724,8 @@ ok($kGen !== generateEncryptionKeyBase64(),
 // schema_version is irrelevant to Phase 4 (no migration) — assert it on a fresh
 // app DB so the "Phase 4 adds no schema change" claim is concretely checked.
 initializeDatabase();
-ok((int) getSetting('schema_version', '0') === 7,
-   "K schema_version at 7 (Phase 4 adds no migration; Sprint 11 bumped 6->7)");
+ok((int) getSetting('schema_version', '0') === 8,
+   "K schema_version at 8 (Phase 4 adds no migration; Sprint 11 bumped 6->7; S2/A15 bumped 7->8)");
 
 // PHASE K cleanup (throwaway key files + scratch dir + the app DB).
 foreach (glob($kDir . '/*') as $f) { @unlink($f); }
@@ -2310,6 +2329,89 @@ ok(count(computeSafeguardingFlags($sgDb, $localToday)) === 0, 'A5(h) default rev
 date_default_timezone_set($tzPrev);
 
 // PHASE P cleanup.
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE Q — S2 / A15: whole-child erasure helper (eraseChildData).
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE Q — S2 A15 whole-child erasure (eraseChildData) ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// --- Phase A7: whole-child erasure (S2 / A15) ------------------------------
+$erDb = getDB();
+$erDb->exec("INSERT INTO users (type,name,pin,active) VALUES ('child','Erase Me','x',1)");
+$erChild = (int) $erDb->lastInsertId();
+$erDb->prepare("INSERT INTO daily_checkin (user_id,check_date,mood_level) VALUES (?,?,?)")->execute([$erChild,'2026-06-01',3]);
+$erDb->prepare("INSERT INTO food_log (user_id,food_id,meal_id,portion,log_date,log_time) VALUES (?,?,?,?,?,?)")->execute([$erChild,1,1,'some','2026-06-01','08:00']);
+$erDb->prepare("INSERT INTO weight_log (user_id,weight_kg,log_date) VALUES (?,?,?)")->execute([$erChild, 20.0, '2026-06-01']);
+$erDb->prepare("INSERT INTO sleep_log (user_id,log_date,sleep_type) VALUES (?,?,?)")->execute([$erChild, '2026-06-01', 'night']);
+$erSleepId = (int) $erDb->lastInsertId();
+$erDb->prepare("INSERT INTO sleep_interruptions (sleep_log_id,wake_time,reason) VALUES (?,?,?)")->execute([$erSleepId, '2026-06-01 02:00:00', 'woke']);
+// Seed user_favorites (user_id + food_id; food_id=1 exists from seed.sql).
+$erDb->prepare("INSERT INTO user_favorites (user_id,food_id) VALUES (?,?)")->execute([$erChild, 1]);
+// Seed guest_tokens (token TEXT PK, user_id, expires_at NOT NULL, is_revoked NOT NULL DEFAULT 0).
+$erDb->prepare("INSERT INTO guest_tokens (token,user_id,expires_at) VALUES (?,?,?)")->execute(['er-test-token', $erChild, '2099-12-31 23:59:59']);
+$counts = eraseChildData($erDb, $erChild, 1);
+ok($counts['daily_checkin'] === 1 && $counts['food_log'] === 1, 'A7 erase returns per-table counts');
+ok(getUserById($erChild) === null || getUserById($erChild) === false, 'A7 child user row deleted');
+ok((int)$erDb->query("SELECT COUNT(*) FROM daily_checkin WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped daily_checkin');
+ok((int)$erDb->query("SELECT COUNT(*) FROM food_log WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped food_log');
+$aud = $erDb->query("SELECT * FROM data_deletion_log WHERE scope='child' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+ok((int)$aud['target_user_id'] === $erChild, 'A7 child audit row written with target id');
+ok(strpos($aud['record_counts'], 'Erase Me') === false, 'A7 audit row holds NO name (PII-free)');
+ok($counts['weight_log'] === 1 && $counts['sleep_log'] === 1, 'A7 counts cover weight_log + sleep_log');
+ok((int)$erDb->query("SELECT COUNT(*) FROM sleep_log WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped sleep_log');
+ok((int)$erDb->query("SELECT COUNT(*) FROM sleep_interruptions WHERE sleep_log_id = $erSleepId")->fetchColumn() === 0, 'A7 cascade wiped sleep_interruptions (via sleep_log)');
+ok($counts['user_favorites'] === 1, 'A7 counts include user_favorites');
+ok($counts['sleep_interruptions'] === 1, 'A7 counts include sleep_interruptions (transitive)');
+ok(array_key_exists('medication_schedules', $counts) && array_key_exists('guest_tokens', $counts), 'A7 audit counts cover all cascaded tables');
+ok((int)$erDb->query("SELECT COUNT(*) FROM user_favorites WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped user_favorites');
+ok((int)$erDb->query("SELECT COUNT(*) FROM guest_tokens WHERE user_id = $erChild")->fetchColumn() === 0, 'A7 cascade wiped guest_tokens');
+
+// PHASE Q cleanup.
+$erDb = null;
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE R — S2 / A15: export-all (per-child full-history + whole-DB bundle).
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE R — S2 A15 export-all (buildFullHistoryReport + buildWholeDbExport) ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// --- Phase A8: export-all (S2 / A15) ---------------------------------------
+require_once $ROOT . '/includes/helpers.php';
+$exDb = getDB();
+$exDb->exec("INSERT INTO users (type,name,pin,active) VALUES ('child','Export Kid','x',1)");
+$exKid = (int) $exDb->lastInsertId();
+$exDb->prepare("INSERT INTO weight_log (user_id,weight_kg,log_date) VALUES (?,?,?)")->execute([$exKid, 20.5, '2020-01-01']); // ancient row
+$full = buildFullHistoryReport($exKid);
+ok(isset($full['user']) && !isset($full['user']['pin']), 'A8 per-child full report whitelisted (no pin)');
+ok(!isset($full['user']['date_of_birth']), 'A8 per-child full report omits raw DOB');
+// Full history must include the 2020 row (proves it is NOT a 30-day window).
+$json = json_encode($full);
+ok(strpos($json, '2020-01-01') !== false, 'A8 full history reaches old rows (not a recent window)');
+$bundle = buildWholeDbExport();
+ok(isset($bundle['children']) && is_array($bundle['children']) && count($bundle['children']) >= 1, 'A8 whole-DB bundle has children array');
+ok(strpos(json_encode($bundle), '"pin"') === false, 'A8 whole-DB bundle emits no pin field');
+
+// PHASE R cleanup.
+$exDb = null;
 gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 

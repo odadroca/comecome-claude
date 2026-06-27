@@ -251,6 +251,21 @@ CREATE TABLE IF NOT EXISTS sleep_interruptions (
     FOREIGN KEY (sleep_log_id) REFERENCES sleep_log(id) ON DELETE CASCADE
 );
 
+-- Deletion audit log (Sprint 2 / A15 — S2 privacy & erasure). PII-FREE: only ids,
+-- counts, scope, and timestamp are ever written — no names, no notes, no text fields.
+-- Guardian erasure ("child" scope) and automated retention purges ("retention_purge")
+-- both append a row here so every data-deletion event is traceable without re-creating
+-- PII. Mirrors the v8 migration block in includes/db.php so a fresh DB matches a
+-- migrated one.
+CREATE TABLE IF NOT EXISTS data_deletion_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor_user_id INTEGER,
+    target_user_id INTEGER,
+    scope TEXT NOT NULL CHECK(scope IN ('child','retention_purge')),
+    record_counts TEXT,
+    deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_food_log_user_date ON food_log(user_id, log_date);
 CREATE INDEX IF NOT EXISTS idx_food_log_date ON food_log(log_date);

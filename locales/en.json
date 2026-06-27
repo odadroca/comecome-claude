@@ -553,6 +553,18 @@
   "safeguarding_col_appetite": "Appetite",
   "safeguarding_col_notes": "Notes (context only)",
 
+  "_danger_zone": "=== DANGER ZONE ===",
+  "danger_zone": "Danger zone",
+  "erase_child_title": "Permanently delete a child and all their data",
+  "erase_child_desc": "This permanently deletes the child's profile and ALL their history (food, check-ins, mood, growth, sleep). This cannot be undone.",
+  "erase_child_pick": "Child to delete",
+  "erase_child_type_name": "Type the child's exact name",
+  "erase_child_type_word": "Type %s to confirm",
+  "erase_child_word": "DELETE",
+  "erase_child_button": "Permanently delete this child",
+  "erase_child_done": "Child and all their data were permanently deleted.",
+  "erase_child_mismatch": "Name or confirmation word did not match — nothing was deleted.",
+
   "_consent": "=== GUARDIAN CONSENT ===",
   "consent_title": "Before you start",
   "consent_body": "ComeCome stores health-related information about your child (food, mood, medication, growth, sleep). As the person running this app you are responsible for that data. Please review the privacy notice and disclaimer.",
@@ -560,5 +572,7 @@
   "consent_privacy_link": "Privacy notice",
   "consent_disclaimer_link": "Disclaimer",
   "consent_child_blocked_title": "Almost ready!",
-  "consent_child_blocked_body": "ComeCome isn't set up yet. Please ask your grown-up to finish setting it up."
+  "consent_child_blocked_body": "ComeCome isn't set up yet. Please ask your grown-up to finish setting it up.",
+  "export_all_child": "Export all data (JSON)",
+  "export_all_db": "Export everything (all children, JSON)"
 }

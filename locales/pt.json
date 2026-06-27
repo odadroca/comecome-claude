@@ -553,6 +553,18 @@
   "safeguarding_col_appetite": "Apetite",
   "safeguarding_col_notes": "Notas (apenas contexto)",
 
+  "_danger_zone": "=== ZONA DE PERIGO ===",
+  "danger_zone": "Zona de perigo",
+  "erase_child_title": "Eliminar permanentemente uma criança e todos os seus dados",
+  "erase_child_desc": "Esta ação elimina permanentemente o perfil da criança e TODO o seu histórico (alimentação, check-ins, humor, crescimento, sono). Não é possível desfazer.",
+  "erase_child_pick": "Criança a eliminar",
+  "erase_child_type_name": "Escreve o nome exato da criança",
+  "erase_child_type_word": "Escreve %s para confirmar",
+  "erase_child_word": "ELIMINAR",
+  "erase_child_button": "Eliminar permanentemente esta criança",
+  "erase_child_done": "A criança e todos os seus dados foram eliminados permanentemente.",
+  "erase_child_mismatch": "O nome ou a palavra de confirmação não correspondem — nada foi eliminado.",
+
   "_consent": "=== CONSENTIMENTO DO GUARDIÃO ===",
   "consent_title": "Antes de começar",
   "consent_body": "O ComeCome armazena informações de saúde sobre o seu filho (alimentação, humor, medicação, crescimento, sono). Como responsável pela utilização desta aplicação, é você quem responde por esses dados. Por favor, leia o aviso de privacidade e o aviso legal.",
@@ -560,5 +572,7 @@
   "consent_privacy_link": "Aviso de privacidade",
   "consent_disclaimer_link": "Aviso legal",
   "consent_child_blocked_title": "Quase pronto!",
-  "consent_child_blocked_body": "O ComeCome ainda não está configurado. Pede ao teu responsável que termine a configuração."
+  "consent_child_blocked_body": "O ComeCome ainda não está configurado. Pede ao teu responsável que termine a configuração.",
+  "export_all_child": "Exportar todos os dados (JSON)",
+  "export_all_db": "Exportar tudo (todas as crianças, JSON)"
 }

@@ -351,6 +351,21 @@ function migrateDatabase($db) {
         $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '7')");
     }
 
+    if ($version < 8) {
+        // Sprint 2 (A15) — deletion audit trail. PII-FREE: ids/counts/scope/timestamp only.
+        $db->exec(
+            "CREATE TABLE IF NOT EXISTS data_deletion_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                actor_user_id INTEGER,
+                target_user_id INTEGER,
+                scope TEXT NOT NULL CHECK(scope IN ('child','retention_purge')),
+                record_counts TEXT,
+                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )"
+        );
+        $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('schema_version', '8')");
+    }
+
     // Sprint security Phase 3 — reconcile the additive guest_tokens.is_revoked column
     // for installs that ALREADY reached schema_version 6 under an INTERMEDIATE build
     // of this same security sprint (Phase 1 bumped 5->6 before Phase 3 added this

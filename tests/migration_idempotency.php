@@ -74,8 +74,8 @@ $tables1 = tableList($db);
 echo "schema_version after first migrate: " . var_export($ver1, true) . "\n";
 echo "tables (" . count($tables1) . "): " . implode(', ', $tables1) . "\n";
 
-check($ver1 === 7, "schema_version is 7 after first migrate (Sprint 11 food_growth_tags)");
-$mustHave = ['users','meals','foods','food_log','daily_checkin','weight_log','height_log','settings','guest_tokens','translations','sleep_log','sleep_interruptions','medication_schedules','login_attempts','food_growth_tags'];
+check($ver1 === 8, "schema_version is 8 after first migrate (Sprint 11 food_growth_tags; S2/A15 data_deletion_log)");
+$mustHave = ['users','meals','foods','food_log','daily_checkin','weight_log','height_log','settings','guest_tokens','translations','sleep_log','sleep_interruptions','medication_schedules','login_attempts','food_growth_tags','data_deletion_log'];
 foreach ($mustHave as $t) {
     check(in_array($t, $tables1, true), "table '$t' exists after first migrate");
 }

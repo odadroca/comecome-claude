@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -30,7 +30,7 @@ The **single dependency-free regression entry point** (no Composer/PHPUnit). Run
 
 **CSRF**: `includes/csrf.php` — every state-changing POST (all guardian forms + the 6 `api/` endpoints) requires a token (`hash_equals`); child-page inline `fetch()` calls attach `X-CSRF-Token`.
 
-**Database**: SQLite3 via PDO, prepared statements everywhere, `PRAGMA busy_timeout`. **`schema_version` = 7**, migrated additively by `migrateDatabase()`. Tables: `users` (incl. `gender`, `date_of_birth`), `meals`, `food_categories`, `meal_categories`, `foods`, `food_growth_tags`, `user_favorites`, `food_log` (incl. `med_window`), `medications`, `user_medications`, `medication_schedules`, `daily_checkin` (incl. `sleep_quality`), `weight_log`, `height_log`, `settings` (key/value), `guest_tokens` (incl. `is_revoked`), `translations`, `login_attempts`, `sleep_log`, `sleep_interruptions`.
+**Database**: SQLite3 via PDO, prepared statements everywhere, `PRAGMA busy_timeout`. **`schema_version` = 8**, migrated additively by `migrateDatabase()`. Tables: `users` (incl. `gender`, `date_of_birth`), `meals`, `food_categories`, `meal_categories`, `foods`, `food_growth_tags`, `user_favorites`, `food_log` (incl. `med_window`), `medications`, `user_medications`, `medication_schedules`, `daily_checkin` (incl. `sleep_quality`), `weight_log`, `height_log`, `settings` (key/value), `guest_tokens` (incl. `is_revoked`), `translations`, `login_attempts`, `sleep_log`, `sleep_interruptions`, `data_deletion_log` (PII-free audit: `scope` `'child'`|`'retention_purge'`, `record_counts` JSON; written by `writeDeletionAudit()` in `includes/retention.php`).
 
 **Nutrition intelligence (Sprint 11)**: `includes/nutrition.php` — rule-based (NOT AI), guardian/clinician-side only, gated by `show_nutrition_insights` (default `'0'`). Three deterministic analyzers over `food_growth_tags` + `food_log.med_window` + percentiles + sleep: medication-timing distribution, weekly growth-tag coverage/trend, and a templated recommendation engine (tunable thresholds as `NI_*` constants). Surfaced on the guardian dashboard + the clinician "Medication-Aware Nutrition Summary" (HTML/CSV/JSON/guest-report, JSON-whitelisted as de-identified aggregates). ZERO child-facing surface.
 
@@ -39,6 +39,8 @@ The **single dependency-free regression entry point** (no Composer/PHPUnit). Run
 **Growth & percentiles**: `includes/growth-standards.php` (WHO 2006 + 2007 LMS reference data) + `includes/percentiles.php` (z-score → percentile engine; **WHO-first**, CDC 2–19y is a planned additive follow-on). Surfaced in the **guardian dashboard + clinician reports only** — the child "Growth" chart stays an encouraging line with no clinical bands. Gated by `show_percentiles` (needs gender + DOB; graceful prompt otherwise). Guardians enter each child's **sex + date of birth on the Manage Users add/edit form** (shown for children only); DOB is server-validated by `validBirthDate()` in `includes/helpers.php` (rejects future/malformed → null, never clamps).
 
 **Medication timing**: `includes/medication.php` — `medication_schedules` + `computeMedWindow()` stamps `food_log.med_window` (pre_med/onset/mid_med/post_med) **server-side at insert**, invisible to the child; feeds clinician nutrition analysis.
+
+**Data deletion & export helpers**: `includes/retention.php` — `eraseChildData()` (whole-child cascade delete with FK enforcement, per-table count gathering) + `writeDeletionAudit()` (writes `data_deletion_log`). `includes/helpers.php` — `buildFullHistoryReport()` + `buildWholeDbExport()` (export-all JSON builders, projected through `projectReportForJson()`).
 
 **API**: JSON endpoints in `api/` (food-log, check-in, weight, height, favorites, sleep). Auth + per-user ownership enforced; CSRF-required on writes.
 
@@ -67,7 +69,7 @@ Guardian Settings toggles (key/value in `settings`, via `getSetting('key','defau
 
 ## Page Organization
 - `pages/child/` — log-food, check-in, weight (becomes "Growth" when `show_percentiles` on), history. Own data only; shared footer.
-- `pages/guardian/` — dashboard, **manage-users** (child + guardian admin — child **sex/DOB** demographics live here), manage-foods/meals/medications/sleep/logs, settings, exports, database backup/restore, **safeguarding** (wellbeing flags, guardian-only); shared `nav.php`. ⚠️ **`manage-children.php` is DEAD CODE** — `index.php` routes both `manage-children` and `manage-users` to `manage-users.php` (backward-compat alias); edit `manage-users.php`, not `manage-children.php`. Every guardian POST handler has a `verifyCsrf()` gate; every guardian `<form method="POST">` has `csrfField()`. Exports split across `export.php` (coordinator) + `export-csv.php` + `export-html.php` (keep the four export surfaces in parity).
+- `pages/guardian/` — dashboard, **manage-users** (child + guardian admin — child **sex/DOB** demographics live here; also has a **"Danger zone" whole-child erasure** requiring the child's exact name + typed confirm word `DELETE`/`ELIMINAR`, CSRF-gated, audited via `eraseChildData()` → `data_deletion_log`), manage-foods/meals/medications/sleep/logs, settings, exports, database backup/restore, **safeguarding** (wellbeing flags, guardian-only); shared `nav.php`. ⚠️ **`manage-children.php` is DEAD CODE** — `index.php` routes both `manage-children` and `manage-users` to `manage-users.php` (backward-compat alias); edit `manage-users.php`, not `manage-children.php`. Every guardian POST handler has a `verifyCsrf()` gate; every guardian `<form method="POST">` has `csrfField()`. Exports split across `export.php` (coordinator; also offers **export-all**: per-child full-history + whole-DB JSON bundle via `buildFullHistoryReport()`/`buildWholeDbExport()` in `includes/helpers.php`, projected through the `projectReportForJson()` whitelist) + `export-csv.php` + `export-html.php` (keep the four export surfaces in parity).
 - `pages/translations.php` (guardian-accessible runtime translation overrides), `pages/login.php` (public auth), `pages/guest-report.php` (token-validated clinician report).
 
 ## Timezone & Locale

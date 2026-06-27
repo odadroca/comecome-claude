@@ -10,8 +10,25 @@ $format = $_GET['format'] ?? 'html';
 $startDate = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
 $endDate = $_GET['end_date'] ?? date('Y-m-d');
 
+// A15: whole-DB export — must appear BEFORE the per-child generate block (no child required).
+if (($_GET['export'] ?? '') === 'all-json') {
+    header('Content-Type: application/json');
+    header('Content-Disposition: attachment; filename="comecome-export-all-' . date('Y-m-d') . '.json"');
+    echo json_encode(buildWholeDbExport(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // Generate report
 if ($selectedChild && isset($_GET['generate'])) {
+    // A15: per-child full-history (JSON) — delegate to the single whitelisted entry
+    // point (buildFullHistoryReport) so the full-history projection has ONE code path.
+    if (($_GET['full'] ?? '') === '1' && $format === 'json') {
+        header('Content-Type: application/json');
+        header('Content-Disposition: attachment; filename="comecome-report-full-' . date('Y-m-d') . '.json"');
+        echo json_encode(buildFullHistoryReport((int) $selectedChild), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     $reportData = getReportData($selectedChild, $startDate, $endDate);
 
     if ($format === 'html') {
@@ -131,6 +148,22 @@ ob_start();
                     <?php echo t('generate_report'); ?> 📄
                 </button>
             </form>
+
+            <!-- A15: per-child full-history export + whole-DB bundle links -->
+            <?php if ($selectedChild): ?>
+            <p style="margin-top:1rem;">
+                <a href="?page=export&amp;child_id=<?php echo (int) $selectedChild; ?>&amp;format=json&amp;generate=1&amp;full=1"
+                   class="btn-secondary" style="text-decoration:none;display:inline-block;padding:0.4em 0.8em;">
+                    <?php echo t('export_all_child'); ?> ⬇
+                </a>
+            </p>
+            <?php endif; ?>
+            <p style="margin-top:0.5rem;">
+                <a href="?page=export&amp;export=all-json"
+                   class="btn-secondary" style="text-decoration:none;display:inline-block;padding:0.4em 0.8em;">
+                    <?php echo t('export_all_db'); ?> ⬇
+                </a>
+            </p>
         </section>
 
         <!-- Guest Link Generation -->
