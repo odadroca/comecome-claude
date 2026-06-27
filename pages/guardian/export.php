@@ -20,8 +20,14 @@ if (($_GET['export'] ?? '') === 'all-json') {
 
 // Generate report
 if ($selectedChild && isset($_GET['generate'])) {
-    // A15: per-child full-history — override the date range when full=1.
-    if (($_GET['full'] ?? '') === '1') { $startDate = '1970-01-01'; $endDate = date('Y-m-d'); }
+    // A15: per-child full-history (JSON) — delegate to the single whitelisted entry
+    // point (buildFullHistoryReport) so the full-history projection has ONE code path.
+    if (($_GET['full'] ?? '') === '1' && $format === 'json') {
+        header('Content-Type: application/json');
+        header('Content-Disposition: attachment; filename="comecome-report-full-' . date('Y-m-d') . '.json"');
+        echo json_encode(buildFullHistoryReport((int) $selectedChild), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
 
     $reportData = getReportData($selectedChild, $startDate, $endDate);
 
