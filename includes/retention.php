@@ -83,6 +83,7 @@ function retentionTables(): array {
 function computeRetentionPurge(PDO $db, int $months, ?string $today = null): array {
     $counts = [];
     foreach (retentionTables() as $t => $col) { $counts[$t] = 0; }
+    $counts['sleep_interruptions'] = 0;
     if ($months <= 0) { return $counts; }
     $today  = $today ?? date('Y-m-d');
     $cutoff = date('Y-m-d', strtotime($today . ' -' . $months . ' months'));
@@ -91,6 +92,13 @@ function computeRetentionPurge(PDO $db, int $months, ?string $today = null): arr
         $stmt->execute([$cutoff]);
         $counts[$t] = (int) $stmt->fetchColumn();
     }
+    $stmt = $db->prepare(
+        "SELECT COUNT(*) FROM sleep_interruptions si
+           JOIN sleep_log sl ON sl.id = si.sleep_log_id
+          WHERE sl.log_date < ?"
+    );
+    $stmt->execute([$cutoff]);
+    $counts['sleep_interruptions'] = (int) $stmt->fetchColumn();
     return $counts;
 }
 
@@ -100,6 +108,11 @@ function applyRetentionPurge(PDO $db, int $months, ?int $actorId = null, ?string
     if ($months <= 0 || array_sum($counts) === 0) { return $counts; }
     $today  = $today ?? date('Y-m-d');
     $cutoff = date('Y-m-d', strtotime($today . ' -' . $months . ' months'));
+    // Delete sleep_interruptions BEFORE sleep_log so none orphan (FK enforcement is OFF globally).
+    $db->prepare(
+        "DELETE FROM sleep_interruptions
+          WHERE sleep_log_id IN (SELECT id FROM sleep_log WHERE log_date < ?)"
+    )->execute([$cutoff]);
     foreach (retentionTables() as $t => $col) {
         $db->prepare("DELETE FROM $t WHERE $col < ?")->execute([$cutoff]);
     }

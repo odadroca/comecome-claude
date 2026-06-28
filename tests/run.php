@@ -2395,7 +2395,6 @@ for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
 initializeDatabase();
 
 // --- Phase A9: retention purge compute + apply (S2 / A15) -------------------
-require_once $ROOT . '/config.php';
 require_once $ROOT . '/includes/retention.php';
 $rpDb = getDB();
 $rpDb->exec("DELETE FROM daily_checkin"); $rpDb->exec("DELETE FROM weight_log");
@@ -2406,6 +2405,10 @@ $ci = $rpDb->prepare("INSERT INTO daily_checkin (user_id,check_date,mood_level) 
 $ci->execute([$rpKid, '2026-06-20', 3]);   // recent (within 12 mo) -> kept
 $ci->execute([$rpKid, '2024-01-01', 3]);   // ~2.5 yr old -> purged at 12 mo
 $rpDb->prepare("INSERT INTO weight_log (user_id,weight_kg,log_date) VALUES (?,?,?)")->execute([$rpKid, 20, '2024-01-01']);
+// Seed an old sleep_log row + a child sleep_interruptions row (FK-off; no cascade).
+$rpDb->prepare("INSERT INTO sleep_log (user_id,log_date,sleep_type) VALUES (?,?,?)")->execute([$rpKid, '2024-01-01', 'night']);
+$rpOldSleep = (int) $rpDb->lastInsertId();
+$rpDb->prepare("INSERT INTO sleep_interruptions (sleep_log_id,wake_time,reason) VALUES (?,?,?)")->execute([$rpOldSleep, '2024-01-01 03:00:00', 'woke']);
 
 // months=0 -> no-op
 ok(array_sum(computeRetentionPurge($rpDb, 0, $ANCHOR)) === 0, 'A9 months=0: nothing to purge');
@@ -2413,15 +2416,18 @@ ok(array_sum(computeRetentionPurge($rpDb, 0, $ANCHOR)) === 0, 'A9 months=0: noth
 $plan = computeRetentionPurge($rpDb, 12, $ANCHOR);
 ok($plan['daily_checkin'] === 1, 'A9 compute: one old daily_checkin over 12mo');
 ok($plan['weight_log'] === 1, 'A9 compute: one old weight_log over 12mo');
+ok($plan['sleep_interruptions'] === 1, 'A9 compute counts old sleep_interruptions (via parent sleep_log)');
 // compute is read-only (no deletion yet)
 ok((int)$rpDb->query("SELECT COUNT(*) FROM daily_checkin WHERE user_id=$rpKid")->fetchColumn() === 2, 'A9 compute did NOT delete');
 // apply -> deletes old, keeps recent, writes audit
 $done = applyRetentionPurge($rpDb, 12, null, $ANCHOR);
 ok($done['daily_checkin'] === 1, 'A9 apply returns purged counts');
 ok((int)$rpDb->query("SELECT COUNT(*) FROM daily_checkin WHERE user_id=$rpKid")->fetchColumn() === 1, 'A9 apply kept the recent row');
+ok((int)$rpDb->query("SELECT COUNT(*) FROM sleep_interruptions WHERE sleep_log_id = $rpOldSleep")->fetchColumn() === 0, 'A9 apply purged sleep_interruptions (no orphan)');
 $ra = $rpDb->query("SELECT * FROM data_deletion_log WHERE scope='retention_purge' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
 ok($ra !== false, 'A9 retention audit row written');
 ok(json_decode($ra['record_counts'], true)['weight_log'] === 1, 'A9 audit counts include weight_log');
+ok(json_decode($ra['record_counts'], true)['sleep_interruptions'] === 1, 'A9 audit counts include sleep_interruptions');
 
 // PHASE A9 cleanup.
 $rpDb = null;
