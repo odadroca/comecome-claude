@@ -15,3 +15,6 @@ encryption-key.php
 # Design-system handover (Claude design export: zips + React UI-kit mockups).
 # Reference material, not part of the app build — kept on disk, out of the repo.
 design-handover/
+
+# subagent-driven-development scratch (briefs, reports, progress, review diffs)
+.superpowers/
