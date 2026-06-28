@@ -6,6 +6,14 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
 ## [Unreleased] — staging
 
 ### Fixed
+- **Retention auto-purge could delete data younger than the retention window on month-end runs** — the
+  cutoff used `strtotime("-N months")`, which overflows on month-end dates (e.g. `2026-08-31 -6 months` →
+  `2026-03-03` instead of `2026-02-28`), so a month-end run of the 6/18/30-month preset purged rows from the
+  first days of the target month even though they were younger than N months — and the dry-run preview used
+  the same expression, hiding it. A clamped `retentionCutoff()` helper now pins the cutoff to the target
+  month's last valid day (the safe direction — never deletes data younger than the window), used by both the
+  count and the delete; `applyRetentionPurge()` resolves `today` once so the preview and the delete always
+  agree. Regression test A11 added.
 - **Safeguarding review timestamp stamped in UTC instead of app-local time** — `markSafeguardingReviewed()`
   recorded the review with `gmdate()` (UTC) while the flag comparison uses the local
   `daily_checkin.check_date` / `date('Y-m-d')` (Europe/Lisbon). In the post-midnight local window the UTC
