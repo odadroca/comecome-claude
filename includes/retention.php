@@ -68,6 +68,21 @@ function eraseChildData(PDO $db, int $childId, ?int $actorId = null): array {
     return $counts;
 }
 
+/**
+ * N-months-before $today, CLAMPED to the target month's last valid day.
+ * Avoids strtotime()'s month overflow (e.g. 2026-08-31 -6 months would roll Feb 31
+ * forward to Mar 3 and purge rows younger than the retention window). Clamping to the
+ * last day of the target month is the safe direction: never delete data younger than N months.
+ */
+function retentionCutoff(string $today, int $months): string {
+    $d = DateTime::createFromFormat('Y-m-d', $today) ?: new DateTime($today);
+    $day = (int) $d->format('d');
+    $d->modify('first day of this month');     // go to day 1 so the month subtraction can't overflow
+    $d->modify('-' . $months . ' months');
+    $d->setDate((int) $d->format('Y'), (int) $d->format('m'), min($day, (int) $d->format('t')));
+    return $d->format('Y-m-d');
+}
+
 /** The child time-series tables and their date column for retention. */
 function retentionTables(): array {
     return [
@@ -86,7 +101,7 @@ function computeRetentionPurge(PDO $db, int $months, ?string $today = null): arr
     $counts['sleep_interruptions'] = 0;
     if ($months <= 0) { return $counts; }
     $today  = $today ?? date('Y-m-d');
-    $cutoff = date('Y-m-d', strtotime($today . ' -' . $months . ' months'));
+    $cutoff = retentionCutoff($today, $months);
     foreach (retentionTables() as $t => $col) {
         $stmt = $db->prepare("SELECT COUNT(*) FROM $t WHERE $col < ?");
         $stmt->execute([$cutoff]);
@@ -119,10 +134,10 @@ function maybeRunRetentionPurge(PDO $db, ?string $today = null): ?array {
 
 /** Delete rows older than the cutoff, audit the purge, return per-table counts. */
 function applyRetentionPurge(PDO $db, int $months, ?int $actorId = null, ?string $today = null): array {
+    $today  = $today ?? date('Y-m-d');
     $counts = computeRetentionPurge($db, $months, $today);
     if ($months <= 0 || array_sum($counts) === 0) { return $counts; }
-    $today  = $today ?? date('Y-m-d');
-    $cutoff = date('Y-m-d', strtotime($today . ' -' . $months . ' months'));
+    $cutoff = retentionCutoff($today, $months);
     // Delete sleep_interruptions BEFORE sleep_log so none orphan (FK enforcement is OFF globally).
     $db->prepare(
         "DELETE FROM sleep_interruptions

@@ -2504,6 +2504,44 @@ gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
+ * PHASE A11 — retention cutoff month-end clamp (S2 / A15).
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE A11 — retention cutoff month-end clamp (S2 / A15) ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// --- Helper unit assertions (pure date arithmetic) ---
+require_once $ROOT . '/includes/retention.php';
+ok(retentionCutoff('2026-08-31', 6) === '2026-02-28', 'A11 6mo from 2026-08-31 clamps to 2026-02-28 (not 2026-03-03)');
+ok(retentionCutoff('2026-08-31', 12) === '2025-08-31', 'A11 12mo (exact year) does not overflow');
+ok(retentionCutoff('2026-03-31', 1) === '2026-02-28', 'A11 1mo from 2026-03-31 clamps to 2026-02-28');
+
+// --- Behavioral: a row YOUNGER than 6 months must NOT be purged on a month-end run ---
+$ccDb = getDB();
+$ccDb->exec("DELETE FROM daily_checkin");
+$ccDb->exec("INSERT INTO users (type,name,pin,active) VALUES ('child','CC Kid','x',1)");
+$ccKid = (int) $ccDb->lastInsertId();
+$ccIns = $ccDb->prepare("INSERT INTO daily_checkin (user_id,check_date,mood_level) VALUES (?,?,?)");
+$ccIns->execute([$ccKid, '2026-03-01', 3]);  // ~5mo29d old on 2026-08-31 -> must be KEPT at 6mo
+$ccIns->execute([$ccKid, '2026-02-27', 3]);  // older than the clamp -> must be PURGED
+$plan = computeRetentionPurge($ccDb, 6, '2026-08-31');
+ok($plan['daily_checkin'] === 1, 'A11 compute purges ONLY the genuinely-old row (not the younger-than-6mo one)');
+applyRetentionPurge($ccDb, 6, null, '2026-08-31');
+ok((int)$ccDb->query("SELECT COUNT(*) FROM daily_checkin WHERE check_date='2026-03-01'")->fetchColumn() === 1, 'A11 2026-03-01 row survived (younger than 6 months)');
+ok((int)$ccDb->query("SELECT COUNT(*) FROM daily_checkin WHERE check_date='2026-02-27'")->fetchColumn() === 0, 'A11 2026-02-27 row purged');
+
+// PHASE A11 cleanup.
+$ccDb = null;
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
  * VERDICT.
  * ------------------------------------------------------------------------- */
 echo "\n==========================================================\n";
