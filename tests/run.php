@@ -2469,6 +2469,40 @@ gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
+ * PHASE A10 — S2 / A15: opportunistic purge throttle (maybeRunRetentionPurge).
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE A10 — S2 A15 opportunistic purge throttle (maybeRunRetentionPurge) ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// --- Phase A10: opportunistic purge throttle (S2 / A15) --------------------
+$thDb = getDB();
+// Seed a child so the daily_checkin FK constraint is satisfied.
+$thDb->exec("INSERT INTO users (type,name,pin,active) VALUES ('child','ThrottleKid','x',1)");
+$thDb->exec("DELETE FROM daily_checkin");
+setSetting('data_retention_months', '0');
+setSetting('retention_last_purge_at', '');
+ok(maybeRunRetentionPurge($thDb, '2026-06-27') === null, 'A10 off -> skipped');
+setSetting('data_retention_months', '12');
+$thDb->prepare("INSERT INTO daily_checkin (user_id,check_date,mood_level) VALUES ((SELECT id FROM users WHERE type='child' LIMIT 1),?,?)")->execute(['2024-01-01',3]);
+$r1 = maybeRunRetentionPurge($thDb, '2026-06-27');
+ok(is_array($r1), 'A10 first run today -> ran');
+ok(getSetting('retention_last_purge_at','') !== '', 'A10 stamps last-purge date');
+ok(maybeRunRetentionPurge($thDb, '2026-06-27') === null, 'A10 second run same day -> skipped (throttle)');
+ok(is_array(maybeRunRetentionPurge($thDb, '2026-06-28')), 'A10 next day -> runs again');
+
+// PHASE A10 cleanup.
+$thDb = null;
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
  * VERDICT.
  * ------------------------------------------------------------------------- */
 echo "\n==========================================================\n";

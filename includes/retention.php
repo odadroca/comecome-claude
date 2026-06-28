@@ -102,6 +102,21 @@ function computeRetentionPurge(PDO $db, int $months, ?string $today = null): arr
     return $counts;
 }
 
+/**
+ * Opportunistic, once-per-day retention purge. Safe to call on every dashboard load:
+ * returns null (no work) when retention is off or already purged today.
+ */
+function maybeRunRetentionPurge(PDO $db, ?string $today = null): ?array {
+    $months = (int) getSetting('data_retention_months', '0');
+    if ($months <= 0) { return null; }
+    $today = $today ?? date('Y-m-d');
+    $last  = getSetting('retention_last_purge_at', '');
+    if (is_string($last) && substr($last, 0, 10) === $today) { return null; } // already ran today
+    $counts = applyRetentionPurge($db, $months, null, $today);
+    setSetting('retention_last_purge_at', $today);
+    return $counts;
+}
+
 /** Delete rows older than the cutoff, audit the purge, return per-table counts. */
 function applyRetentionPurge(PDO $db, int $months, ?int $actorId = null, ?string $today = null): array {
     $counts = computeRetentionPurge($db, $months, $today);
