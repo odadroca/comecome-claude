@@ -2382,6 +2382,53 @@ gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
+ * PHASE A9 — S2 / A15: retention purge compute + apply.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE A9 — S2 A15 retention purge (computeRetentionPurge + applyRetentionPurge) ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// --- Phase A9: retention purge compute + apply (S2 / A15) -------------------
+require_once $ROOT . '/config.php';
+require_once $ROOT . '/includes/retention.php';
+$rpDb = getDB();
+$rpDb->exec("DELETE FROM daily_checkin"); $rpDb->exec("DELETE FROM weight_log");
+$rpDb->exec("INSERT INTO users (type,name,pin,active) VALUES ('child','RP Kid','x',1)");
+$rpKid = (int) $rpDb->lastInsertId();
+$ANCHOR = '2026-06-27';
+$ci = $rpDb->prepare("INSERT INTO daily_checkin (user_id,check_date,mood_level) VALUES (?,?,?)");
+$ci->execute([$rpKid, '2026-06-20', 3]);   // recent (within 12 mo) -> kept
+$ci->execute([$rpKid, '2024-01-01', 3]);   // ~2.5 yr old -> purged at 12 mo
+$rpDb->prepare("INSERT INTO weight_log (user_id,weight_kg,log_date) VALUES (?,?,?)")->execute([$rpKid, 20, '2024-01-01']);
+
+// months=0 -> no-op
+ok(array_sum(computeRetentionPurge($rpDb, 0, $ANCHOR)) === 0, 'A9 months=0: nothing to purge');
+// months=12 -> the 2024 rows are older than the cutoff
+$plan = computeRetentionPurge($rpDb, 12, $ANCHOR);
+ok($plan['daily_checkin'] === 1, 'A9 compute: one old daily_checkin over 12mo');
+ok($plan['weight_log'] === 1, 'A9 compute: one old weight_log over 12mo');
+// compute is read-only (no deletion yet)
+ok((int)$rpDb->query("SELECT COUNT(*) FROM daily_checkin WHERE user_id=$rpKid")->fetchColumn() === 2, 'A9 compute did NOT delete');
+// apply -> deletes old, keeps recent, writes audit
+$done = applyRetentionPurge($rpDb, 12, null, $ANCHOR);
+ok($done['daily_checkin'] === 1, 'A9 apply returns purged counts');
+ok((int)$rpDb->query("SELECT COUNT(*) FROM daily_checkin WHERE user_id=$rpKid")->fetchColumn() === 1, 'A9 apply kept the recent row');
+$ra = $rpDb->query("SELECT * FROM data_deletion_log WHERE scope='retention_purge' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+ok($ra !== false, 'A9 retention audit row written');
+ok(json_decode($ra['record_counts'], true)['weight_log'] === 1, 'A9 audit counts include weight_log');
+
+// PHASE A9 cleanup.
+$rpDb = null;
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
  * PHASE R — S2 / A15: export-all (per-child full-history + whole-DB bundle).
  * ------------------------------------------------------------------------- */
 echo "\n### PHASE R — S2 A15 export-all (buildFullHistoryReport + buildWholeDbExport) ###\n";

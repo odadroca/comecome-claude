@@ -67,3 +67,42 @@ function eraseChildData(PDO $db, int $childId, ?int $actorId = null): array {
     writeDeletionAudit($db, 'child', $actorId, $childId, $counts);
     return $counts;
 }
+
+/** The child time-series tables and their date column for retention. */
+function retentionTables(): array {
+    return [
+        'food_log'      => 'log_date',
+        'daily_checkin' => 'check_date',
+        'weight_log'    => 'log_date',
+        'height_log'    => 'log_date',
+        'sleep_log'     => 'log_date',   // sleep_interruptions cascades on sleep_log delete
+    ];
+}
+
+/** Per-table count of rows OLDER than ($today - $months). Read-only. */
+function computeRetentionPurge(PDO $db, int $months, ?string $today = null): array {
+    $counts = [];
+    foreach (retentionTables() as $t => $col) { $counts[$t] = 0; }
+    if ($months <= 0) { return $counts; }
+    $today  = $today ?? date('Y-m-d');
+    $cutoff = date('Y-m-d', strtotime($today . ' -' . $months . ' months'));
+    foreach (retentionTables() as $t => $col) {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM $t WHERE $col < ?");
+        $stmt->execute([$cutoff]);
+        $counts[$t] = (int) $stmt->fetchColumn();
+    }
+    return $counts;
+}
+
+/** Delete rows older than the cutoff, audit the purge, return per-table counts. */
+function applyRetentionPurge(PDO $db, int $months, ?int $actorId = null, ?string $today = null): array {
+    $counts = computeRetentionPurge($db, $months, $today);
+    if ($months <= 0 || array_sum($counts) === 0) { return $counts; }
+    $today  = $today ?? date('Y-m-d');
+    $cutoff = date('Y-m-d', strtotime($today . ' -' . $months . ' months'));
+    foreach (retentionTables() as $t => $col) {
+        $db->prepare("DELETE FROM $t WHERE $col < ?")->execute([$cutoff]);
+    }
+    writeDeletionAudit($db, 'retention_purge', $actorId, null, $counts);
+    return $counts;
+}
