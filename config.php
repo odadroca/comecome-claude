@@ -48,6 +48,10 @@ define('APP_VERSION', '0.11.0');
 // re-acknowledges the new version.
 define('CONSENT_NOTICE_VERSION', 1);
 
+// Sprint 2 (A15) — allowed data-retention periods in MONTHS. 0 = off (default).
+// Server-side allowlist: any value not in this set is rejected.
+define('RETENTION_PRESETS', [0, 6, 12, 24, 36]);
+
 // Sprint 2 (A4) — child-safeguarding thresholds. Deterministic, mood-only.
 // A child is flagged when, within the last SAFEGUARD_WINDOW_DAYS *calendar days*
 // and among UNREVIEWED check-ins: any mood_level <= CRITICAL, OR

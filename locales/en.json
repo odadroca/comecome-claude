@@ -553,6 +553,13 @@
   "safeguarding_col_appetite": "Appetite",
   "safeguarding_col_notes": "Notes (context only)",
 
+  "_retention": "=== DATA RETENTION ===",
+  "retention_title": "Data retention",
+  "retention_warning": "⚠️ Turning this on permanently deletes each child's data older than the selected period — automatically, on the next dashboard load. This cannot be undone.",
+  "retention_label": "Automatically delete data older than",
+  "retention_off": "Off (keep all history)",
+  "retention_months": "%d months",
+
   "_danger_zone": "=== DANGER ZONE ===",
   "danger_zone": "Danger zone",
   "erase_child_title": "Permanently delete a child and all their data",

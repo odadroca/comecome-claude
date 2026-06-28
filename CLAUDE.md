@@ -40,7 +40,7 @@ The **single dependency-free regression entry point** (no Composer/PHPUnit). Run
 
 **Medication timing**: `includes/medication.php` — `medication_schedules` + `computeMedWindow()` stamps `food_log.med_window` (pre_med/onset/mid_med/post_med) **server-side at insert**, invisible to the child; feeds clinician nutrition analysis.
 
-**Data deletion & export helpers**: `includes/retention.php` — `eraseChildData()` (whole-child cascade delete with FK enforcement, per-table count gathering) + `writeDeletionAudit()` (writes `data_deletion_log`). `includes/helpers.php` — `buildFullHistoryReport()` + `buildWholeDbExport()` (export-all JSON builders, projected through `projectReportForJson()`).
+**Data deletion & export helpers**: `includes/retention.php` — `eraseChildData()` (whole-child cascade delete with FK enforcement, per-table count gathering) + `writeDeletionAudit()` (writes `data_deletion_log`) + **opt-in auto-purge**: `computeRetentionPurge()` (read-only; returns per-table row counts that would be deleted), `applyRetentionPurge()` (purge time-series tables + `sleep_interruptions` + write `'retention_purge'` audit row), `maybeRunRetentionPurge()` (throttled orchestrator; runs on guardian dashboard load, at most once/day, only when `data_retention_months` > 0). Preset values (`RETENTION_PRESETS`: Off/6/12/24/36 months) are defined in `config.php` and enforced server-side — no free integers. The guardian **Settings** page exposes this as a preset dropdown inside a danger-zone warning. `includes/helpers.php` — `buildFullHistoryReport()` + `buildWholeDbExport()` (export-all JSON builders, projected through `projectReportForJson()`).
 
 **API**: JSON endpoints in `api/` (food-log, check-in, weight, height, favorites, sleep). Auth + per-user ownership enforced; CSRF-required on writes.
 
@@ -57,6 +57,7 @@ Guardian Settings toggles (key/value in `settings`, via `getSetting('key','defau
 - `scripts/gen-key.php` — generate the field-encryption key container (above docroot, `0400`).
 - `scripts/encrypt-backfill.php` — verify-first, idempotent backfill of the scoped encrypted columns.
 - `scripts/reset-pin.php` — sole-guardian PIN recovery from the server filesystem.
+- `scripts/purge-retention.php` — verify-first retention purge CLI (dry-run by default; `--apply` to delete; CLI-only guard; mirrors `maybeRunRetentionPurge()` without the once/day throttle).
 - `db/seed-demo.php` — 3-month demo dataset (anonymized children) for live testing; `--reset` to re-seed.
 
 ## Key Conventions

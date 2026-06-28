@@ -3,6 +3,10 @@
  * Guardian - Settings
  */
 
+// RETENTION_PRESETS is authoritative in config.php; defensive fallback so this page
+// renders cleanly in test harnesses that skip config.php (mirrors safeguarding.php).
+if (!defined('RETENTION_PRESETS')) { define('RETENTION_PRESETS', [0, 6, 12, 24, 36]); }
+
 $user = getCurrentUser();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -30,6 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     setSetting('show_nutrition_insights', $_POST['show_nutrition_insights'] ?? '0');
     setSetting('show_safeguarding_alerts', $_POST['show_safeguarding_alerts'] ?? '0');
     setSetting('default_language', $_POST['default_language'] ?? 'pt');
+    $rm = (int) ($_POST['data_retention_months'] ?? 0);
+    if (in_array($rm, RETENTION_PRESETS, true)) {
+        setSetting('data_retention_months', (string) $rm);
+    }
     $success = true;
 }
 
@@ -42,6 +50,7 @@ $showPercentiles = getSetting('show_percentiles', '0');
 $showNutritionInsights = getSetting('show_nutrition_insights', '0');
 $showSafeguarding = getSetting('show_safeguarding_alerts', '1');
 $defaultLanguage = getSetting('default_language', 'pt');
+$retentionMonths = (int) getSetting('data_retention_months', '0');
 
 // Sprint 6 (decision iv): graceful degradation + soft-warn. When percentiles are
 // ON (and especially right after enabling), list any ACTIVE child still missing
@@ -172,6 +181,20 @@ ob_start();
                     <select name="default_language">
                         <option value="pt" <?php echo $defaultLanguage === 'pt' ? 'selected' : ''; ?>><?php echo t('language_pt'); ?></option>
                         <option value="en" <?php echo $defaultLanguage === 'en' ? 'selected' : ''; ?>><?php echo t('language_en'); ?></option>
+                    </select>
+                </label>
+            </section>
+
+            <section class="management-section danger-zone" style="border:1px solid var(--danger,#c0392b);border-radius:8px;padding:1rem;margin-top:1.5rem;">
+                <h3>🗑️ <?php echo t('retention_title'); ?></h3>
+                <p style="opacity:0.85;"><?php echo t('retention_warning'); ?></p>
+                <label><?php echo t('retention_label'); ?>
+                    <select name="data_retention_months">
+                        <?php foreach (RETENTION_PRESETS as $m): ?>
+                        <option value="<?php echo $m; ?>" <?php echo $retentionMonths === $m ? 'selected' : ''; ?>>
+                            <?php echo $m === 0 ? t('retention_off') : sprintf(t('retention_months'), $m); ?>
+                        </option>
+                        <?php endforeach; ?>
                     </select>
                 </label>
             </section>

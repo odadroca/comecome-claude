@@ -553,6 +553,13 @@
   "safeguarding_col_appetite": "Apetite",
   "safeguarding_col_notes": "Notas (apenas contexto)",
 
+  "_retention": "=== RETENÇÃO DE DADOS ===",
+  "retention_title": "Retenção de dados",
+  "retention_warning": "⚠️ Ao ativar esta opção, os dados de cada criança com mais tempo do que o período selecionado serão eliminados permanentemente — de forma automática, no próximo carregamento do painel. Esta ação não pode ser desfeita.",
+  "retention_label": "Eliminar automaticamente dados com mais de",
+  "retention_off": "Desativado (manter todo o histórico)",
+  "retention_months": "%d meses",
+
   "_danger_zone": "=== ZONA DE PERIGO ===",
   "danger_zone": "Zona de perigo",
   "erase_child_title": "Eliminar permanentemente uma criança e todos os seus dados",
