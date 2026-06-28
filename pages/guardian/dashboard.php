@@ -4,6 +4,8 @@
  */
 
 $user = getCurrentUser();
+require_once __DIR__ . '/../../includes/retention.php';
+maybeRunRetentionPurge(getDB()); // opportunistic, throttled to once/day; no-op when off
 $children = getAllUsers('child');
 $selectedChild = $_GET['child_id'] ?? ($children[0]['id'] ?? null);
 $period = $_GET['period'] ?? '7';
