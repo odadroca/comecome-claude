@@ -5,6 +5,13 @@
  *   php scripts/purge-retention.php --apply   # actually delete + write the audit row
  * Uses the configured data_retention_months; a no-op when retention is off.
  */
+
+// CLI-only: this tool DELETES data with --apply; it must never be reachable over the web.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    die("purge-retention.php is a command-line tool and must not be run over the web.\n");
+}
+
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/retention.php';
