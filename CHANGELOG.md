@@ -39,6 +39,24 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   `tests/http_consent_smoke.php` (21 assertions incl. a regression test that a non-default-PIN,
   un-consented guardian cannot reach `manage-users`). _Consent screen links to `PRIVACY.md`/
   `DISCLAIMER.md`, which arrive with the licensing/privacy docs._
+- **Opt-in data retention auto-purge (privacy/data-governance, Launch Sprint 2 — A15 part 2)** —
+  a **`data_retention_months`** setting (default `'0'` = OFF) lets a guardian configure a **preset
+  retention period** via **Settings**: a dropdown of Off / 6 / 12 / 24 / 36 months
+  (`RETENTION_PRESETS` in `config.php`; allowlisted server-side — no free integers accepted),
+  presented inside a **danger-zone warning** ("permanently deletes data older than N months"). When
+  retention > 0, rows older than N months are purged from `food_log`, `daily_checkin`, `weight_log`,
+  `height_log`, `sleep_log`, and `sleep_interruptions` (the last explicitly, since FK enforcement is
+  off app-wide). Core records (`users`, `medications`, `medication_schedules`, `settings`) are
+  **never** purged. Each purge writes one **PII-free `'retention_purge'` audit row** to
+  `data_deletion_log` (per-table counts), using the existing v8 schema — **no schema change**. Two
+  trigger paths: (1) **opportunistic on guardian dashboard load** — throttled to at most once per
+  day via `retention_last_purge_at`; only runs when retention > 0; (2) a **verify-first CLI**
+  `scripts/purge-retention.php` (dry-run by default, `--apply` to delete; CLI-only guard).
+  Pure helpers in `includes/retention.php`: `computeRetentionPurge()` (read-only, returns counts
+  without deleting), `applyRetentionPurge()` (delete + audit), `maybeRunRetentionPurge()`
+  (throttled orchestrator). Covered by Phase A9/A10 unit checks + `tests/http_retention_smoke.php`
+  (full suite: **421 passed, 0 failed**). This completes A15 alongside the already-merged
+  audit/erasure/export-all (part 1, below).
 - **Data deletion, erasure & export-all (privacy/data-governance, Launch Sprint 2 — A15 part 1)** —
   **`data_deletion_log`** (schema **v8**, PII-free: `id`, `actor_user_id`, `target_user_id`,
   `scope` (`'child'`|`'retention_purge'`), `record_counts` JSON, `deleted_at`) is the audit table
