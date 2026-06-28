@@ -805,6 +805,7 @@ $httpSmokes = [
     'tests/http_consent_smoke.php',
     'tests/http_safeguarding_smoke.php',
     'tests/http_erasure_smoke.php',
+    'tests/http_retention_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;
