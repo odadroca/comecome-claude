@@ -198,6 +198,29 @@ switch ($page) {
         include 'pages/consent.php';
         break;
 
+    // A27 — child dismisses the one-time privacy note.
+    // Router-only write surface (no api/ endpoint). Child-only: a logged-in guardian
+    // hitting this route is bounced by requireAuth()+isChild() guard below.
+    // CSRF-gated: missing/invalid token redirects without setting the flag.
+    // Not a gate: the flag is set only on explicit dismissal (not at login).
+    case 'ack-privacy-note':
+        requireAuth();
+        if (!isChild()) {
+            header('Location: index.php');
+            exit;
+        }
+        if (!verifyCsrf()) {
+            header('Location: index.php');
+            exit;
+        }
+        $user = getCurrentUser();
+        $childId = (int) ($user['id'] ?? 0);
+        if ($childId > 0) {
+            setSetting('child_privacy_note_seen_' . $childId, date('c'));
+        }
+        header('Location: index.php');
+        exit;
+
     case 'home':
     default:
         if (isLoggedIn()) {

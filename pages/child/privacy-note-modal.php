@@ -8,7 +8,12 @@
  *
  * Styling: uses --cc-* theme tokens exclusively. No hardcoded light backgrounds
  * (A21 dark-mode lesson) — legible in both light and dark mode.
+ *
+ * Self-guard (defence in depth): silently skip if a future page includes this
+ * partial without checking the conditions first (caller guards in the four child
+ * task pages remain the primary check; this is the fallback).
  */
+if (!isChild() || childPrivacyNoteSeen((int) ($user['id'] ?? 0))) { return; }
 ?>
 <dialog id="privacyNoteModal" open>
     <article style="
