@@ -4,12 +4,13 @@
  * Network-first for pages, cache-first for static assets
  */
 
-const CACHE_NAME = 'comecome-v0.11.2';
+const CACHE_NAME = 'comecome-v0.11.3';
 const STATIC_ASSETS = [
     '/assets/css/pico.min.css',
     '/assets/css/custom.css',
     '/assets/css/comecome-theme.css',
     '/assets/js/app.js',
+    '/assets/js/chart.umd.min.js',
     '/manifest.json',
     // Self-hosted fonts (offline-first; design refresh)
     '/assets/fonts/lexend-300.woff2',

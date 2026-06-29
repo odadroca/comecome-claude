@@ -11,10 +11,11 @@ Third-party components
 ==============================================================================
 
 1) Chart.js  -  https://www.chartjs.org/  -  MIT License
-   Loaded at runtime from a CDN (jsdelivr: chart.js@4.4.0); NOT redistributed
-   within this source tree, so its license text is not vendored here. If it is
-   ever bundled/vendored, its upstream LICENSE (including the original copyright
-   line) MUST be included verbatim. MIT is compatible with AGPL-3.0-or-later.
+   Self-hosted (vendored) at assets/js/chart.umd.min.js (chart.js@4.4.0, UMD build) —
+   redistributed within this source tree (amendment A7; previously a jsDelivr CDN call).
+   The full upstream license text, including the original copyright line, is included
+   verbatim at assets/js/chart.js-LICENSE.txt (the minified file also carries its own
+   license banner). MIT is compatible with AGPL-3.0-or-later.
 
 2) Lexend (font)  -  https://github.com/googlefonts/lexend
    SIL Open Font License 1.1 - Copyright 2018 The Lexend Project Authors.
