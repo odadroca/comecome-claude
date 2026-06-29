@@ -383,8 +383,9 @@ $dashUrl = "$base/index.php?page=dashboard&child_id=$kidId&period=all";
 );
 ok($d1code === 200, "D1: GET dashboard with current attestation returns 200 [got $d1code]");
 
-// Panel renders (not 'disabled', enough data).
-$d1HasPanel = strpos($d1body, 'nutrition-prompt') !== false
+// Panel renders (full-insights path emits nutrition-disclaimer-banner; not the
+// not-enough-data stub class 'nutrition-prompt').
+$d1HasPanel = strpos($d1body, 'nutrition-disclaimer-banner') !== false
     || strpos($d1body, 'nutrition_intelligence') !== false
     || strpos($d1body, t_smoke('nutrition_intelligence')) !== false;
 ok($d1HasPanel, "D1: nutrition panel renders (section present in HTML)");
@@ -425,8 +426,8 @@ $dbD2 = null;
 );
 ok($d2code === 200, "D2: GET dashboard with stale attestation returns 200 [got $d2code]");
 
-// Panel STILL renders (soft model).
-$d2HasPanel = strpos($d2body, 'nutrition-prompt') !== false
+// Panel STILL renders (soft model). Use the same full-insights marker as D1.
+$d2HasPanel = strpos($d2body, 'nutrition-disclaimer-banner') !== false
     || strpos($d2body, 'nutrition_intelligence') !== false
     || strpos($d2body, t_smoke('nutrition_intelligence')) !== false;
 ok($d2HasPanel, "D2: nutrition panel STILL renders with stale attestation (soft model)");
@@ -494,11 +495,23 @@ $eDisclaimerShort = $eLocale['medical_disclaimer_short'] ?? ($eEnLocale['medical
 $eFullSubstr  = 'not a clinical assessment';       // in en full
 $eShortSubstr = 'not medical advice';              // in en short
 // pt equivalents:
-$eFullSubstrPt  = 'não constitui uma avaliação clínica';
+$eFullSubstrPt  = 'não constituem uma avaliação clínica';
 $eShortSubstrPt = 'não constitui aconselhamento médico';
 
 $startE = date('Y-m-d', strtotime('-30 days'));
 $endE   = date('Y-m-d');
+
+// Locale-resolution guard: prove t() resolved to real text, not the bare key name.
+// If $eDisclaimerFull === 'medical_disclaimer_full' the locale load silently failed,
+// and any substring match below would be a false positive.
+ok(
+    $eDisclaimerFull !== '' && $eDisclaimerFull !== 'medical_disclaimer_full',
+    "E: medical_disclaimer_full resolved (not equal to its own key name) [got '" . substr($eDisclaimerFull, 0, 60) . "']"
+);
+ok(
+    $eDisclaimerShort !== '' && $eDisclaimerShort !== 'medical_disclaimer_short',
+    "E: medical_disclaimer_short resolved (not equal to its own key name) [got '" . substr($eDisclaimerShort, 0, 60) . "']"
+);
 
 // The guardian is already logged in ($guardianJar has the session cookie from above).
 // Build export URL helpers.
@@ -520,8 +533,7 @@ $dbE1 = null;
 ok($e1code === 200, "E1: HTML export (toggle ON) returns 200 [got $e1code]");
 ok(
     strpos($e1body, $eFullSubstr) !== false
-    || strpos($e1body, $eFullSubstrPt) !== false
-    || (strlen($eDisclaimerFull) > 5 && strpos($e1body, substr($eDisclaimerFull, 0, 40)) !== false),
+    || strpos($e1body, $eFullSubstrPt) !== false,
     "E1: HTML export (toggle ON) contains medical_disclaimer_full text"
 );
 
@@ -532,8 +544,7 @@ ok(
 ok($e2code === 200, "E2: CSV export (toggle ON) returns 200 [got $e2code]");
 ok(
     strpos($e2body, $eShortSubstr) !== false
-    || strpos($e2body, $eShortSubstrPt) !== false
-    || (strlen($eDisclaimerShort) > 5 && strpos($e2body, substr($eDisclaimerShort, 0, 30)) !== false),
+    || strpos($e2body, $eShortSubstrPt) !== false,
     "E2: CSV export (toggle ON) contains medical_disclaimer_short text"
 );
 
@@ -550,8 +561,7 @@ $dbE3 = null;
 ok($e3code === 200, "E3: HTML export (toggle OFF) returns 200 [got $e3code]");
 ok(
     strpos($e3body, $eFullSubstr) !== false
-    || strpos($e3body, $eFullSubstrPt) !== false
-    || (strlen($eDisclaimerFull) > 5 && strpos($e3body, substr($eDisclaimerFull, 0, 40)) !== false),
+    || strpos($e3body, $eFullSubstrPt) !== false,
     "E3: HTML export (toggle OFF) STILL contains medical_disclaimer_full text (unconditional)"
 );
 
@@ -562,8 +572,7 @@ ok(
 ok($e4code === 200, "E4: CSV export (toggle OFF) returns 200 [got $e4code]");
 ok(
     strpos($e4body, $eShortSubstr) !== false
-    || strpos($e4body, $eShortSubstrPt) !== false
-    || (strlen($eDisclaimerShort) > 5 && strpos($e4body, substr($eDisclaimerShort, 0, 30)) !== false),
+    || strpos($e4body, $eShortSubstrPt) !== false,
     "E4: CSV export (toggle OFF) STILL contains medical_disclaimer_short text (unconditional)"
 );
 
