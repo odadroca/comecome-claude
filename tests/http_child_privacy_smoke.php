@@ -204,6 +204,12 @@ $hasNote = (strpos($lfbody, $noteBody_en) !== false)
 ok($hasNote,
    "A: landing body contains child_privacy_note_body text (modal shown, flag unset)");
 
+// Stacking-fix regression guard: the modal must render as a fixed, high-z-index overlay
+// (a plain <dialog open> rendered inline behind the food cards — the bug fixed here).
+$modalOverlay = preg_match('/<dialog[^>]*id="privacyNoteModal"[^>]*style="[^"]*position:\s*fixed[^"]*z-index:\s*\d/s', $lfbody) === 1;
+ok($modalOverlay,
+   "A: privacy-note dialog is a fixed, z-indexed overlay (renders above the food grid, not inline behind it)");
+
 // Scrape the CSRF token from the log-food page — this is the token to use in the POST.
 $pageCsrf = '';
 if (preg_match('/<meta name="csrf-token" content="([a-f0-9]+)"/', $lfbody, $mc)) {
