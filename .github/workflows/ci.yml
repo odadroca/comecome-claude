@@ -56,10 +56,11 @@ jobs:
         run: |
           # Second line of defence behind .gitignore (PR #37): this repo holds
           # children's-health data and `main` auto-deploys — a tracked DB must never exist.
-          # Covers SQLite sidecars too (-wal/-shm/-journal can hold DB contents):
-          # .db .sqlite .sqlite3 and any of those + -wal/-shm/-journal.
-          if git ls-files | grep -E '\.(db|sqlite3?)(-(wal|shm|journal))?$'; then
-            echo "::error::A database (or SQLite sidecar) file is tracked in git — must never be committed."
+          # Mirror the broadened ignore shape (*.db-* / *.sqlite-* / *.sqlite3-*): a .db/
+          # .sqlite/.sqlite3 base, optionally followed by ANY -suffix — so not just the
+          # -wal/-shm/-journal sidecars but also backups/copies (prod.db-backup, data.sqlite-copy).
+          if git ls-files | grep -E '\.(db|sqlite3?)(-.*)?$'; then
+            echo "::error::A database/SQLite-derived file is tracked in git — must never be committed."
             exit 1
           fi
           echo "OK: no database/SQLite files tracked."
