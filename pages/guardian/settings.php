@@ -28,10 +28,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $showPercentiles = $_POST['show_percentiles'] ?? '0';
     setSetting('show_percentiles', $showPercentiles);
     $justEnabledPercentiles = ($showPercentiles === '1' && !$percentilesWasOn);
-    // Sprint 11: Nutrition Intelligence toggle (default OFF). Guardian/clinician-side
-    // only; no child-facing effect. When OFF, the analyzers short-circuit and nothing
-    // is computed or rendered on any surface.
-    setSetting('show_nutrition_insights', $_POST['show_nutrition_insights'] ?? '0');
+    // Sprint 11 / S2 A21: Nutrition Intelligence toggle (default OFF). Enabling
+    // requires the guardian to acknowledge the in-app medical disclaimer in the same
+    // POST (attestation gate). Turning OFF needs no checkbox.
+    $niWasOn   = getSetting('show_nutrition_insights', '0') === '1';
+    $niWantOn  = ($_POST['show_nutrition_insights'] ?? '0') === '1';
+    $niAcknowledge = !empty($_POST['nutrition_attestation_acknowledge']);
+    if ($niWantOn && !$niWasOn) {
+        // Enabling: only honour if acknowledgement checkbox was posted.
+        if ($niAcknowledge) {
+            setSetting('show_nutrition_insights', '1');
+            recordGuardianNutritionAttestation();
+        }
+        // else: leave at '0', write no attestation (silent reject; form re-renders with
+        //       the disclaimer block still visible).
+    } else {
+        // Turning off, or already on — save the posted value unconditionally.
+        setSetting('show_nutrition_insights', $niWantOn ? '1' : '0');
+    }
     setSetting('show_safeguarding_alerts', $_POST['show_safeguarding_alerts'] ?? '0');
     setSetting('default_language', $_POST['default_language'] ?? 'pt');
     $rm = (int) ($_POST['data_retention_months'] ?? 0);
@@ -156,7 +170,8 @@ ob_start();
                     <?php echo t('show_percentiles_hint'); ?>
                 </small>
 
-                <!-- Sprint 11: Nutrition Intelligence (guardian/clinician-side, default OFF). -->
+                <!-- Sprint 11 / S2 A21: Nutrition Intelligence (guardian/clinician-side, default OFF).
+                     Enabling requires acknowledging the medical disclaimer in the same POST. -->
                 <label>
                     <input type="checkbox" name="show_nutrition_insights" value="1" <?php echo $showNutritionInsights == '1' ? 'checked' : ''; ?>>
                     🥗 <?php echo t('show_nutrition_insights'); ?>
@@ -164,6 +179,23 @@ ob_start();
                 <small style="opacity:0.7;display:block;margin-top:0.25rem;margin-bottom:0.75rem;">
                     <?php echo t('show_nutrition_insights_hint'); ?>
                 </small>
+
+                <?php if ($showNutritionInsights !== '1'): ?>
+                <!-- S2 / A21: medical disclaimer + required attestation checkbox.
+                     Shown only when insights are OFF (i.e. the guardian is about to enable).
+                     Once enabled, the disclaimer is acknowledged and this block is hidden. -->
+                <div class="alert" style="background:var(--bg-alt,#f8f8f8);border:1px solid var(--border,#ccc);border-radius:6px;padding:1rem;margin-top:0.5rem;margin-bottom:0.75rem;font-size:0.9rem;">
+                    <strong><?php echo t('medical_disclaimer_short'); ?></strong>
+                    <p style="margin:0.5rem 0 0;"><?php echo t('medical_disclaimer_full'); ?></p>
+                </div>
+                <label style="font-weight:600;">
+                    <input type="checkbox" name="nutrition_attestation_acknowledge" value="1">
+                    <?php echo t('nutrition_attestation_checkbox'); ?>
+                </label>
+                <small style="opacity:0.7;display:block;margin-top:0.25rem;margin-bottom:0.75rem;">
+                    <?php echo t('medical_disclaimer_short'); ?>
+                </small>
+                <?php endif; ?>
 
                 <!-- Sprint S2 / A4: Safeguarding wellbeing alerts (guardian-only, default ON). -->
                 <label>
