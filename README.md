@@ -284,7 +284,7 @@ This is a FOSS project built with love for families managing ADHD.
 - **Database**: SQLite3
 - **Frontend**: HTML5, CSS3, JavaScript
 - **Styling**: Custom CSS (ADHD-optimized)
-- **Charts**: Chart.js (CDN)
+- **Charts**: Chart.js (self-hosted, MIT)
 - **PWA**: Service Worker + Web Manifest
 
 **Design Philosophy**: Keep it simple, accessible, and offline-capable.

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ComeCome is an ADHD-friendly food and nutrition tracking PWA for neuro-divergent children, built with vanilla PHP + JavaScript and SQLite. No build step, no frameworks, no external runtime dependencies beyond Pico CSS (+ Chart.js via CDN). **Guiding principle:** the child interaction surface stays deliberately flat (emoji-first, tap-portion-celebrate, ≤5 footer items); all new depth goes to the guardian/clinician layers.
+ComeCome is an ADHD-friendly food and nutrition tracking PWA for neuro-divergent children, built with vanilla PHP + JavaScript and SQLite. No build step, no frameworks, no external runtime dependencies beyond Pico CSS — Chart.js and the web fonts are **self-hosted** (no third-party CDN calls). **Guiding principle:** the child interaction surface stays deliberately flat (emoji-first, tap-portion-celebrate, ≤5 footer items); all new depth goes to the guardian/clinician layers.
 
 > **Repo model:** this is **`comecome-claude` = STAGING** (deployed to Hostinger for live testing). The public **production** repo is **`Come-come`**. Land + test here; promote to public as a deliberate, reviewed step. Never push WIP to public.
 

@@ -21,6 +21,12 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   app-local clock (`date('c')`); regression test added (`A5(h)`).
 
 ### Added
+- **Chart.js self-hosted (security/supply-chain, Launch Sprint 3, A7)** — the charting library is no
+  longer loaded from the jsDelivr CDN; the exact 4.4.0 build is vendored at `assets/js/chart.umd.min.js`
+  (MIT; license at `assets/js/chart.js-LICENSE.txt`) and precached by the service worker. This removes the
+  **last third-party network call** — a CDN-compromise vector *and* a visitor-IP privacy leak — and lets
+  charts work offline. PRIVACY.md / SECURITY.md / README / NOTICE updated to match (the app now makes no
+  outbound third-party calls).
 - **In-app medical disclaimer + guardian attestation (privacy/data-governance, Launch Sprint 2, A21)** —
   enabling **Nutrition intelligence** (`show_nutrition_insights`, default off) now requires the guardian
   to acknowledge a not-medical-advice disclaimer via a required checkbox on the settings form; the act of

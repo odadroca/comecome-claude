@@ -29,9 +29,10 @@ Art. 8):
 About **guardians/clinicians:** name, a hashed PIN (never stored in clear), role, and time-limited
 guest-access tokens for clinicians.
 
-ComeCome does **not** use third-party analytics or advertising and makes no outbound calls except
-loading the **Chart.js** charting library from a CDN (see [`NOTICE`](NOTICE)). Growth percentiles use
-embedded WHO reference data; no data leaves your instance to compute them.
+ComeCome does **not** use third-party analytics or advertising and makes **no outbound third-party
+calls**: the **Chart.js** charting library and the web fonts are **self-hosted** — served from your own
+instance, not a CDN (see [`NOTICE`](NOTICE)). Growth percentiles use embedded WHO reference data; no data
+leaves your instance to compute them.
 
 ## Lawful basis
 

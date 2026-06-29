@@ -39,7 +39,8 @@ data only.
 throttling, the optional at-rest field encryption, data access/ownership, SQL handling),
 the default configuration, and the published Docker image.
 
-**Out of scope:** vulnerabilities in third-party services/CDNs (e.g. Chart.js on jsDelivr),
+**Out of scope:** vulnerabilities in third-party hosting/services the operator chooses (the app
+itself makes no outbound third-party calls — Chart.js and the fonts are self-hosted),
 issues requiring an already-compromised host or operator misconfiguration, missing
 hardening on a self-hosted instance the operator controls, and volumetric denial-of-service.
 
