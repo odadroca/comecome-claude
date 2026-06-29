@@ -384,13 +384,13 @@ function renderNutritionSection($ni, $variant = 'dashboard') {
     // --- S2/A21 Task 3: persistent disclaimer banner + soft re-ack notice ------
     // Guardian dashboard only (not the clinician/guest report variant).
     if (!$isReport): ?>
-    <p class="nutrition-disclaimer-banner" style="font-size:0.8rem;background:#fff8e1;border-left:3px solid #f9a825;padding:4px 8px;margin:0 0 8px;">
+    <p class="nutrition-disclaimer-banner" style="font-size:0.8rem;background:rgba(249,168,37,0.13);border-left:3px solid #f9a825;color:var(--cc-text-body);padding:4px 8px;margin:0 0 8px;">
         ⚕️ <?php echo t('medical_disclaimer_short'); ?>
     </p>
     <?php if (nutritionAttestationStale()): ?>
-    <p class="nutrition-reack-notice" style="font-size:0.8rem;background:#fce4ec;border-left:3px solid #c62828;padding:4px 8px;margin:0 0 8px;">
+    <p class="nutrition-reack-notice" style="font-size:0.8rem;background:rgba(198,40,40,0.13);border-left:3px solid #c62828;color:var(--cc-text-body);padding:4px 8px;margin:0 0 8px;">
         ⚠️ <?php echo t('nutrition_reack_notice'); ?>
-        <a href="?page=settings"><?php echo t('nutrition_reack_review'); ?></a>
+        <a href="?page=settings" style="color:var(--cc-primary);text-decoration:underline;"><?php echo t('nutrition_reack_review'); ?></a>
     </p>
     <?php endif; ?>
     <?php endif; ?>

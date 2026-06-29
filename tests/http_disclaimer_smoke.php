@@ -397,6 +397,13 @@ ok(
     strpos($d1body, $disclaimerShortEn) !== false || strpos($d1body, $disclaimerShortPt) !== false,
     "D1: medical_disclaimer_short banner is present in rendered panel"
 );
+// A21 contrast fix: the banner must carry an explicit theme-adaptive text colour
+// (var(--cc-text-body)) so it stays legible in dark mode — guard against a regression
+// to an opaque light background with inherited (light) text.
+ok(
+    preg_match('/nutrition-disclaimer-banner[^>]*color:\s*var\(--cc-text-body\)/', $d1body) === 1,
+    "D1: disclaimer banner sets theme-adaptive text colour var(--cc-text-body)"
+);
 
 // Re-ack notice must be ABSENT when attestation is current.
 $reackEn = 'updated our medical disclaimer';

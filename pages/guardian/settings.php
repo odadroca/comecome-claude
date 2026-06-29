@@ -195,7 +195,7 @@ ob_start();
                      attestation is stale (re-ack path for already-on installs).
                      The `required` attribute is intentionally absent — the server-side gate
                      handles enable-without-ack; the re-ack-while-on path is soft. -->
-                <div class="alert" style="background:var(--bg-alt,#f8f8f8);border:1px solid var(--border,#ccc);border-radius:6px;padding:1rem;margin-top:0.5rem;margin-bottom:0.75rem;font-size:0.9rem;">
+                <div class="alert" style="background:var(--cc-surface-sunken);border:1px solid var(--cc-border);border-left:4px solid #f9a825;color:var(--cc-text-body);border-radius:6px;padding:1rem;margin-top:0.5rem;margin-bottom:0.75rem;font-size:0.9rem;">
                     <strong><?php echo t('medical_disclaimer_short'); ?></strong>
                     <p style="margin:0.5rem 0 0;"><?php echo t('medical_disclaimer_full'); ?></p>
                 </div>
