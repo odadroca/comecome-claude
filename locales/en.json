@@ -589,5 +589,10 @@
   "nutrition_attestation_checkbox": "I have read and understand this disclaimer. I acknowledge that ComeCome is not a medical device and does not provide medical advice.",
   "nutrition_attestation_required": "You must acknowledge the disclaimer to enable nutrition insights.",
   "nutrition_reack_notice": "We updated our medical disclaimer. Please review and re-acknowledge it.",
-  "nutrition_reack_review": "Review"
+  "nutrition_reack_review": "Review",
+
+  "_child_privacy_note": "=== CHILD PRIVACY NOTE (A27) ===",
+  "child_privacy_note_title": "Hi there! 👋",
+  "child_privacy_note_body": "Your grown-up can see what you log here — your food, how you feel, and your weight — to help you grow. 🌱",
+  "child_privacy_note_ok": "OK! 👍"
 }

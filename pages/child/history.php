@@ -28,6 +28,12 @@ if ($isToday) {
 ob_start();
 ?>
 
+<?php
+// A27 — child privacy-note modal (one-time, per-child; informational only, not a gate).
+if (isChild() && !childPrivacyNoteSeen((int) $user['id'])) {
+    include __DIR__ . '/privacy-note-modal.php';
+}
+?>
 <div class="child-interface">
     <nav class="child-nav">
         <a href="index.php" class="btn-back">← <?php echo t('back'); ?></a>

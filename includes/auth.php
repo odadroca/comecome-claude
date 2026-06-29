@@ -88,6 +88,17 @@ function recordGuardianNutritionAttestation(): void {
 }
 
 /**
+ * A27 — child privacy-note seen-state helper (settings-backed, no schema change).
+ *
+ * childPrivacyNoteSeen() — returns true iff the child has dismissed the one-time
+ *   in-app privacy note. Uses a per-child settings flag so it is independent for
+ *   each child and never interferes with guardian consent. Side-effect-free.
+ */
+function childPrivacyNoteSeen(int $childId): bool {
+    return getSetting("child_privacy_note_seen_$childId", '') !== '';
+}
+
+/**
  * Block API WRITES until the guardian has acknowledged the consent notice.
  *
  * The page-router consent gate (index.php) only covers requests routed through
