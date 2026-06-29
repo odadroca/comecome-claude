@@ -2270,6 +2270,11 @@ if (!defined('SAFEGUARD_MOOD_LOW'))      { define('SAFEGUARD_MOOD_LOW', 2); }
 if (!defined('SAFEGUARD_LOW_COUNT'))     { define('SAFEGUARD_LOW_COUNT', 2); }
 if (!defined('SAFEGUARD_WINDOW_DAYS'))   { define('SAFEGUARD_WINDOW_DAYS', 7); }
 require_once $ROOT . '/includes/safeguarding.php';
+// Phase O cleanup unlinked DB_PATH (line ~2258). Recreate the schema before use —
+// every other phase calls initializeDatabase() after an unlink; Phase P had relied
+// on the unlink silently FAILING on Windows (open-file lock) leaving the schema
+// intact, which broke on a clean Linux CI checkout ("no such table: daily_checkin").
+initializeDatabase();
 $sgDb = getDB();
 $sgDb->exec("DELETE FROM daily_checkin");      // isolate this block
 setSetting('show_safeguarding_alerts', '1');   // default-on baseline

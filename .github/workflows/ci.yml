@@ -1,0 +1,63 @@
+name: CI
+
+# A17 (Part 1) — PR-gating CI. Runs the full suite on a clean Linux box on every
+# PR/push (lifting the "Hostinger-untested" residual risk) + a secret scan and a
+# committed-database guard. Image build/scan/sign/publish is Part 2 (A10/Sprint 4).
+# Config-only: no app behaviour change. Third-party actions are pinned to a commit SHA.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint & test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.3'
+          extensions: sodium, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Lint PHP (php -l)
+        shell: bash
+        run: |
+          status=0
+          while IFS= read -r f; do
+            php -l "$f" > /dev/null || { echo "::error file=$f::PHP syntax error"; status=1; }
+          done < <(git ls-files '*.php')
+          exit $status
+      - name: Test suite (php tests/run.php)
+        run: php tests/run.php
+
+  secret-scan:
+    name: Secret scan & no-DB guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks (full history)
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: No database files tracked
+        shell: bash
+        run: |
+          # Second line of defence behind .gitignore (PR #37): this repo holds
+          # children's-health data and `main` auto-deploys — a tracked DB must never exist.
+          if git ls-files | grep -E '\.(db|db-wal|db-shm|sqlite|sqlite3)$'; then
+            echo "::error::A database file is tracked in git — must never be committed."
+            exit 1
+          fi
+          echo "OK: no *.db / *.sqlite tracked."
