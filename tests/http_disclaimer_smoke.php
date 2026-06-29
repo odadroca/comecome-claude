@@ -84,6 +84,29 @@ setSetting('nutrition_attestation_version', '');
 ok(getSetting('show_nutrition_insights', '0') === '0', "show_nutrition_insights starts OFF");
 ok(getSetting('nutrition_attestation_version', '') === '', "nutrition_attestation_version starts empty");
 
+// --- D-preseed: child + food logs (done before server start to avoid DB-lock contention
+// when writing while the server's singleton PDO connection is alive).
+// show_nutrition_insights stays '0' here — Groups A/B/C test the settings POST gate.
+// The child and logs just sit dormant until Group D sets the feature flag to '1'.
+$dPreDb = getDB();
+$dPreDb->exec("INSERT INTO users (name, type, pin, avatar_emoji, active) VALUES ('PanelKid', 'child', '0000', '🧒', 1)");
+$panelKidId = (int) $dPreDb->lastInsertId();
+// Use WAL journal mode so concurrent test-process writes work while the server's PDO
+// singleton connection is alive (WAL allows one writer + any number of readers).
+$dPreDb->exec("PRAGMA journal_mode=WAL");
+$insPreD = $dPreDb->prepare(
+    "INSERT INTO food_log (user_id, food_id, meal_id, portion, log_date, log_time)
+     VALUES (?, 1, 1, 'some', ?, '08:00:00')"
+);
+for ($d = 1; $d <= 5; $d++) {
+    $insPreD->execute([$panelKidId, date('Y-m-d', strtotime("-{$d} days"))]);
+}
+$dPreLogDays = (int) $dPreDb->query(
+    "SELECT COUNT(DISTINCT log_date) FROM food_log WHERE user_id = $panelKidId"
+)->fetchColumn();
+ok($dPreLogDays >= 5, "D-preseed: child (id=$panelKidId) has $dPreLogDays food-log days (>= NI_MIN_LOG_DAYS=5)");
+$dPreDb = null;
+
 // Release the PDO handle so the spawned server gets a clean lock on the file.
 gc_collect_cycles();
 
@@ -317,6 +340,125 @@ $attC = $dbC->query("SELECT value FROM settings WHERE \"key\"='nutrition_attesta
 ok($attC === '' || $attC === false,
    "C: nutrition_attestation_version still empty after CSRF-less POST [got '" . ($attC === false ? 'unset' : $attC) . "']");
 $dbC = null;
+
+// ==========================================================================
+// GROUP D — Panel: persistent banner + soft re-ack notice
+//
+// Drives the guardian dashboard as a logged-in guardian with:
+//   - show_nutrition_insights = '1' (feature on, set directly in DB)
+//   - A child with 5+ distinct food-log days so the nutrition section renders
+//     (NI_MIN_LOG_DAYS = 5; panel only renders when available=true)
+//   - nutrition_attestation_version = current  → banner present, notice absent
+//   - nutrition_attestation_version = stale    → banner present, notice + Review link present
+// ==========================================================================
+echo "\n--- D. Panel: persistent disclaimer banner + soft re-ack notice ---\n";
+
+// --- D-setup: enable nutrition insights + stamp a CURRENT attestation via direct DB
+// write. Child + food logs were pre-seeded before server start (see D-preseed above).
+// Use WAL + busy_timeout so the write succeeds even if the server's singleton PDO
+// connection is holding an open read transaction.
+$dbD = new PDO('sqlite:' . $tmpDb);
+$dbD->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbD->exec("PRAGMA journal_mode=WAL");
+$dbD->exec("PRAGMA busy_timeout=5000");
+$dbD->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('show_nutrition_insights', '1')");
+$dbD->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('nutrition_attestation_version', '" . NUTRITION_ATTESTATION_VERSION . "')");
+ok($dbD->query("SELECT value FROM settings WHERE \"key\"='show_nutrition_insights'")->fetchColumn() === '1',
+   "D: show_nutrition_insights set to '1' for panel test");
+$kidId = $panelKidId; // pre-seeded before server start
+ok($kidId > 0, "D: pre-seeded child (id=$kidId)");
+$logDaysD = (int) $dbD->query(
+    "SELECT COUNT(DISTINCT log_date) FROM food_log WHERE user_id = $kidId"
+)->fetchColumn();
+ok($logDaysD >= 5, "D: child has $logDaysD distinct log days (>= NI_MIN_LOG_DAYS=5)");
+$dbD = null;
+
+// GET the dashboard as the already-authenticated guardian for the seeded child.
+// Use period=all (1-year window) so the seeded recent dates are always in range.
+$dashUrl = "$base/index.php?page=dashboard&child_id=$kidId&period=all";
+
+// ---- D1: current attestation — banner present, re-ack notice absent ----------
+[$d1code, $d1body] = curlReq(
+    'curl -b ' . escapeshellarg($guardianJar) . ' -L ' . escapeshellarg($dashUrl)
+);
+ok($d1code === 200, "D1: GET dashboard with current attestation returns 200 [got $d1code]");
+
+// Panel renders (not 'disabled', enough data).
+$d1HasPanel = strpos($d1body, 'nutrition-prompt') !== false
+    || strpos($d1body, 'nutrition_intelligence') !== false
+    || strpos($d1body, t_smoke('nutrition_intelligence')) !== false;
+ok($d1HasPanel, "D1: nutrition panel renders (section present in HTML)");
+
+// Persistent disclaimer banner: medical_disclaimer_short text always present.
+$disclaimerShortEn = 'not medical advice';
+$disclaimerShortPt = 'não constitui aconselhamento médico';
+ok(
+    strpos($d1body, $disclaimerShortEn) !== false || strpos($d1body, $disclaimerShortPt) !== false,
+    "D1: medical_disclaimer_short banner is present in rendered panel"
+);
+
+// Re-ack notice must be ABSENT when attestation is current.
+$reackEn = 'updated our medical disclaimer';
+$reackPt = 'Atualizámos o nosso aviso';
+ok(
+    strpos($d1body, $reackEn) === false && strpos($d1body, $reackPt) === false,
+    "D1: nutrition_reack_notice is ABSENT when attestation is current"
+);
+
+// ---- D2: stale attestation — banner + notice + Review link all present -------
+// Stamp a stale version directly in the DB.
+// Use WAL + busy_timeout so the write waits for the server to release any read lock.
+$dbD2 = new PDO('sqlite:' . $tmpDb);
+$dbD2->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbD2->exec("PRAGMA journal_mode=WAL");
+$dbD2->exec("PRAGMA busy_timeout=5000");
+$dbD2->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('nutrition_attestation_version', '0')");
+// show_nutrition_insights stays '1'.
+$niD2 = $dbD2->query("SELECT value FROM settings WHERE \"key\"='show_nutrition_insights'")->fetchColumn();
+ok($niD2 === '1', "D2: show_nutrition_insights still '1' after stale attestation write");
+$attD2 = $dbD2->query("SELECT value FROM settings WHERE \"key\"='nutrition_attestation_version'")->fetchColumn();
+ok($attD2 === '0', "D2: nutrition_attestation_version set to stale ('0')");
+$dbD2 = null;
+
+[$d2code, $d2body] = curlReq(
+    'curl -b ' . escapeshellarg($guardianJar) . ' -L ' . escapeshellarg($dashUrl)
+);
+ok($d2code === 200, "D2: GET dashboard with stale attestation returns 200 [got $d2code]");
+
+// Panel STILL renders (soft model).
+$d2HasPanel = strpos($d2body, 'nutrition-prompt') !== false
+    || strpos($d2body, 'nutrition_intelligence') !== false
+    || strpos($d2body, t_smoke('nutrition_intelligence')) !== false;
+ok($d2HasPanel, "D2: nutrition panel STILL renders with stale attestation (soft model)");
+
+// Persistent banner still present.
+ok(
+    strpos($d2body, $disclaimerShortEn) !== false || strpos($d2body, $disclaimerShortPt) !== false,
+    "D2: medical_disclaimer_short banner is STILL present with stale attestation"
+);
+
+// Re-ack notice now present.
+ok(
+    strpos($d2body, $reackEn) !== false || strpos($d2body, $reackPt) !== false,
+    "D2: nutrition_reack_notice text is present with stale attestation"
+);
+
+// Review link routing to settings page.
+ok(
+    strpos($d2body, 'page=settings') !== false,
+    "D2: Review link routes to ?page=settings"
+);
+
+// Helper: render a locale key via the app's i18n (used only for panel-render check above).
+// Defined after its first use (PHP hoists functions in script scope).
+function t_smoke($key) {
+    static $locale = null;
+    if ($locale === null) {
+        $f = dirname(__DIR__) . '/locales/pt.json';
+        $locale = json_decode(file_get_contents($f), true) ?: [];
+    }
+    return $locale[$key] ?? $key;
+}
 
 // --- Cleanup ----------------------------------------------------------------
 $cleanup();

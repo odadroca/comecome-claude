@@ -381,6 +381,21 @@ function renderNutritionSection($ni, $variant = 'dashboard') {
 
     $border = $isReport ? '1px solid #ddd' : '1px solid #ddd';
 
+    // --- S2/A21 Task 3: persistent disclaimer banner + soft re-ack notice ------
+    // Guardian dashboard only (not the clinician/guest report variant).
+    if (!$isReport): ?>
+    <p class="nutrition-disclaimer-banner" style="font-size:0.8rem;background:#fff8e1;border-left:3px solid #f9a825;padding:4px 8px;margin:0 0 8px;">
+        ⚕️ <?php echo t('medical_disclaimer_short'); ?>
+    </p>
+    <?php if (nutritionAttestationStale()): ?>
+    <p class="nutrition-reack-notice" style="font-size:0.8rem;background:#fce4ec;border-left:3px solid #c62828;padding:4px 8px;margin:0 0 8px;">
+        ⚠️ <?php echo t('nutrition_reack_notice'); ?>
+        <a href="?page=settings"><?php echo t('nutrition_reack_review'); ?></a>
+    </p>
+    <?php endif; ?>
+    <?php endif; ?>
+
+    <?php
     // --- A. Medication timing ---------------------------------------------------
     $timing = $ni['timing'] ?? null;
     if (is_array($timing) && !empty($timing['has_schedule']) && ($timing['windowed_total'] ?? 0) > 0):
