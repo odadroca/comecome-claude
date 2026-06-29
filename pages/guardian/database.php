@@ -87,6 +87,7 @@ ob_start();
 
     <main class="container">
         <h1><?php echo t('database_management'); ?></h1>
+        <?php echo renderEncryptionWarning(); ?>
 
         <?php if ($message): ?>
         <div class="alert alert-<?php echo $messageType === 'error' ? 'error' : ($messageType === 'warning' ? 'warning' : 'success'); ?>">
@@ -104,6 +105,9 @@ ob_start();
         <section class="management-section">
             <h2>💾 <?php echo t('backup_database'); ?></h2>
             <p><?php echo t('backup_description'); ?></p>
+            <?php if (!function_exists('encryptionEnabled') || !encryptionEnabled()): ?>
+            <p class="alert alert-warning" role="alert" style="font-size:0.85rem;margin:0 0 0.75rem;">⚠️ <?php echo htmlspecialchars(t('encryption_off_backup_note'), ENT_QUOTES, 'UTF-8'); ?></p>
+            <?php endif; ?>
             <div style="display:flex;gap:1rem;flex-wrap:wrap;">
                 <form method="POST">
                     <?php echo csrfField(); ?>

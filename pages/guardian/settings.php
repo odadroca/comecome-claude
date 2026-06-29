@@ -93,6 +93,7 @@ ob_start();
 
     <main class="container">
         <h1><?php echo t('system_settings'); ?></h1>
+        <?php echo renderEncryptionWarning(); ?>
 
         <?php if (isset($success)): ?>
         <div class="alert alert-success">

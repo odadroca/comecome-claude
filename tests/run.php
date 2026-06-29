@@ -1840,6 +1840,7 @@ if (!$haveSodium) {
     file_put_contents($lKeyFile, "<?php return '" . $lKeyB64 . "';\n");
     putenv('COMECOME_KEY_FILE=' . $lKeyFile);
     ok(encryptionEnabled() === true, "L4 live key configured via COMECOME_KEY_FILE (encryption ON)");
+    ok(renderEncryptionWarning() === '', "A28 encryption-off warning is HIDDEN when encryption is ON");
 
     // Rebuild the app DB at DB_PATH. NOTE: on Windows a lingering PDO handle from an
     // earlier phase can keep the file locked, making @unlink a silent no-op — so
@@ -1916,6 +1917,9 @@ if (!$haveSodium) {
 echo "\n-- L6. OPT-IN: with NO key, accessors store + read PLAINTEXT (zero-config) --\n";
 putenv('COMECOME_KEY_FILE'); // ensure no key
 ok(encryptionEnabled() === false, "L6 no key configured => encryption OFF (opt-in)");
+$a28off = renderEncryptionWarning();
+ok($a28off !== '' && strpos($a28off, 'alert-warning') !== false, "A28 encryption-off warning is SHOWN (alert-warning) when encryption is OFF");
+ok(strpos($a28off, t('encryption_off_title')) !== false && t('encryption_off_title') !== 'encryption_off_title', "A28 warning contains the resolved localized title");
 gc_collect_cycles();
 for ($i = 0; $i < 20 && file_exists(DB_PATH); $i++) {
     if (@unlink(DB_PATH)) { break; }

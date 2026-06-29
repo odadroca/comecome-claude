@@ -594,5 +594,9 @@
   "_child_privacy_note": "=== CHILD PRIVACY NOTE (A27) ===",
   "child_privacy_note_title": "Hi there! 👋",
   "child_privacy_note_body": "Your grown-up can see what you log here — your food, how you feel, and your weight — to help you grow. 🌱",
-  "child_privacy_note_ok": "OK! 👍"
+  "child_privacy_note_ok": "OK! 👍",
+  "_encryption_off": "=== AT-REST ENCRYPTION WARNING (A28) ===",
+  "encryption_off_title": "At-rest encryption is off.",
+  "encryption_off_body": "Special-category data (children's health) is stored unencrypted, and downloaded backups are unencrypted too. To enable encryption, set ENCRYPTION_KEY_FILE to a key file kept above the web root — see SECURITY.md / DEPLOYMENT.md.",
+  "encryption_off_backup_note": "This backup will be unencrypted — no encryption key is configured."
 }
