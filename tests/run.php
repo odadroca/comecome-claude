@@ -2615,6 +2615,56 @@ gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
+ * PHASE A12b — S2 / A21 Task 5b: locale key-set parity (pt ↔ en).
+ *
+ *   The A12 phase above checks that 2 of the 6 A21 keys resolve as non-empty
+ *   strings in each locale. This phase adds a GENERAL full-key-set parity
+ *   assertion: pt.json and en.json must have IDENTICAL key sets. If any key is
+ *   added to one locale without the other, this phase FAILs, catching the gap
+ *   for all future amendments — not just A21.
+ *
+ *   The six A21-specific keys are also verified individually so the coverage is
+ *   explicit and unambiguous.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE A12b — S2 A21 Task 5b: locale pt/en key-set parity ###\n";
+
+$a12bPt = json_decode(file_get_contents($ROOT . '/locales/pt.json'), true) ?: [];
+$a12bEn = json_decode(file_get_contents($ROOT . '/locales/en.json'), true) ?: [];
+
+ok(count($a12bPt) > 0, 'A12b pt.json loaded with at least 1 key [got ' . count($a12bPt) . ']');
+ok(count($a12bEn) > 0, 'A12b en.json loaded with at least 1 key [got ' . count($a12bEn) . ']');
+
+$a12bPtKeys = array_keys($a12bPt); sort($a12bPtKeys);
+$a12bEnKeys = array_keys($a12bEn); sort($a12bEnKeys);
+
+// Full parity: identical sorted key sets.
+$onlyInPt = array_diff($a12bPtKeys, $a12bEnKeys);
+$onlyInEn = array_diff($a12bEnKeys, $a12bPtKeys);
+ok(count($onlyInPt) === 0,
+   'A12b pt.json has no keys absent from en.json [only-in-pt: ' . (count($onlyInPt) ? implode(', ', $onlyInPt) : 'none') . ']');
+ok(count($onlyInEn) === 0,
+   'A12b en.json has no keys absent from pt.json [only-in-en: ' . (count($onlyInEn) ? implode(', ', $onlyInEn) : 'none') . ']');
+ok($a12bPtKeys === $a12bEnKeys,
+   'A12b pt.json and en.json have identical key sets (' . count($a12bPtKeys) . ' keys each)');
+
+// A21 keys individually — explicit coverage so any future removal from either file
+// is caught by a named assertion, not just the general diff.
+$a12bA21Keys = [
+    'medical_disclaimer_short',
+    'medical_disclaimer_full',
+    'nutrition_attestation_checkbox',
+    'nutrition_attestation_required',
+    'nutrition_reack_notice',
+    'nutrition_reack_review',
+];
+foreach ($a12bA21Keys as $k) {
+    ok(isset($a12bPt[$k]) && $a12bPt[$k] !== $k,
+       "A12b A21 key '$k' present and resolved in pt.json");
+    ok(isset($a12bEn[$k]) && $a12bEn[$k] !== $k,
+       "A12b A21 key '$k' present and resolved in en.json");
+}
+
+/* -------------------------------------------------------------------------
  * PHASE A13 — S2 / A21 Task 4: medical disclaimer in every JSON export.
  * -------------------------------------------------------------------------
  *   A21 Task 4 requires the `_disclaimer` field (value = medical_disclaimer_full)

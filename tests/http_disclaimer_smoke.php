@@ -576,6 +576,137 @@ ok(
     "E4: CSV export (toggle OFF) STILL contains medical_disclaimer_short text (unconditional)"
 );
 
+// ==========================================================================
+// GROUP F — A21 Task 5a: API data-write surface NOT gated by nutrition attestation.
+//
+// Core invariant: A21 added ZERO gating to the data-write surface.
+// api/food-log.php must accept a POST with (login + consent + valid CSRF) regardless
+// of whether show_nutrition_insights or nutrition_attestation_version are set.
+//
+// F1 (regression, positive): guardian logged in, consent given, nutrition attestation
+//    UNSET/empty, show_nutrition_insights='0' (defaults) → POST to api/food-log.php
+//    succeeds (HTTP 200 / success:true / row written to DB).
+//
+// F2 (negative control, to prove F1 is meaningful): clear consent, POST to the same
+//    endpoint → rejected 403 consent_required. This proves the test would catch a real
+//    gate (the existing consent gate fires), distinguishing gated from ungated state.
+// ==========================================================================
+echo "\n--- F. A21 Task 5a: api/food-log.php NOT gated by nutrition attestation ---\n";
+
+// --- F-setup: ensure guardian is logged in with consent, no attestation -----
+// Re-scrape a fresh CSRF token from the settings page (post-E the session is intact).
+[$fsc, $fsbody] = curlReq(
+    'curl -b ' . escapeshellarg($guardianJar) . ' -L ' . escapeshellarg($settingsUrl)
+);
+ok($fsc === 200, "F: GET settings page returns 200 for CSRF scrape [got $fsc]");
+$fCsrf = '';
+if (preg_match('/<meta name="csrf-token" content="([a-f0-9]+)"/', $fsbody, $fmc)) {
+    $fCsrf = $fmc[1];
+}
+ok($fCsrf !== '', "F: scraped CSRF token for food-log API call [got '$fCsrf']");
+
+// Ensure DB state: consent given, nutrition attestation unset, insights off.
+// Use WAL + busy_timeout so this write succeeds while the server is running.
+$dbF = new PDO('sqlite:' . $tmpDb);
+$dbF->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbF->exec("PRAGMA journal_mode=WAL");
+$dbF->exec("PRAGMA busy_timeout=5000");
+$dbF->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('guardian_consent_version', '1')");
+$dbF->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('show_nutrition_insights', '0')");
+$dbF->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('nutrition_attestation_version', '')");
+$niF  = $dbF->query("SELECT value FROM settings WHERE \"key\"='show_nutrition_insights'")->fetchColumn();
+$attF = $dbF->query("SELECT value FROM settings WHERE \"key\"='nutrition_attestation_version'")->fetchColumn();
+$conF = $dbF->query("SELECT value FROM settings WHERE \"key\"='guardian_consent_version'")->fetchColumn();
+ok($conF === '1',   "F: consent is recorded (guardian_consent_version='1')");
+ok($niF  === '0',   "F: show_nutrition_insights is '0' (insights OFF, no attestation scenario)");
+ok($attF === '' || $attF === false,
+   "F: nutrition_attestation_version is unset/empty [got '" . ($attF === false ? 'unset' : $attF) . "']");
+$dbF = null;
+
+// Count food_log rows before the F1 POST so we can prove a new row was written.
+$dbFPre = new PDO('sqlite:' . $tmpDb);
+$dbFPre->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbFPre->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+$flCountBefore = (int) $dbFPre->query(
+    "SELECT COUNT(*) FROM food_log WHERE user_id = $guardianId"
+)->fetchColumn();
+$dbFPre = null;
+
+// --- F1: POST to api/food-log.php WITH consent and NO attestation → success ---
+// Payload via temp file (avoids shell quoting issues on Windows, same pattern as csrf_child_smoke).
+$flPayload = json_encode(['food_id' => 1, 'meal_id' => 1, 'portion' => 'some']);
+$flPayloadFile = tempnam(sys_get_temp_dir(), 'cc_f1body_') . '.json';
+file_put_contents($flPayloadFile, $flPayload);
+
+$flUrl = "$base/api/food-log.php";
+$f1Cmd = 'curl -b ' . escapeshellarg($guardianJar)
+    . ' -X POST -H "Content-Type: application/json"'
+    . ' -H ' . escapeshellarg('X-CSRF-Token: ' . $fCsrf)
+    . ' --data ' . escapeshellarg('@' . $flPayloadFile)
+    . ' ' . escapeshellarg($flUrl);
+[$f1code, $f1body] = curlReq($f1Cmd);
+@unlink($flPayloadFile);
+
+ok($f1code === 200,
+   "F1: food-log POST (consent given, no attestation) returns 200 [got $f1code]");
+ok(strpos($f1body, '"success":true') !== false,
+   "F1: food-log POST returns success:true (not gated by A21 attestation) [got: " . trim($f1body) . "]");
+
+// Prove a new row was actually written (not just a 200 with no write).
+$dbF1 = new PDO('sqlite:' . $tmpDb);
+$dbF1->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbF1->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+$flCountAfter = (int) $dbF1->query(
+    "SELECT COUNT(*) FROM food_log WHERE user_id = $guardianId"
+)->fetchColumn();
+$dbF1 = null;
+ok($flCountAfter === $flCountBefore + 1,
+   "F1: food_log row count increased by 1 (row actually written) [$flCountBefore -> $flCountAfter]");
+
+// --- F2: negative control — clear consent, same POST → 403 consent_required ---
+// This proves the test is meaningful: the existing consent gate fires, so F1's pass
+// is not a false positive. We are NOT changing the consent gate, just exercising it
+// to demonstrate the test CAN distinguish a gated from an ungated state.
+$dbF2Pre = new PDO('sqlite:' . $tmpDb);
+$dbF2Pre->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbF2Pre->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+$dbF2Pre->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('guardian_consent_version', '0')");
+$conF2 = $dbF2Pre->query("SELECT value FROM settings WHERE \"key\"='guardian_consent_version'")->fetchColumn();
+ok($conF2 === '0', "F2: consent cleared (guardian_consent_version='0') for negative control");
+$dbF2Pre = null;
+
+// Need a fresh CSRF token — re-scrape from the login page (the session is still alive
+// even with consent cleared; CSRF is auth-session-scoped, not consent-scoped).
+[$f2lc, $f2lbody] = curlReq(
+    'curl -b ' . escapeshellarg($guardianJar) . ' ' . escapeshellarg($settingsUrl)
+);
+$f2Csrf = '';
+if (preg_match('/<meta name="csrf-token" content="([a-f0-9]+)"/', $f2lbody, $f2m)) {
+    $f2Csrf = $f2m[1];
+}
+if ($f2Csrf === '') { $f2Csrf = $fCsrf; } // fall back to existing token if scrape fails
+
+$flPayload2File = tempnam(sys_get_temp_dir(), 'cc_f2body_') . '.json';
+file_put_contents($flPayload2File, json_encode(['food_id' => 1, 'meal_id' => 1, 'portion' => 'some']));
+
+$f2Cmd = 'curl -b ' . escapeshellarg($guardianJar)
+    . ' -X POST -H "Content-Type: application/json"'
+    . ' -H ' . escapeshellarg('X-CSRF-Token: ' . $f2Csrf)
+    . ' --data ' . escapeshellarg('@' . $flPayload2File)
+    . ' ' . escapeshellarg($flUrl);
+[$f2code, $f2body] = curlReq($f2Cmd);
+@unlink($flPayload2File);
+
+ok($f2code === 403 && strpos($f2body, 'consent_required') !== false,
+   "F2 (negative control): food-log POST WITHOUT consent → 403 consent_required [got $f2code: " . trim($f2body) . "]");
+
+// Restore consent so the guardian session is left in a consistent state.
+$dbF2Post = new PDO('sqlite:' . $tmpDb);
+$dbF2Post->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbF2Post->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+$dbF2Post->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('guardian_consent_version', '1')");
+$dbF2Post = null;
+
 // --- Cleanup ----------------------------------------------------------------
 $cleanup();
 @unlink($guardianJar);
