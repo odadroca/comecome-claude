@@ -21,6 +21,23 @@ to public `Come-come` (production) at release. Dates are ISO (YYYY-MM-DD).
   app-local clock (`date('c')`); regression test added (`A5(h)`).
 
 ### Added
+- **In-app medical disclaimer + guardian attestation (privacy/data-governance, Launch Sprint 2, A21)** —
+  enabling **Nutrition intelligence** (`show_nutrition_insights`, default off) now requires the guardian
+  to acknowledge a not-medical-advice disclaimer via a required checkbox on the settings form; the act of
+  enabling records the attestation (`nutrition_attestation_version` + `nutrition_attestation_at` `settings`
+  rows, helpers `guardianNutritionAttestationCurrent()` / `recordGuardianNutritionAttestation()` in
+  `includes/auth.php`, versioned by `NUTRITION_ATTESTATION_VERSION` in `config.php`). The disclaimer is
+  surfaced as a persistent banner on the insights panel and **unconditionally in every clinician export**
+  (HTML header block, CSV `#`-comment rows, and a `_disclaimer` field on the period/full-history/whole-DB
+  JSON — added via `projectReportForJson()`, keeping the de-identified whitelist intact). Versioning is a
+  **soft re-acknowledgment**: bumping `NUTRITION_ATTESTATION_VERSION` (e.g. when the disclaimer text is
+  reworded after legal sign-off) keeps insights rendering but adds a "please re-acknowledge" notice
+  (`nutritionAttestationStale()` drives it; `nutritionInsightsEnabled()` is unchanged). The attestation
+  gates a **display** feature only — it is captured at the CSRF-gated, **router-only** settings POST and is
+  **not** enforced on `api/*.php` (logging data ≠ viewing insights); a regression test pins that data-write
+  endpoints still work with consent but no attestation. Canonical disclaimer copy lives in the
+  `medical_disclaimer_short` / `medical_disclaimer_full` locale keys (pt + en); the full `DISCLAIMER.md`
+  remains the linked long-form. Disclaimer wording ships on the current draft, pending EU/PT legal sign-off.
 - **Child-safeguarding escalation (privacy/data-governance, Launch Sprint 2)** — a guardian-only
   **"Wellbeing"** view (`pages/guardian/safeguarding.php`) surfaces per-child flags when the
   check-in history crosses a deterministic, **mood-only** threshold: a single `mood=1` (😢) check-in
