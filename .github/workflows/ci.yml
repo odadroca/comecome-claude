@@ -23,7 +23,7 @@ jobs:
     name: Lint & test suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5 (Node 24)
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.3'
@@ -44,11 +44,11 @@ jobs:
     name: Secret scan & no-DB guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5 (Node 24)
         with:
           fetch-depth: 0
       - name: gitleaks (full history)
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0 (Node 24; no license)
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: No database files tracked
@@ -56,8 +56,10 @@ jobs:
         run: |
           # Second line of defence behind .gitignore (PR #37): this repo holds
           # children's-health data and `main` auto-deploys — a tracked DB must never exist.
-          if git ls-files | grep -E '\.(db|db-wal|db-shm|sqlite|sqlite3)$'; then
-            echo "::error::A database file is tracked in git — must never be committed."
+          # Covers SQLite sidecars too (-wal/-shm/-journal can hold DB contents):
+          # .db .sqlite .sqlite3 and any of those + -wal/-shm/-journal.
+          if git ls-files | grep -E '\.(db|sqlite3?)(-(wal|shm|journal))?$'; then
+            echo "::error::A database (or SQLite sidecar) file is tracked in git — must never be committed."
             exit 1
           fi
-          echo "OK: no *.db / *.sqlite tracked."
+          echo "OK: no database/SQLite files tracked."

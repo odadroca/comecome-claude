@@ -2,10 +2,13 @@
 # special-category children's health data and `main` auto-deploys, so a stray DB
 # (e.g. a live-usage backup dropped in the repo) must never be stageable by accident.
 *.db
-*.db-wal
-*.db-shm
 *.sqlite
 *.sqlite3
+# SQLite sidecars — WAL/SHM/rollback-journal can each hold DB contents
+# (covers *.db-wal/-shm/-journal, *.sqlite-wal/-shm/-journal, *.sqlite3-* etc.):
+*.db-*
+*.sqlite-*
+*.sqlite3-*
 # (the app's own DB lives in db/ and was already covered:)
 db/*.db
 db/*.db-wal
