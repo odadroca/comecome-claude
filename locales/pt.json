@@ -586,5 +586,6 @@
   "_medical_disclaimer": "=== AVISO MÉDICO (S2/A21) ===",
   "medical_disclaimer_short": "Informação descritiva dos dados registados — não constitui aconselhamento médico. Consulte sempre um profissional de saúde qualificado.",
   "medical_disclaimer_full": "O ComeCome é uma ferramenta de registo, não um dispositivo médico. As análises de nutrição e crescimento são resumos descritivos e baseados em regras dos dados que introduziu — não são recomendações individualizadas. Os percentis de crescimento utilizam os dados de referência públicos da OMS/CDC e não constituem uma avaliação clínica. Nada no ComeCome deve ser utilizado para diagnosticar, tratar ou tomar decisões sobre medicação. Consulte sempre um profissional de saúde qualificado (pediatra, nutricionista, médico assistente) para decisões médicas ou nutricionais — especialmente no que diz respeito a crianças e medicação. O ComeCome não se destina a situações de emergência; em caso de emergência contacte os serviços de emergência locais.",
-  "nutrition_attestation_checkbox": "Li e compreendi este aviso. Reconheço que o ComeCome não é um dispositivo médico e não presta aconselhamento médico."
+  "nutrition_attestation_checkbox": "Li e compreendi este aviso. Reconheço que o ComeCome não é um dispositivo médico e não presta aconselhamento médico.",
+  "nutrition_attestation_required": "É necessário reconhecer o aviso para ativar as informações nutricionais."
 }

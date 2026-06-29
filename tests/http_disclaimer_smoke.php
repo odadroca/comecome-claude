@@ -208,6 +208,31 @@ echo "\n--- A. Reject: POST enable without attestation checkbox → setting stay
 );
 ok($ac >= 200 && $ac < 400, "A: POST without checkbox completes [got $ac]");
 
+// Body assertions: rejection message present, no false success indication.
+// The server renders the full settings page (no redirect on reject), so follow
+// redirects (-L) to land on the final HTML and read the body.
+[$arf, $arbody] = curlReq(
+    'curl -b ' . escapeshellarg($guardianJar) . ' -L'
+    . ' --data-urlencode ' . escapeshellarg('csrf_token=' . $pageCsrf)
+    . ' --data-urlencode ' . escapeshellarg('show_nutrition_insights=1')
+    // Note: nutrition_attestation_acknowledge intentionally omitted
+    . ' ' . escapeshellarg($settingsUrl)
+);
+// The app locale defaults to 'pt'; test against the pt string.
+ok(
+    strpos($arbody, 'É necessário reconhecer o aviso') !== false
+    || strpos($arbody, 'acknowledge the disclaimer') !== false
+    || strpos($arbody, 'nutrition_attestation_required') !== false,
+    "A: response body contains 'must acknowledge' message on reject"
+);
+ok(
+    strpos($arbody, 'changes_saved') === false
+    && strpos($arbody, 'Changes saved') === false
+    && strpos($arbody, 'alterações guardadas') === false
+    && strpos($arbody, 'Alterações guardadas') === false,
+    "A: response body does NOT contain success/saved indicator on reject"
+);
+
 // Read DB state directly (the spawned server writes to $tmpDb).
 $dbA = new PDO('sqlite:' . $tmpDb);
 $dbA->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

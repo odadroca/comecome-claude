@@ -34,14 +34,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $niWasOn   = getSetting('show_nutrition_insights', '0') === '1';
     $niWantOn  = ($_POST['show_nutrition_insights'] ?? '0') === '1';
     $niAcknowledge = !empty($_POST['nutrition_attestation_acknowledge']);
+    $niRejected = false;
     if ($niWantOn && !$niWasOn) {
         // Enabling: only honour if acknowledgement checkbox was posted.
         if ($niAcknowledge) {
             setSetting('show_nutrition_insights', '1');
             recordGuardianNutritionAttestation();
+        } else {
+            // Checkbox missing — leave at '0', write no attestation.
+            // Flag the rejection so the success banner is suppressed and an
+            // inline error is shown instead.
+            $niRejected = true;
         }
-        // else: leave at '0', write no attestation (silent reject; form re-renders with
-        //       the disclaimer block still visible).
     } else {
         // Turning off, or already on — save the posted value unconditionally.
         setSetting('show_nutrition_insights', $niWantOn ? '1' : '0');
@@ -52,7 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (in_array($rm, RETENTION_PRESETS, true)) {
         setSetting('data_retention_months', (string) $rm);
     }
-    $success = true;
+    if (!$niRejected) {
+        $success = true;
+    }
 }
 
 $showFoodJournal = getSetting('show_food_journal', '1');
@@ -93,6 +99,11 @@ ob_start();
         <?php if (isset($success)): ?>
         <div class="alert alert-success">
             ✅ <?php echo t('changes_saved'); ?>
+        </div>
+        <?php endif; ?>
+        <?php if (isset($niRejected) && $niRejected): ?>
+        <div class="alert alert-danger">
+            ⚠️ <?php echo t('nutrition_attestation_required'); ?>
         </div>
         <?php endif; ?>
 
@@ -189,12 +200,9 @@ ob_start();
                     <p style="margin:0.5rem 0 0;"><?php echo t('medical_disclaimer_full'); ?></p>
                 </div>
                 <label style="font-weight:600;">
-                    <input type="checkbox" name="nutrition_attestation_acknowledge" value="1">
+                    <input type="checkbox" name="nutrition_attestation_acknowledge" value="1" required>
                     <?php echo t('nutrition_attestation_checkbox'); ?>
                 </label>
-                <small style="opacity:0.7;display:block;margin-top:0.25rem;margin-bottom:0.75rem;">
-                    <?php echo t('medical_disclaimer_short'); ?>
-                </small>
                 <?php endif; ?>
 
                 <!-- Sprint S2 / A4: Safeguarding wellbeing alerts (guardian-only, default ON). -->
