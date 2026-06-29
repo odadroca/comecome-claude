@@ -15,7 +15,29 @@
  */
 if (!isChild() || childPrivacyNoteSeen((int) ($user['id'] ?? 0))) { return; }
 ?>
-<dialog id="privacyNoteModal" open>
+<?php /* A non-modal <dialog open> renders inline (UA position:absolute, z-index auto), so the
+   later-painted food cards covered it. Style it as a fixed, full-viewport overlay above all
+   child content. This is safe without showModal()/JS because the modal is a top-level sibling
+   in $content (before .child-interface) and its only ancestors are <body>/<html> — neither has
+   a transform/filter/backdrop-filter, so position:fixed is viewport-relative and a high z-index
+   sits above the auto-z-index cards. The rgba backdrop dims in both light and dark mode; the
+   card itself uses --cc-* tokens. */ ?>
+<dialog id="privacyNoteModal" open style="
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    margin: 0;
+    max-width: none;
+    max-height: none;
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+">
     <article style="
         max-width: 360px;
         margin: auto;
