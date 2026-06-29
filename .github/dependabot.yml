@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # Only the GitHub Actions ecosystem applies — ComeCome is vanilla PHP with no
+  # composer/npm manifest. Keeps the SHA-pinned actions in ci.yml current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

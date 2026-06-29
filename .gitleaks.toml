@@ -1,0 +1,16 @@
+title = "ComeCome gitleaks config"
+
+# Use the full built-in gitleaks ruleset, then allowlist known non-secrets.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known non-secrets / test fixtures (tighten precisely if the scan flags more)"
+# The default/demo child PIN is a 4-digit non-secret, not a credential.
+regexes = [
+  '''\b0000\b''',
+]
+# Bundled font license texts are not secrets.
+paths = [
+  '''assets/fonts/.*\.txt$''',
+]
