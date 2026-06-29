@@ -35,20 +35,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $niWantOn  = ($_POST['show_nutrition_insights'] ?? '0') === '1';
     $niAcknowledge = !empty($_POST['nutrition_attestation_acknowledge']);
     $niRejected = false;
-    if ($niWantOn && !$niWasOn) {
-        // Enabling: only honour if acknowledgement checkbox was posted.
-        if ($niAcknowledge) {
-            setSetting('show_nutrition_insights', '1');
-            recordGuardianNutritionAttestation();
-        } else {
-            // Checkbox missing — leave at '0', write no attestation.
-            // Flag the rejection so the success banner is suppressed and an
-            // inline error is shown instead.
-            $niRejected = true;
-        }
+    if ($niWantOn && !$niWasOn && !$niAcknowledge) {
+        // Enabling from off requires acknowledgement — checkbox missing, so reject.
+        // Leave at '0', write no attestation. Flag the rejection so the success
+        // banner is suppressed and an inline error is shown instead.
+        $niRejected = true;
     } else {
-        // Turning off, or already on — save the posted value unconditionally.
+        // Turning off, already on (with or without ack), or enabling with ack.
         setSetting('show_nutrition_insights', $niWantOn ? '1' : '0');
+        if ($niWantOn && $niAcknowledge) {
+            // Enable-with-ack OR re-ack while staying on — record the attestation.
+            recordGuardianNutritionAttestation();
+        }
     }
     setSetting('show_safeguarding_alerts', $_POST['show_safeguarding_alerts'] ?? '0');
     setSetting('default_language', $_POST['default_language'] ?? 'pt');
@@ -191,16 +189,18 @@ ob_start();
                     <?php echo t('show_nutrition_insights_hint'); ?>
                 </small>
 
-                <?php if ($showNutritionInsights !== '1'): ?>
-                <!-- S2 / A21: medical disclaimer + required attestation checkbox.
-                     Shown only when insights are OFF (i.e. the guardian is about to enable).
-                     Once enabled, the disclaimer is acknowledged and this block is hidden. -->
+                <?php if ($showNutritionInsights !== '1' || nutritionAttestationStale()): ?>
+                <!-- S2 / A21: medical disclaimer + attestation checkbox.
+                     Shown when insights are OFF (guardian enabling) OR when the existing
+                     attestation is stale (re-ack path for already-on installs).
+                     The `required` attribute is intentionally absent — the server-side gate
+                     handles enable-without-ack; the re-ack-while-on path is soft. -->
                 <div class="alert" style="background:var(--bg-alt,#f8f8f8);border:1px solid var(--border,#ccc);border-radius:6px;padding:1rem;margin-top:0.5rem;margin-bottom:0.75rem;font-size:0.9rem;">
                     <strong><?php echo t('medical_disclaimer_short'); ?></strong>
                     <p style="margin:0.5rem 0 0;"><?php echo t('medical_disclaimer_full'); ?></p>
                 </div>
                 <label style="font-weight:600;">
-                    <input type="checkbox" name="nutrition_attestation_acknowledge" value="1" required>
+                    <input type="checkbox" name="nutrition_attestation_acknowledge" value="1">
                     <?php echo t('nutrition_attestation_checkbox'); ?>
                 </label>
                 <?php endif; ?>

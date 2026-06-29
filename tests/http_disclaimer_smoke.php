@@ -707,9 +707,350 @@ $dbF2Post->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
 $dbF2Post->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('guardian_consent_version', '1')");
 $dbF2Post = null;
 
-// --- Cleanup ----------------------------------------------------------------
+// --- Cleanup A-F server -------------------------------------------------------
+// Groups G and H need fresh server instances to avoid SQLite WAL contention
+// that builds up over A-F. Terminate the A-F server here; each GH sub-block
+// spawns its own throwaway server with a clean DB.
 $cleanup();
 @unlink($guardianJar);
+
+// ============================================================================
+// HELPER: spawn a fresh php -S dev server on a throwaway DB, log in as a
+// guardian (non-default PIN + consent recorded), and return
+// [$ghProc, $ghPipes, $ghTmpDb, $ghJar, $ghBase, $ghCleanup, $ghGuardianId, $ghGuardianPin].
+// ============================================================================
+function spawnFreshServer($ROOT, $phpBin) {
+    $ghTmpDb = tempnam(sys_get_temp_dir(), 'comecome_gh_') . '.db';
+    if (!$ghTmpDb) { return null; }
+    @unlink($ghTmpDb);
+
+    // Bootstrap DB in the TEST process (not the server) so we can seed settings.
+    $dbBootstrap = new PDO('sqlite:' . $ghTmpDb);
+    $dbBootstrap->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $schema = file_get_contents($ROOT . '/db/schema.sql');
+    $seed   = file_get_contents($ROOT . '/db/seed.sql');
+    foreach (array_filter(array_map('trim', preg_split('/;\s*$/m', $schema))) as $stmt) {
+        if ($stmt !== '') { try { $dbBootstrap->exec($stmt); } catch (\Exception $e) {} }
+    }
+    foreach (array_filter(array_map('trim', preg_split('/;\s*$/m', $seed))) as $stmt) {
+        if ($stmt !== '') { try { $dbBootstrap->exec($stmt); } catch (\Exception $e) {} }
+    }
+    // Fix default guardian so the default-PIN gate clears (must be hashed).
+    $fixPin = password_hash('9999', PASSWORD_DEFAULT);
+    $stmtFix = $dbBootstrap->prepare("UPDATE users SET pin=? WHERE id=1");
+    $stmtFix->execute([$fixPin]);
+    $dbBootstrap->exec("PRAGMA journal_mode=WAL");
+    $dbBootstrap = null;
+    gc_collect_cycles();
+
+    $host = '127.0.0.1';
+    $pickSock = @stream_socket_server("tcp://$host:0", $pe, $ps);
+    if (!$pickSock) { @unlink($ghTmpDb); return null; }
+    $pickName = stream_socket_get_name($pickSock, false);
+    fclose($pickSock);
+    $pickPos = strrpos($pickName, ':');
+    $port = ($pickPos === false) ? 0 : (int) substr($pickName, $pickPos + 1);
+    if ($port <= 0) { @unlink($ghTmpDb); return null; }
+
+    $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $ghEnv = $_ENV;
+    $ghEnv['COMECOME_DB_PATH'] = $ghTmpDb;
+    $cmd = escapeshellarg($phpBin) . ' -S ' . $host . ':' . $port . ' -t ' . escapeshellarg($ROOT);
+    $ghProc = proc_open($cmd, $descriptors, $ghPipes, $ROOT, $ghEnv);
+    if (!is_resource($ghProc)) { @unlink($ghTmpDb); return null; }
+    stream_set_blocking($ghPipes[1], false);
+    stream_set_blocking($ghPipes[2], false);
+
+    $ghUp = false;
+    for ($i = 0; $i < 50; $i++) {
+        $fp = @fsockopen($host, $port, $errno, $errstr, 0.2);
+        if ($fp) { fclose($fp); $ghUp = true; break; }
+        usleep(100000);
+    }
+
+    $ghCleanup = function () use ($ghProc, $ghPipes, $ghTmpDb) {
+        foreach ($ghPipes as $p) { if (is_resource($p)) { fclose($p); } }
+        proc_terminate($ghProc);
+        proc_close($ghProc);
+        for ($i = 0; $i < 5 && file_exists($ghTmpDb); $i++) { if (@unlink($ghTmpDb)) break; usleep(20000); }
+    };
+
+    if (!$ghUp) { $ghCleanup(); return null; }
+
+    $ghBase = "http://$host:$port";
+    $ghJar  = tempnam(sys_get_temp_dir(), 'cc_gh_jar_');
+
+    return [$ghProc, $ghPipes, $ghTmpDb, $ghJar, $ghBase, $ghCleanup];
+}
+
+// ============================================================================
+// Helper: log in to a fresh GH server as a guardian, record consent, set
+// key settings, return [$guardianId, $csrfToken] or null on failure.
+// The cookie jar $ghJar is written to.
+// ============================================================================
+function ghLogin($ghBase, $ghJar, $phpBin, $ghTmpDb, $ROOT, &$PASS, &$FAIL) {
+    // Create guardian in test process (direct DB write before server handles any auth).
+    // PIN must be hashed so the server's password_verify() check passes.
+    $pin = '7777';
+    $hashedPin = password_hash($pin, PASSWORD_DEFAULT);
+    $db  = new PDO('sqlite:' . $ghTmpDb);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $db->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+    $stmt = $db->prepare("INSERT INTO users (name, type, pin, avatar_emoji, active) VALUES ('GHGuardian','guardian',?,'🧑',1)");
+    $stmt->execute([$hashedPin]);
+    $gid = (int) $db->lastInsertId();
+    $db->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('guardian_consent_version','1')");
+    $db = null; gc_collect_cycles();
+
+    $loginUrl = "$ghBase/index.php?page=login";
+    [$lc, $lbody] = curlReq('curl -c ' . escapeshellarg($ghJar) . ' ' . escapeshellarg($loginUrl));
+    $csrf = '';
+    if (preg_match('/<meta name="csrf-token" content="([a-f0-9]+)"/', $lbody, $m)) { $csrf = $m[1]; }
+    if ($lc !== 200 || $csrf === '') { return null; }
+
+    $loginCmd = 'curl -c ' . escapeshellarg($ghJar) . ' -b ' . escapeshellarg($ghJar)
+        . ' --data-urlencode ' . escapeshellarg('csrf_token=' . $csrf)
+        . ' --data-urlencode ' . escapeshellarg('user_id=' . $gid)
+        . ' --data-urlencode ' . escapeshellarg('pin=' . $pin)
+        . ' ' . escapeshellarg($loginUrl);
+    [$plc] = curlReq($loginCmd);
+    if ($plc < 200 || $plc >= 400) { return null; }
+
+    // Scrape CSRF from settings page.
+    $settingsUrl = "$ghBase/index.php?page=settings";
+    [$sc, $sbody] = curlReq('curl -b ' . escapeshellarg($ghJar) . ' -L ' . escapeshellarg($settingsUrl));
+    $pageCsrf = '';
+    if (preg_match('/<meta name="csrf-token" content="([a-f0-9]+)"/', $sbody, $mc)) { $pageCsrf = $mc[1]; }
+    if ($sc !== 200 || $pageCsrf === '') { return null; }
+
+    return [$gid, $pageCsrf, $sbody];
+}
+
+// ==========================================================================
+// GROUP G — Defect A regression: unrelated settings save must NOT require attestation
+//
+// Insights are OFF. POST the form changing a different setting (default_language)
+// WITHOUT enabling insights and WITHOUT the attestation checkbox.
+// Expected: POST succeeds (saved indicator), show_nutrition_insights stays '0',
+// no attestation recorded, and the settings page GET does NOT contain `required`
+// on the nutrition_attestation_acknowledge input.
+//
+// Uses a FRESH server+DB to avoid WAL contention from A-F.
+// ==========================================================================
+echo "\n--- G. Defect A: unrelated settings save without attestation checkbox must succeed ---\n";
+
+$ghG = spawnFreshServer($ROOT, $phpBin);
+if (!$ghG) {
+    ok(false, "G: could not spawn fresh server for group G");
+} else {
+    [, , $gTmpDb, $gJar, $gBase, $gCleanup] = $ghG;
+    $gSettingsUrl = "$gBase/index.php?page=settings";
+
+    // Set up: insights OFF, no attestation (already the default state from fresh DB).
+    $dbG = new PDO('sqlite:' . $gTmpDb);
+    $dbG->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $dbG->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+    $dbG->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('show_nutrition_insights', '0')");
+    $dbG->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('nutrition_attestation_version', '')");
+    $dbG = null; gc_collect_cycles();
+
+    $gLogin = ghLogin($gBase, $gJar, $phpBin, $gTmpDb, $ROOT, $PASS, $FAIL);
+    if (!$gLogin) {
+        ok(false, "G: could not log in to fresh server");
+    } else {
+        [, $gCsrf, $gSettingsBody] = $gLogin;
+        ok(true, "G: logged in to fresh server, scraped CSRF [got '$gCsrf']");
+
+        // G1: GET settings page, insights OFF → nutrition_attestation_acknowledge input must NOT have `required`.
+        ok(
+            strpos($gSettingsBody, 'name="nutrition_attestation_acknowledge"') !== false,
+            "G1: settings page contains nutrition_attestation_acknowledge input when insights OFF"
+        );
+        $niInputMatch = '';
+        if (preg_match('/<input[^>]*name="nutrition_attestation_acknowledge"[^>]*>/', $gSettingsBody, $gInputM)) {
+            $niInputMatch = $gInputM[0];
+        }
+        ok(
+            strpos($niInputMatch, 'required') === false,
+            "G1: nutrition_attestation_acknowledge input does NOT have `required` attribute [got: $niInputMatch]"
+        );
+
+        // G2: POST changing default_language only — no show_nutrition_insights, no checkbox.
+        [$g2c, $g2body] = curlReq(
+            'curl -c ' . escapeshellarg($gJar) . ' -b ' . escapeshellarg($gJar) . ' -L'
+            . ' --data-urlencode ' . escapeshellarg('csrf_token=' . $gCsrf)
+            . ' --data-urlencode ' . escapeshellarg('default_language=en')
+            // Intentionally: no show_nutrition_insights, no nutrition_attestation_acknowledge
+            . ' ' . escapeshellarg($gSettingsUrl)
+        );
+        ok($g2c === 200, "G2: POST with language change only returns 200 [got $g2c]");
+        ok(
+            strpos($g2body, 'changes_saved') !== false
+            || strpos($g2body, 'Alterações guardadas') !== false
+            || strpos($g2body, 'Changes saved') !== false,
+            "G2: response contains 'changes saved' indicator (POST succeeded)"
+        );
+        ok(
+            strpos($g2body, 'nutrition_attestation_required') === false
+            && strpos($g2body, 'É necessário reconhecer') === false,
+            "G2: response does NOT contain attestation-required error message"
+        );
+
+        // G3: DB state — show_nutrition_insights must still be '0', no attestation written.
+        $dbG3 = new PDO('sqlite:' . $gTmpDb);
+        $dbG3->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $dbG3->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+        $niG3  = $dbG3->query("SELECT value FROM settings WHERE \"key\"='show_nutrition_insights'")->fetchColumn();
+        $attG3 = $dbG3->query("SELECT value FROM settings WHERE \"key\"='nutrition_attestation_version'")->fetchColumn();
+        $dbG3 = null;
+        ok($niG3 === '0' || $niG3 === false,
+            "G3: show_nutrition_insights is still '0' after unrelated save [got '" . ($niG3 === false ? 'unset' : $niG3) . "']");
+        ok($attG3 === '' || $attG3 === false,
+            "G3: nutrition_attestation_version still empty after unrelated save [got '" . ($attG3 === false ? 'unset' : $attG3) . "']");
+    }
+    $gCleanup();
+    @unlink($gJar);
+}
+
+// ==========================================================================
+// GROUP H — Defect B: re-ack path while insights are ON (stale-on-deploy install)
+//
+// Seeds: show_nutrition_insights='1', nutrition_attestation_version='' (stale).
+// H1: GET settings → disclaimer block + checkbox ARE visible (stale install sees them).
+// H2: POST with show_nutrition_insights=1 + checkbox → attestation recorded, no longer stale.
+// H3: POST insights=1 + no checkbox + change another setting → other setting saved,
+//     still stale (soft: no hard rejection, notice persists).
+//
+// Uses a FRESH server+DB to avoid WAL contention from A-F.
+// ==========================================================================
+echo "\n--- H. Defect B: re-ack path for stale already-on install ---\n";
+
+$ghH = spawnFreshServer($ROOT, $phpBin);
+if (!$ghH) {
+    ok(false, "H: could not spawn fresh server for group H");
+} else {
+    [, , $hTmpDb, $hJar, $hBase, $hCleanup] = $ghH;
+    $hSettingsUrl = "$hBase/index.php?page=settings";
+
+    // Seed stale state: insights ON, attestation version empty (stale).
+    $dbH = new PDO('sqlite:' . $hTmpDb);
+    $dbH->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $dbH->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+    $dbH->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('show_nutrition_insights', '1')");
+    $dbH->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('nutrition_attestation_version', '')");
+    $niH  = $dbH->query("SELECT value FROM settings WHERE \"key\"='show_nutrition_insights'")->fetchColumn();
+    $attH = $dbH->query("SELECT value FROM settings WHERE \"key\"='nutrition_attestation_version'")->fetchColumn();
+    ok($niH === '1', "H: seeded insights ON [got '$niH']");
+    ok($attH === '' || $attH === false,
+        "H: seeded attestation EMPTY/stale [got '" . ($attH === false ? 'unset' : $attH) . "']");
+    $dbH = null; gc_collect_cycles();
+
+    $hLogin = ghLogin($hBase, $hJar, $phpBin, $hTmpDb, $ROOT, $PASS, $FAIL);
+    if (!$hLogin) {
+        ok(false, "H: could not log in to fresh server");
+    } else {
+        [, $hCsrf, $hSettingsBody] = $hLogin;
+        ok(true, "H: logged in to fresh server, scraped CSRF [got '$hCsrf']");
+
+        // H1: GET settings page when stale → disclaimer block + checkbox must be visible.
+        ok(
+            strpos($hSettingsBody, 'name="nutrition_attestation_acknowledge"') !== false,
+            "H1: settings page renders disclaimer + attestation checkbox when stale (insights ON)"
+        );
+        ok(
+            strpos($hSettingsBody, 'medical_disclaimer_short') !== false
+            || strpos($hSettingsBody, 'medical_disclaimer_full') !== false
+            || strpos($hSettingsBody, 'not medical advice') !== false
+            || strpos($hSettingsBody, 'não constitui aconselhamento médico') !== false,
+            "H1: settings page renders the medical disclaimer text when stale"
+        );
+
+        // H2: POST insights=1 + checkbox → re-ack recorded, no longer stale.
+        [$h2c, $h2body] = curlReq(
+            'curl -c ' . escapeshellarg($hJar) . ' -b ' . escapeshellarg($hJar) . ' -L'
+            . ' --data-urlencode ' . escapeshellarg('csrf_token=' . $hCsrf)
+            . ' --data-urlencode ' . escapeshellarg('show_nutrition_insights=1')
+            . ' --data-urlencode ' . escapeshellarg('nutrition_attestation_acknowledge=1')
+            . ' ' . escapeshellarg($hSettingsUrl)
+        );
+        ok($h2c === 200, "H2: POST re-ack (insights ON + checkbox) returns 200 [got $h2c]");
+        ok(
+            strpos($h2body, 'changes_saved') !== false
+            || strpos($h2body, 'Alterações guardadas') !== false
+            || strpos($h2body, 'Changes saved') !== false,
+            "H2: response contains 'changes saved' (re-ack POST succeeded, not rejected)"
+        );
+
+        // DB: attestation must now be current version.
+        $dbH2 = new PDO('sqlite:' . $hTmpDb);
+        $dbH2->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $dbH2->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+        $attH2 = $dbH2->query("SELECT value FROM settings WHERE \"key\"='nutrition_attestation_version'")->fetchColumn();
+        $niH2  = $dbH2->query("SELECT value FROM settings WHERE \"key\"='show_nutrition_insights'")->fetchColumn();
+        $dbH2 = null;
+        ok($niH2 === '1',
+            "H2: show_nutrition_insights stays '1' after re-ack [got '" . ($niH2 === false ? 'unset' : $niH2) . "']");
+        ok($attH2 === (string) NUTRITION_ATTESTATION_VERSION,
+            "H2: nutrition_attestation_version is now current (" . NUTRITION_ATTESTATION_VERSION . ") after re-ack [got '" . ($attH2 === false ? 'unset' : $attH2) . "']");
+
+        // H3: seed stale again, then POST insights=1 + NO checkbox + change language.
+        // Expected: other setting saved, still stale (soft), not rejected.
+        $dbH3Pre = new PDO('sqlite:' . $hTmpDb);
+        $dbH3Pre->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $dbH3Pre->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+        $dbH3Pre->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('nutrition_attestation_version', '')");
+        $dbH3Pre->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('default_language', 'pt')");
+        $dbH3Pre = null; gc_collect_cycles();
+
+        // Re-scrape CSRF (session still active on H server).
+        [$h3sc, $h3sbody] = curlReq(
+            'curl -b ' . escapeshellarg($hJar) . ' -L ' . escapeshellarg($hSettingsUrl)
+        );
+        $h3Csrf = '';
+        if (preg_match('/<meta name="csrf-token" content="([a-f0-9]+)"/', $h3sbody, $h3mc)) {
+            $h3Csrf = $h3mc[1];
+        }
+        if ($h3Csrf === '') { $h3Csrf = $hCsrf; }
+
+        [$h3c, $h3body] = curlReq(
+            'curl -c ' . escapeshellarg($hJar) . ' -b ' . escapeshellarg($hJar) . ' -L'
+            . ' --data-urlencode ' . escapeshellarg('csrf_token=' . $h3Csrf)
+            . ' --data-urlencode ' . escapeshellarg('show_nutrition_insights=1')
+            . ' --data-urlencode ' . escapeshellarg('default_language=en')
+            // Intentionally: no nutrition_attestation_acknowledge
+            . ' ' . escapeshellarg($hSettingsUrl)
+        );
+        ok($h3c === 200, "H3: POST insights-on + no checkbox + language change returns 200 [got $h3c]");
+        ok(
+            strpos($h3body, 'changes_saved') !== false
+            || strpos($h3body, 'Alterações guardadas') !== false
+            || strpos($h3body, 'Changes saved') !== false,
+            "H3: response contains 'changes saved' (soft — already-on + no checkbox is NOT rejected)"
+        );
+        ok(
+            strpos($h3body, 'nutrition_attestation_required') === false
+            && strpos($h3body, 'É necessário reconhecer') === false,
+            "H3: response does NOT contain attestation-required error (soft re-ack)"
+        );
+
+        // DB: insights still ON, language changed, attestation still empty/stale.
+        $dbH3 = new PDO('sqlite:' . $hTmpDb);
+        $dbH3->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $dbH3->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+        $niH3   = $dbH3->query("SELECT value FROM settings WHERE \"key\"='show_nutrition_insights'")->fetchColumn();
+        $attH3  = $dbH3->query("SELECT value FROM settings WHERE \"key\"='nutrition_attestation_version'")->fetchColumn();
+        $langH3 = $dbH3->query("SELECT value FROM settings WHERE \"key\"='default_language'")->fetchColumn();
+        $dbH3 = null;
+        ok($niH3 === '1',
+            "H3: show_nutrition_insights is still '1' (stays on) [got '" . ($niH3 === false ? 'unset' : $niH3) . "']");
+        ok($attH3 === '' || $attH3 === false,
+            "H3: nutrition_attestation_version still empty/stale (no re-ack recorded) [got '" . ($attH3 === false ? 'unset' : $attH3) . "']");
+        ok($langH3 === 'en',
+            "H3: default_language was saved to 'en' (other setting DID save) [got '" . ($langH3 === false ? 'unset' : $langH3) . "']");
+    }
+    $hCleanup();
+    @unlink($hJar);
+}
 
 echo "\n==========================================================\n";
 echo " HTTP DISCLAIMER ATTESTATION smoke: $PASS passed, " . count($FAIL) . " failed\n";
