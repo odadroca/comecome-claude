@@ -809,6 +809,7 @@ $httpSmokes = [
     'tests/http_erasure_smoke.php',
     'tests/http_retention_smoke.php',
     'tests/http_disclaimer_smoke.php',
+    'tests/http_child_privacy_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;
@@ -2763,6 +2764,88 @@ ok(!isset($a13json['user']['date_of_birth']) && strpos(json_encode($a13json), '"
    "A13e JSON still has no raw date_of_birth (whitelist intact)");
 
 // PHASE A13 cleanup.
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE A27 — child privacy-note modal (seen-state helper + locale keys).
+ * -------------------------------------------------------------------------
+ *   A27 is ComeCome's first intentional child-facing transparency element:
+ *   a one-time, per-child friendly modal telling the child their guardian
+ *   can see what they log. This phase asserts:
+ *
+ *     A27a. childPrivacyNoteSeen(int $childId): bool in includes/auth.php
+ *           — false when the flag is absent/empty, true once set.
+ *     A27b. Both locale keys (child_privacy_note_title + child_privacy_note_body)
+ *           resolve to real (non-key-fallback) text in BOTH pt and en locales.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE A27 — A27 child privacy-note seen-state helper + locale keys ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+echo "\n-- A27a. childPrivacyNoteSeen(): false unset, true once set --\n";
+ok(function_exists('childPrivacyNoteSeen'),
+   "A27a childPrivacyNoteSeen() helper present");
+
+// Seed a child.
+$a27kid = createUser('PrivacyKid', 'child', '0000');
+ok($a27kid > 0, "A27a child seeded (id=$a27kid)");
+
+if (function_exists('childPrivacyNoteSeen')) {
+    // No flag set yet -> false.
+    ok(childPrivacyNoteSeen($a27kid) === false,
+       "A27a childPrivacyNoteSeen() is false when flag is absent");
+
+    // Explicitly set the flag to empty -> still false.
+    setSetting("child_privacy_note_seen_$a27kid", '');
+    ok(childPrivacyNoteSeen($a27kid) === false,
+       "A27a childPrivacyNoteSeen() is false when flag is empty string");
+
+    // Set to a non-empty value (e.g. a timestamp) -> true.
+    setSetting("child_privacy_note_seen_$a27kid", gmdate('c'));
+    ok(childPrivacyNoteSeen($a27kid) === true,
+       "A27a childPrivacyNoteSeen() is true once flag is set to non-empty");
+} else {
+    ok(false, "A27a childPrivacyNoteSeen() is false when flag is absent (skipped: function missing)");
+    ok(false, "A27a childPrivacyNoteSeen() is false when flag is empty string (skipped: function missing)");
+    ok(false, "A27a childPrivacyNoteSeen() is true once flag is set to non-empty (skipped: function missing)");
+}
+
+echo "\n-- A27b. locale keys resolve in pt and en --\n";
+// i18n.php already loaded. t() is available.
+loadTranslations('pt');
+$GLOBALS['current_locale'] = 'pt';
+$a27ptTitle = t('child_privacy_note_title');
+$a27ptBody  = t('child_privacy_note_body');
+ok($a27ptTitle !== 'child_privacy_note_title',
+   "A27b pt child_privacy_note_title resolves (not key fallback)");
+ok($a27ptBody !== 'child_privacy_note_body',
+   "A27b pt child_privacy_note_body resolves (not key fallback)");
+ok(strlen($a27ptTitle) > 1, "A27b pt child_privacy_note_title is non-trivial text");
+ok(strlen($a27ptBody)  > 10, "A27b pt child_privacy_note_body is non-trivial text");
+
+loadTranslations('en');
+$GLOBALS['current_locale'] = 'en';
+$a27enTitle = t('child_privacy_note_title');
+$a27enBody  = t('child_privacy_note_body');
+ok($a27enTitle !== 'child_privacy_note_title',
+   "A27b en child_privacy_note_title resolves (not key fallback)");
+ok($a27enBody !== 'child_privacy_note_body',
+   "A27b en child_privacy_note_body resolves (not key fallback)");
+ok(strlen($a27enTitle) > 1, "A27b en child_privacy_note_title is non-trivial text");
+ok(strlen($a27enBody)  > 10, "A27b en child_privacy_note_body is non-trivial text");
+
+// Restore locale.
+loadTranslations('pt');
+$GLOBALS['current_locale'] = 'pt';
+
+// PHASE A27 cleanup.
 gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 

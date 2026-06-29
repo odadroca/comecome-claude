@@ -62,7 +62,8 @@ purpose and document it here.
 A child signed in to ComeCome sees **only their own** data — their food log, check-ins, growth chart
 (an encouraging line, no clinical bands), and history. Children **cannot** see other children's data,
 clinical percentile bands, medication-timing analysis, nutrition insights, or any guardian/clinician
-screens. Consent, safeguarding alerts, and all governance surfaces are guardian-only.
+screens. Consent, safeguarding alerts, and all governance surfaces are guardian-only. On first sign-in,
+each child sees a one-time friendly in-app note confirming that their guardian can see what they log.
 
 ## Security
 

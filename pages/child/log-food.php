@@ -57,6 +57,12 @@ $mealEmojis = [
 ob_start();
 ?>
 
+<?php
+// A27 — child privacy-note modal (one-time, per-child; informational only, not a gate).
+if (isChild() && !childPrivacyNoteSeen((int) $user['id'])) {
+    include __DIR__ . '/privacy-note-modal.php';
+}
+?>
 <div class="child-interface">
     <!-- Navigation -->
     <nav class="child-nav">

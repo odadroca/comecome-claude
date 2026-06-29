@@ -589,5 +589,10 @@
   "nutrition_attestation_checkbox": "Li e compreendi este aviso. Reconheço que o ComeCome não é um dispositivo médico e não presta aconselhamento médico.",
   "nutrition_attestation_required": "É necessário reconhecer o aviso para ativar as informações nutricionais.",
   "nutrition_reack_notice": "Atualizámos o nosso aviso médico. Por favor reveja e volte a reconhecê-lo.",
-  "nutrition_reack_review": "Rever"
+  "nutrition_reack_review": "Rever",
+
+  "_child_privacy_note": "=== NOTA DE PRIVACIDADE PARA A CRIANÇA (A27) ===",
+  "child_privacy_note_title": "Olá! 👋",
+  "child_privacy_note_body": "O teu adulto pode ver o que registas aqui — a comida, como te sentes e o teu peso — para te ajudar a crescer. 🌱",
+  "child_privacy_note_ok": "OK! 👍"
 }
