@@ -594,5 +594,9 @@
   "_child_privacy_note": "=== NOTA DE PRIVACIDADE PARA A CRIANÇA (A27) ===",
   "child_privacy_note_title": "Olá! 👋",
   "child_privacy_note_body": "O teu adulto pode ver o que registas aqui — a comida, como te sentes e o teu peso — para te ajudar a crescer. 🌱",
-  "child_privacy_note_ok": "OK! 👍"
+  "child_privacy_note_ok": "OK! 👍",
+  "_encryption_off": "=== AVISO DE ENCRIPTAÇÃO EM REPOUSO (A28) ===",
+  "encryption_off_title": "A encriptação em repouso está desativada.",
+  "encryption_off_body": "Os dados de categoria especial (saúde de crianças) são guardados sem encriptação, e as cópias de segurança descarregadas também não são encriptadas. Para ativar a encriptação, defina ENCRYPTION_KEY_FILE para um ficheiro de chave guardado acima da raiz web — consulte SECURITY.md / DEPLOYMENT.md.",
+  "encryption_off_backup_note": "Esta cópia de segurança não será encriptada — não há chave de encriptação configurada."
 }

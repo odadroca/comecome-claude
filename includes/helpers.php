@@ -1309,3 +1309,19 @@ function renderLayout($title, $content, $additionalHead = '') {
     </html>
     <?php
 }
+
+/**
+ * A28 — operator warning shown when at-rest field encryption is OFF (no key configured),
+ * so a shared-hosting operator knows special-category (children's health) data is stored
+ * in plaintext. Returns a theme-aware `.alert alert-warning` banner, or '' when encryption
+ * is enabled. GUARDIAN/OPERATOR surfaces only — never include this on a child page.
+ */
+function renderEncryptionWarning() {
+    if (function_exists('encryptionEnabled') && encryptionEnabled()) {
+        return '';
+    }
+    return '<div class="alert alert-warning" role="alert" style="margin-bottom:1rem;">'
+        . '<strong>⚠️ ' . htmlspecialchars(t('encryption_off_title'), ENT_QUOTES, 'UTF-8') . '</strong> '
+        . htmlspecialchars(t('encryption_off_body'), ENT_QUOTES, 'UTF-8')
+        . '</div>';
+}
