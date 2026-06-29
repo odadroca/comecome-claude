@@ -182,7 +182,7 @@ if (isChild() && !childPrivacyNoteSeen((int) $user['id'])) {
 </div>
 
 <?php if (count($foodLog) > 0): ?>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="assets/js/chart.umd.min.js"></script>
 <?php endif; ?>
 
 <script>

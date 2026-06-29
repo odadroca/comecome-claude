@@ -136,7 +136,7 @@ if (isChild() && !childPrivacyNoteSeen((int) $user['id'])) {
     </article>
 </dialog>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="assets/js/chart.umd.min.js"></script>
 <script>
 <?php if (!$showPercentiles): ?>
 document.getElementById('weightForm').addEventListener('submit', function(e) {
