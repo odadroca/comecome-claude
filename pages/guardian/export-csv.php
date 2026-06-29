@@ -18,6 +18,14 @@ $output = fopen('php://output', 'w');
 // UTF-8 BOM for Excel compatibility
 fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
 
+// A21 Task 4 — medical disclaimer leading note rows, unconditional (always present
+// regardless of show_nutrition_insights toggle). Prefixed with '#' so CSV parsers
+// that skip comment rows handle them gracefully. Exports cross the guardian trust
+// boundary and also carry growth percentiles, so the disclaimer must always appear.
+fputcsv($output, ['# ' . t('medical_disclaimer_short')]);
+fputcsv($output, ['# ' . t('medical_disclaimer_full')]);
+fputcsv($output, []);
+
 // Report Header
 fputcsv($output, ['ComeCome Report']);
 fputcsv($output, ['Child', $child['name']]);

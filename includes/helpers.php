@@ -1166,6 +1166,12 @@ function projectReportForJson($reportData) {
     }
 
     return [
+        // A21 Task 4 — medical disclaimer in every JSON export, unconditional.
+        // This is a constant localized string (never data), placed first so it is
+        // immediately visible at the top of the object. It is NOT gated by the
+        // nutrition-insights toggle because exports also carry growth percentiles
+        // and leave the guardian trust boundary.
+        '_disclaimer'       => t('medical_disclaimer_full'),
         'user'              => $safeUser,
         'start_date'        => $reportData['start_date'] ?? null,
         'end_date'          => $reportData['end_date'] ?? null,

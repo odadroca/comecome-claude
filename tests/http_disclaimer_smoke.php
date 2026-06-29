@@ -460,6 +460,113 @@ function t_smoke($key) {
     return $locale[$key] ?? $key;
 }
 
+// ==========================================================================
+// GROUP E — A21 Task 4: disclaimer present in HTML and CSV export endpoints,
+//           unconditionally (regardless of show_nutrition_insights toggle).
+//
+// E1: HTML export (format=html) with toggle ON  → medical_disclaimer_full text present
+// E2: CSV  export (format=csv)  with toggle ON  → medical_disclaimer_short text present
+// E3: HTML export with toggle OFF               → medical_disclaimer_full still present
+// E4: CSV  export with toggle OFF               → medical_disclaimer_short still present
+// ==========================================================================
+echo "\n--- E. A21 Task 4: disclaimer in HTML + CSV exports (unconditional) ---\n";
+
+// Seed a child + some data for the export endpoint.
+// Use WAL so this write co-exists with the running server.
+$dbE = new PDO('sqlite:' . $tmpDb);
+$dbE->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbE->exec("PRAGMA journal_mode=WAL");
+$dbE->exec("PRAGMA busy_timeout=5000");
+$dbE->exec("INSERT INTO users (name, type, pin, avatar_emoji, active) VALUES ('ExportKid', 'child', '0000', '🧒', 1)");
+$exportKid = (int) $dbE->lastInsertId();
+ok($exportKid > 0, "E: seeded export child (id=$exportKid)");
+// A weight log entry so the export has something to render.
+$dbE->prepare("INSERT INTO weight_log (user_id, weight_kg, log_date) VALUES (?,?,?)")
+    ->execute([$exportKid, 20.5, date('Y-m-d', strtotime('-7 days'))]);
+$dbE = null;
+
+// Load the pt locale disclaimer texts so we can check for them.
+$eLocale = json_decode(file_get_contents($ROOT . '/locales/pt.json'), true) ?: [];
+$eEnLocale = json_decode(file_get_contents($ROOT . '/locales/en.json'), true) ?: [];
+$eDisclaimerFull  = $eLocale['medical_disclaimer_full']  ?? ($eEnLocale['medical_disclaimer_full']  ?? '');
+$eDisclaimerShort = $eLocale['medical_disclaimer_short'] ?? ($eEnLocale['medical_disclaimer_short'] ?? '');
+// Use a substring that will be recognizable in both locales.
+$eFullSubstr  = 'not a clinical assessment';       // in en full
+$eShortSubstr = 'not medical advice';              // in en short
+// pt equivalents:
+$eFullSubstrPt  = 'não constitui uma avaliação clínica';
+$eShortSubstrPt = 'não constitui aconselhamento médico';
+
+$startE = date('Y-m-d', strtotime('-30 days'));
+$endE   = date('Y-m-d');
+
+// The guardian is already logged in ($guardianJar has the session cookie from above).
+// Build export URL helpers.
+$htmlExportUrl = "$base/index.php?page=export&child_id=$exportKid&format=html"
+    . "&start_date=$startE&end_date=$endE&generate=1";
+$csvExportUrl  = "$base/index.php?page=export&child_id=$exportKid&format=csv"
+    . "&start_date=$startE&end_date=$endE&generate=1";
+
+// --- E1: HTML export, toggle ON ---
+$dbE1 = new PDO('sqlite:' . $tmpDb);
+$dbE1->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbE1->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+$dbE1->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('show_nutrition_insights', '1')");
+$dbE1 = null;
+
+[$e1code, $e1body] = curlReq(
+    'curl -b ' . escapeshellarg($guardianJar) . ' -L ' . escapeshellarg($htmlExportUrl)
+);
+ok($e1code === 200, "E1: HTML export (toggle ON) returns 200 [got $e1code]");
+ok(
+    strpos($e1body, $eFullSubstr) !== false
+    || strpos($e1body, $eFullSubstrPt) !== false
+    || (strlen($eDisclaimerFull) > 5 && strpos($e1body, substr($eDisclaimerFull, 0, 40)) !== false),
+    "E1: HTML export (toggle ON) contains medical_disclaimer_full text"
+);
+
+// --- E2: CSV export, toggle ON ---
+[$e2code, $e2body] = curlReq(
+    'curl -b ' . escapeshellarg($guardianJar) . ' -L ' . escapeshellarg($csvExportUrl)
+);
+ok($e2code === 200, "E2: CSV export (toggle ON) returns 200 [got $e2code]");
+ok(
+    strpos($e2body, $eShortSubstr) !== false
+    || strpos($e2body, $eShortSubstrPt) !== false
+    || (strlen($eDisclaimerShort) > 5 && strpos($e2body, substr($eDisclaimerShort, 0, 30)) !== false),
+    "E2: CSV export (toggle ON) contains medical_disclaimer_short text"
+);
+
+// --- E3: HTML export, toggle OFF (unconditional requirement) ---
+$dbE3 = new PDO('sqlite:' . $tmpDb);
+$dbE3->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbE3->exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+$dbE3->exec("INSERT OR REPLACE INTO settings (\"key\", value) VALUES ('show_nutrition_insights', '0')");
+$dbE3 = null;
+
+[$e3code, $e3body] = curlReq(
+    'curl -b ' . escapeshellarg($guardianJar) . ' -L ' . escapeshellarg($htmlExportUrl)
+);
+ok($e3code === 200, "E3: HTML export (toggle OFF) returns 200 [got $e3code]");
+ok(
+    strpos($e3body, $eFullSubstr) !== false
+    || strpos($e3body, $eFullSubstrPt) !== false
+    || (strlen($eDisclaimerFull) > 5 && strpos($e3body, substr($eDisclaimerFull, 0, 40)) !== false),
+    "E3: HTML export (toggle OFF) STILL contains medical_disclaimer_full text (unconditional)"
+);
+
+// --- E4: CSV export, toggle OFF (unconditional requirement) ---
+[$e4code, $e4body] = curlReq(
+    'curl -b ' . escapeshellarg($guardianJar) . ' -L ' . escapeshellarg($csvExportUrl)
+);
+ok($e4code === 200, "E4: CSV export (toggle OFF) returns 200 [got $e4code]");
+ok(
+    strpos($e4body, $eShortSubstr) !== false
+    || strpos($e4body, $eShortSubstrPt) !== false
+    || (strlen($eDisclaimerShort) > 5 && strpos($e4body, substr($eDisclaimerShort, 0, 30)) !== false),
+    "E4: CSV export (toggle OFF) STILL contains medical_disclaimer_short text (unconditional)"
+);
+
 // --- Cleanup ----------------------------------------------------------------
 $cleanup();
 @unlink($guardianJar);

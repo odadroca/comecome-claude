@@ -102,6 +102,14 @@ header('Content-Type: text/html; charset=UTF-8');
         </button>
     </div>
 
+    <!-- A21 Task 4 — medical disclaimer block, unconditional (always present regardless
+         of the show_nutrition_insights toggle). Exports cross the guardian trust boundary
+         and also carry growth percentiles, so the disclaimer must always accompany them. -->
+    <div style="border:2px solid #c00;background:#fff8f8;padding:10px 14px;margin-bottom:14px;font-size:8pt;color:#600;">
+        <strong style="display:block;margin-bottom:4px;font-size:9pt;">⚠ <?php echo htmlspecialchars(t('medical_disclaimer_short'), ENT_QUOTES, 'UTF-8'); ?></strong>
+        <?php echo htmlspecialchars(t('medical_disclaimer_full'), ENT_QUOTES, 'UTF-8'); ?>
+    </div>
+
     <div class="header">
         <h1>Come-Come Report</h1>
         <p><strong><?php echo sanitize($child['name']); ?></strong></p>

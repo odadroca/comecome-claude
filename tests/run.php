@@ -2615,6 +2615,108 @@ gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 
 /* -------------------------------------------------------------------------
+ * PHASE A13 — S2 / A21 Task 4: medical disclaimer in every JSON export.
+ * -------------------------------------------------------------------------
+ *   A21 Task 4 requires the `_disclaimer` field (value = medical_disclaimer_full)
+ *   in EVERY JSON export — unconditionally, regardless of the show_nutrition_insights
+ *   toggle. Three builders are covered:
+ *     A13a. projectReportForJson() (period JSON) — _disclaimer present
+ *     A13b. buildFullHistoryReport() — _disclaimer present
+ *     A13c. buildWholeDbExport() — each child object in the bundle carries _disclaimer
+ *     A13d. Unconditional: _disclaimer present with show_nutrition_insights='0' too
+ *     A13e. No PII: _disclaimer value is not a raw user field (no name, no pin, no DOB)
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE A13 — S2 A21 Task 4 (_disclaimer in every JSON export, unconditional) ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// Re-load translations for the assertion (need the full text).
+loadTranslations('pt');
+$GLOBALS['current_locale'] = 'pt';
+$a13FullText = t('medical_disclaimer_full');
+ok($a13FullText !== 'medical_disclaimer_full' && strlen($a13FullText) > 20,
+   "A13 prerequisite: medical_disclaimer_full resolves to real text [len=" . strlen($a13FullText) . "]");
+
+// Seed a child with complete demographics + a weight log so getReportData() has data.
+$a13dob = date('Y-m-d', strtotime('-5 years'));
+$a13kid = createUser('A13Kid', 'child', '0000', '🧒', 'male', $a13dob);
+ok($a13kid > 0, "A13 seed: child created (id=$a13kid)");
+$a13db = getDB();
+$a13db->prepare("INSERT INTO weight_log (user_id, weight_kg, log_date) VALUES (?,?,?)")
+      ->execute([$a13kid, 20.0, '2020-01-01']);
+
+$a13start = '2019-01-01';
+$a13end   = date('Y-m-d');
+
+// --- A13a. projectReportForJson() (period JSON) carries _disclaimer ------------
+echo "\n-- A13a. projectReportForJson(): _disclaimer present --\n";
+setSetting('show_nutrition_insights', '1');
+$a13report = getReportData($a13kid, $a13start, $a13end);
+$a13json   = projectReportForJson($a13report);
+ok(array_key_exists('_disclaimer', $a13json),
+   "A13a projectReportForJson(): _disclaimer key is present");
+ok(isset($a13json['_disclaimer']) && $a13json['_disclaimer'] === $a13FullText,
+   "A13a _disclaimer value equals medical_disclaimer_full text");
+
+// --- A13b. buildFullHistoryReport() carries _disclaimer -----------------------
+echo "\n-- A13b. buildFullHistoryReport(): _disclaimer present --\n";
+$a13full = buildFullHistoryReport($a13kid);
+ok(array_key_exists('_disclaimer', $a13full),
+   "A13b buildFullHistoryReport(): _disclaimer key is present");
+ok(isset($a13full['_disclaimer']) && $a13full['_disclaimer'] === $a13FullText,
+   "A13b buildFullHistoryReport() _disclaimer equals medical_disclaimer_full");
+
+// --- A13c. buildWholeDbExport() — each child object carries _disclaimer --------
+echo "\n-- A13c. buildWholeDbExport(): each child object carries _disclaimer --\n";
+$a13bundle = buildWholeDbExport();
+ok(isset($a13bundle['children']) && is_array($a13bundle['children']) && count($a13bundle['children']) >= 1,
+   "A13c bundle has children array with at least 1 entry");
+$a13allDisclaim = true;
+foreach ($a13bundle['children'] as $a13child) {
+    if (!array_key_exists('_disclaimer', $a13child) || $a13child['_disclaimer'] !== $a13FullText) {
+        $a13allDisclaim = false;
+        break;
+    }
+}
+ok($a13allDisclaim,
+   "A13c every child object in the whole-DB bundle carries _disclaimer = medical_disclaimer_full");
+
+// --- A13d. Unconditional: show_nutrition_insights='0' still carries _disclaimer -
+echo "\n-- A13d. Unconditional: _disclaimer present regardless of insights toggle --\n";
+setSetting('show_nutrition_insights', '0');
+$a13reportOff = getReportData($a13kid, $a13start, $a13end);
+$a13jsonOff   = projectReportForJson($a13reportOff);
+ok(array_key_exists('_disclaimer', $a13jsonOff),
+   "A13d _disclaimer present when show_nutrition_insights='0' (unconditional)");
+ok(isset($a13jsonOff['_disclaimer']) && $a13jsonOff['_disclaimer'] === $a13FullText,
+   "A13d _disclaimer value unchanged when show_nutrition_insights='0'");
+// Full history also unconditional.
+$a13fullOff = buildFullHistoryReport($a13kid);
+ok(array_key_exists('_disclaimer', $a13fullOff),
+   "A13d buildFullHistoryReport() _disclaimer present when toggle OFF");
+
+// --- A13e. No PII: _disclaimer is the localized string, never user data ---------
+echo "\n-- A13e. No PII: _disclaimer does not contain user name/pin/DOB --\n";
+$a13disTxt = $a13json['_disclaimer'] ?? '';
+$a13user   = $a13json['user'] ?? [];
+ok(isset($a13disTxt) && strpos($a13disTxt, $a13user['name'] ?? 'A13Kid') === false,
+   "A13e _disclaimer does not contain the child's name");
+ok(!isset($a13json['user']['pin']) && strpos(json_encode($a13json), '"pin"') === false,
+   "A13e JSON still has no pin field (whitelist intact)");
+ok(!isset($a13json['user']['date_of_birth']) && strpos(json_encode($a13json), '"date_of_birth"') === false,
+   "A13e JSON still has no raw date_of_birth (whitelist intact)");
+
+// PHASE A13 cleanup.
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
  * VERDICT.
  * ------------------------------------------------------------------------- */
 echo "\n==========================================================\n";
