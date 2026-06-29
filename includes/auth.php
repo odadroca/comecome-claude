@@ -67,6 +67,27 @@ function recordGuardianConsent(): void {
 }
 
 /**
+ * Launch Sprint 2 / A21 — nutrition-insights medical disclaimer attestation
+ * (settings-backed, no schema change).
+ *
+ * guardianNutritionAttestationCurrent() — returns true iff the guardian has
+ *   acknowledged the current version of the in-app medical disclaimer
+ *   (NUTRITION_ATTESTATION_VERSION from config.php). Side-effect-free.
+ *
+ * recordGuardianNutritionAttestation() — stamps nutrition_attestation_version
+ *   to the current version and nutrition_attestation_at to a UTC ISO-8601
+ *   timestamp, marking acknowledgement.
+ */
+function guardianNutritionAttestationCurrent(): bool {
+    return getSetting('nutrition_attestation_version', '') === (string) NUTRITION_ATTESTATION_VERSION;
+}
+
+function recordGuardianNutritionAttestation(): void {
+    setSetting('nutrition_attestation_version', (string) NUTRITION_ATTESTATION_VERSION);
+    setSetting('nutrition_attestation_at', gmdate('c'));
+}
+
+/**
  * Block API WRITES until the guardian has acknowledged the consent notice.
  *
  * The page-router consent gate (index.php) only covers requests routed through

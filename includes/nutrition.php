@@ -44,6 +44,20 @@ function nutritionInsightsEnabled() {
     return getSetting('show_nutrition_insights', '0') === '1';
 }
 
+/**
+ * S2 / A21 — Is the guardian's medical disclaimer attestation stale?
+ *
+ * Returns true when nutrition insights are enabled AND the stored attestation
+ * version no longer matches NUTRITION_ATTESTATION_VERSION. The soft model means
+ * insights keep rendering on a stale version; only a re-acknowledge notice is
+ * shown. nutritionInsightsEnabled() is NOT changed — display never hides on a
+ * stale attestation.
+ */
+function nutritionAttestationStale(): bool {
+    return getSetting('show_nutrition_insights', '0') === '1'
+        && !guardianNutritionAttestationCurrent();
+}
+
 /** The six growth tags (single source of truth; mirrors the CHECK constraint). */
 function growthTagNames() {
     return ['calorie_dense', 'protein_rich', 'bone_building', 'brain_fuel', 'easy_to_eat', 'hydrating'];
@@ -367,6 +381,21 @@ function renderNutritionSection($ni, $variant = 'dashboard') {
 
     $border = $isReport ? '1px solid #ddd' : '1px solid #ddd';
 
+    // --- S2/A21 Task 3: persistent disclaimer banner + soft re-ack notice ------
+    // Guardian dashboard only (not the clinician/guest report variant).
+    if (!$isReport): ?>
+    <p class="nutrition-disclaimer-banner" style="font-size:0.8rem;background:#fff8e1;border-left:3px solid #f9a825;padding:4px 8px;margin:0 0 8px;">
+        ⚕️ <?php echo t('medical_disclaimer_short'); ?>
+    </p>
+    <?php if (nutritionAttestationStale()): ?>
+    <p class="nutrition-reack-notice" style="font-size:0.8rem;background:#fce4ec;border-left:3px solid #c62828;padding:4px 8px;margin:0 0 8px;">
+        ⚠️ <?php echo t('nutrition_reack_notice'); ?>
+        <a href="?page=settings"><?php echo t('nutrition_reack_review'); ?></a>
+    </p>
+    <?php endif; ?>
+    <?php endif; ?>
+
+    <?php
     // --- A. Medication timing ---------------------------------------------------
     $timing = $ni['timing'] ?? null;
     if (is_array($timing) && !empty($timing['has_schedule']) && ($timing['windowed_total'] ?? 0) > 0):

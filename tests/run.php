@@ -343,6 +343,8 @@ define('GUEST_TOKEN_LIFETIME', 604800);
 // Launch Sprint 2 — consent-notice version (mirrors config.php; defined here because
 // config.php cannot be loaded by the CLI harness due to session_start side-effects).
 define('CONSENT_NOTICE_VERSION', 1);
+// S2/A21 — nutrition-attestation version (mirrors config.php; same reason).
+define('NUTRITION_ATTESTATION_VERSION', 1);
 date_default_timezone_set('Europe/Lisbon');
 
 require_once $ROOT . '/includes/db.php';
@@ -806,6 +808,7 @@ $httpSmokes = [
     'tests/http_safeguarding_smoke.php',
     'tests/http_erasure_smoke.php',
     'tests/http_retention_smoke.php',
+    'tests/http_disclaimer_smoke.php',
 ];
 foreach ($httpSmokes as $rel) {
     $abs = $ROOT . '/' . $rel;
@@ -2538,6 +2541,228 @@ ok((int)$ccDb->query("SELECT COUNT(*) FROM daily_checkin WHERE check_date='2026-
 
 // PHASE A11 cleanup.
 $ccDb = null;
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE A12 — S2 / A21: nutrition attestation helpers + canonical locale strings.
+ *
+ *   A21 adds a medical-disclaimer attestation gate. This phase checks:
+ *     - NUTRITION_ATTESTATION_VERSION constant defined
+ *     - guardianNutritionAttestationCurrent() / recordGuardianNutritionAttestation()
+ *       in includes/auth.php (mirroring the consent pattern)
+ *     - nutritionAttestationStale() in includes/nutrition.php
+ *     - medical_disclaimer_short + medical_disclaimer_full resolve (not key-fallback)
+ *       in BOTH pt and en locales
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE A12 — S2 A21 nutrition attestation helpers + disclaimer locale strings ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// --- Phase A7: nutrition attestation helpers (S2 / A21) --------------------
+ok(defined('NUTRITION_ATTESTATION_VERSION'), 'A12 NUTRITION_ATTESTATION_VERSION constant defined');
+ok(function_exists('guardianNutritionAttestationCurrent')
+   && function_exists('recordGuardianNutritionAttestation'),
+   'A12 attestation helpers present in includes/auth.php');
+ok(function_exists('nutritionAttestationStale'),
+   'A12 nutritionAttestationStale() present in includes/nutrition.php');
+
+// Require nutrition.php (not yet loaded in this process).
+require_once $ROOT . '/includes/nutrition.php';
+
+setSetting('show_nutrition_insights', '0');
+setSetting('nutrition_attestation_version', '');
+ok(!guardianNutritionAttestationCurrent(), 'A12 attestation not current when unset');
+ok(!nutritionAttestationStale(), 'A12 not stale when insights off');
+recordGuardianNutritionAttestation();
+ok(guardianNutritionAttestationCurrent(), 'A12 attestation current after record');
+ok(getSetting('nutrition_attestation_at', '') !== '', 'A12 attestation timestamp written');
+setSetting('show_nutrition_insights', '1');
+setSetting('nutrition_attestation_version', '0'); // simulate a version bump (current is >=1)
+ok(nutritionAttestationStale(), 'A12 stale when insights on but version behind');
+
+// Canonical disclaimer strings resolve (not the key fallback) in BOTH pt and en.
+// i18n.php is already loaded (PHASE E). Re-load translations for each locale explicitly.
+loadTranslations('pt');
+$GLOBALS['current_locale'] = 'pt';
+$ptShort = t('medical_disclaimer_short');
+$ptFull  = t('medical_disclaimer_full');
+ok($ptShort !== 'medical_disclaimer_short', 'A12 pt medical_disclaimer_short resolves (not key fallback)');
+ok($ptFull  !== 'medical_disclaimer_full',  'A12 pt medical_disclaimer_full resolves (not key fallback)');
+ok(strlen($ptShort) > 10, 'A12 pt medical_disclaimer_short is non-trivial text');
+ok(strlen($ptFull)  > 20, 'A12 pt medical_disclaimer_full is non-trivial text');
+
+loadTranslations('en');
+$GLOBALS['current_locale'] = 'en';
+$enShort = t('medical_disclaimer_short');
+$enFull  = t('medical_disclaimer_full');
+ok($enShort !== 'medical_disclaimer_short', 'A12 en medical_disclaimer_short resolves (not key fallback)');
+ok($enFull  !== 'medical_disclaimer_full',  'A12 en medical_disclaimer_full resolves (not key fallback)');
+ok(strlen($enShort) > 10, 'A12 en medical_disclaimer_short is non-trivial text');
+ok(strlen($enFull)  > 20, 'A12 en medical_disclaimer_full is non-trivial text');
+
+// Restore locale to default (pt) so any code after this is not surprised.
+$GLOBALS['current_locale'] = 'pt';
+
+// PHASE A12 cleanup.
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE A12b — S2 / A21 Task 5b: locale key-set parity (pt ↔ en).
+ *
+ *   The A12 phase above checks that 2 of the 6 A21 keys resolve as non-empty
+ *   strings in each locale. This phase adds a GENERAL full-key-set parity
+ *   assertion: pt.json and en.json must have IDENTICAL key sets. If any key is
+ *   added to one locale without the other, this phase FAILs, catching the gap
+ *   for all future amendments — not just A21.
+ *
+ *   The six A21-specific keys are also verified individually so the coverage is
+ *   explicit and unambiguous.
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE A12b — S2 A21 Task 5b: locale pt/en key-set parity ###\n";
+
+$a12bPt = json_decode(file_get_contents($ROOT . '/locales/pt.json'), true) ?: [];
+$a12bEn = json_decode(file_get_contents($ROOT . '/locales/en.json'), true) ?: [];
+
+ok(count($a12bPt) > 0, 'A12b pt.json loaded with at least 1 key [got ' . count($a12bPt) . ']');
+ok(count($a12bEn) > 0, 'A12b en.json loaded with at least 1 key [got ' . count($a12bEn) . ']');
+
+$a12bPtKeys = array_keys($a12bPt); sort($a12bPtKeys);
+$a12bEnKeys = array_keys($a12bEn); sort($a12bEnKeys);
+
+// Full parity: identical sorted key sets.
+$onlyInPt = array_diff($a12bPtKeys, $a12bEnKeys);
+$onlyInEn = array_diff($a12bEnKeys, $a12bPtKeys);
+ok(count($onlyInPt) === 0,
+   'A12b pt.json has no keys absent from en.json [only-in-pt: ' . (count($onlyInPt) ? implode(', ', $onlyInPt) : 'none') . ']');
+ok(count($onlyInEn) === 0,
+   'A12b en.json has no keys absent from pt.json [only-in-en: ' . (count($onlyInEn) ? implode(', ', $onlyInEn) : 'none') . ']');
+ok($a12bPtKeys === $a12bEnKeys,
+   'A12b pt.json and en.json have identical key sets (' . count($a12bPtKeys) . ' keys each)');
+
+// A21 keys individually — explicit coverage so any future removal from either file
+// is caught by a named assertion, not just the general diff.
+$a12bA21Keys = [
+    'medical_disclaimer_short',
+    'medical_disclaimer_full',
+    'nutrition_attestation_checkbox',
+    'nutrition_attestation_required',
+    'nutrition_reack_notice',
+    'nutrition_reack_review',
+];
+foreach ($a12bA21Keys as $k) {
+    ok(isset($a12bPt[$k]) && $a12bPt[$k] !== $k,
+       "A12b A21 key '$k' present and resolved in pt.json");
+    ok(isset($a12bEn[$k]) && $a12bEn[$k] !== $k,
+       "A12b A21 key '$k' present and resolved in en.json");
+}
+
+/* -------------------------------------------------------------------------
+ * PHASE A13 — S2 / A21 Task 4: medical disclaimer in every JSON export.
+ * -------------------------------------------------------------------------
+ *   A21 Task 4 requires the `_disclaimer` field (value = medical_disclaimer_full)
+ *   in EVERY JSON export — unconditionally, regardless of the show_nutrition_insights
+ *   toggle. Three builders are covered:
+ *     A13a. projectReportForJson() (period JSON) — _disclaimer present
+ *     A13b. buildFullHistoryReport() — _disclaimer present
+ *     A13c. buildWholeDbExport() — each child object in the bundle carries _disclaimer
+ *     A13d. Unconditional: _disclaimer present with show_nutrition_insights='0' too
+ *     A13e. No PII: _disclaimer value is not a raw user field (no name, no pin, no DOB)
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE A13 — S2 A21 Task 4 (_disclaimer in every JSON export, unconditional) ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// Re-load translations for the assertion (need the full text).
+loadTranslations('pt');
+$GLOBALS['current_locale'] = 'pt';
+$a13FullText = t('medical_disclaimer_full');
+ok($a13FullText !== 'medical_disclaimer_full' && strlen($a13FullText) > 20,
+   "A13 prerequisite: medical_disclaimer_full resolves to real text [len=" . strlen($a13FullText) . "]");
+
+// Seed a child with complete demographics + a weight log so getReportData() has data.
+$a13dob = date('Y-m-d', strtotime('-5 years'));
+$a13kid = createUser('A13Kid', 'child', '0000', '🧒', 'male', $a13dob);
+ok($a13kid > 0, "A13 seed: child created (id=$a13kid)");
+$a13db = getDB();
+$a13db->prepare("INSERT INTO weight_log (user_id, weight_kg, log_date) VALUES (?,?,?)")
+      ->execute([$a13kid, 20.0, '2020-01-01']);
+
+$a13start = '2019-01-01';
+$a13end   = date('Y-m-d');
+
+// --- A13a. projectReportForJson() (period JSON) carries _disclaimer ------------
+echo "\n-- A13a. projectReportForJson(): _disclaimer present --\n";
+setSetting('show_nutrition_insights', '1');
+$a13report = getReportData($a13kid, $a13start, $a13end);
+$a13json   = projectReportForJson($a13report);
+ok(array_key_exists('_disclaimer', $a13json),
+   "A13a projectReportForJson(): _disclaimer key is present");
+ok(isset($a13json['_disclaimer']) && $a13json['_disclaimer'] === $a13FullText,
+   "A13a _disclaimer value equals medical_disclaimer_full text");
+
+// --- A13b. buildFullHistoryReport() carries _disclaimer -----------------------
+echo "\n-- A13b. buildFullHistoryReport(): _disclaimer present --\n";
+$a13full = buildFullHistoryReport($a13kid);
+ok(array_key_exists('_disclaimer', $a13full),
+   "A13b buildFullHistoryReport(): _disclaimer key is present");
+ok(isset($a13full['_disclaimer']) && $a13full['_disclaimer'] === $a13FullText,
+   "A13b buildFullHistoryReport() _disclaimer equals medical_disclaimer_full");
+
+// --- A13c. buildWholeDbExport() — each child object carries _disclaimer --------
+echo "\n-- A13c. buildWholeDbExport(): each child object carries _disclaimer --\n";
+$a13bundle = buildWholeDbExport();
+ok(isset($a13bundle['children']) && is_array($a13bundle['children']) && count($a13bundle['children']) >= 1,
+   "A13c bundle has children array with at least 1 entry");
+$a13allDisclaim = true;
+foreach ($a13bundle['children'] as $a13child) {
+    if (!array_key_exists('_disclaimer', $a13child) || $a13child['_disclaimer'] !== $a13FullText) {
+        $a13allDisclaim = false;
+        break;
+    }
+}
+ok($a13allDisclaim,
+   "A13c every child object in the whole-DB bundle carries _disclaimer = medical_disclaimer_full");
+
+// --- A13d. Unconditional: show_nutrition_insights='0' still carries _disclaimer -
+echo "\n-- A13d. Unconditional: _disclaimer present regardless of insights toggle --\n";
+setSetting('show_nutrition_insights', '0');
+$a13reportOff = getReportData($a13kid, $a13start, $a13end);
+$a13jsonOff   = projectReportForJson($a13reportOff);
+ok(array_key_exists('_disclaimer', $a13jsonOff),
+   "A13d _disclaimer present when show_nutrition_insights='0' (unconditional)");
+ok(isset($a13jsonOff['_disclaimer']) && $a13jsonOff['_disclaimer'] === $a13FullText,
+   "A13d _disclaimer value unchanged when show_nutrition_insights='0'");
+// Full history also unconditional.
+$a13fullOff = buildFullHistoryReport($a13kid);
+ok(array_key_exists('_disclaimer', $a13fullOff),
+   "A13d buildFullHistoryReport() _disclaimer present when toggle OFF");
+
+// --- A13e. No PII: _disclaimer is the localized string, never user data ---------
+echo "\n-- A13e. No PII: _disclaimer does not contain user name/pin/DOB --\n";
+$a13disTxt = $a13json['_disclaimer'] ?? '';
+$a13user   = $a13json['user'] ?? [];
+ok(isset($a13disTxt) && strpos($a13disTxt, $a13user['name'] ?? 'A13Kid') === false,
+   "A13e _disclaimer does not contain the child's name");
+ok(!isset($a13json['user']['pin']) && strpos(json_encode($a13json), '"pin"') === false,
+   "A13e JSON still has no pin field (whitelist intact)");
+ok(!isset($a13json['user']['date_of_birth']) && strpos(json_encode($a13json), '"date_of_birth"') === false,
+   "A13e JSON still has no raw date_of_birth (whitelist intact)");
+
+// PHASE A13 cleanup.
 gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 

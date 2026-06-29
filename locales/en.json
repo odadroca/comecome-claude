@@ -581,5 +581,13 @@
   "consent_child_blocked_title": "Almost ready!",
   "consent_child_blocked_body": "ComeCome isn't set up yet. Please ask your grown-up to finish setting it up.",
   "export_all_child": "Export all data (JSON)",
-  "export_all_db": "Export everything (all children, JSON)"
+  "export_all_db": "Export everything (all children, JSON)",
+
+  "_medical_disclaimer": "=== MEDICAL DISCLAIMER (S2/A21) ===",
+  "medical_disclaimer_short": "Descriptive summary of logged data — not medical advice. Always consult a qualified healthcare professional.",
+  "medical_disclaimer_full": "ComeCome is a tracking tool, not a medical device. Nutrition and growth insights are rule-based descriptive summaries of the data you entered — not individualised recommendations. Growth percentiles use public WHO/CDC reference data and are not a clinical assessment. Nothing in ComeCome should be used to diagnose, treat, or make medication decisions. Always consult a qualified healthcare professional (paediatrician, dietitian, prescriber) for medical or nutritional decisions — especially regarding children and medication. ComeCome is not for emergencies; in an emergency contact your local emergency services.",
+  "nutrition_attestation_checkbox": "I have read and understand this disclaimer. I acknowledge that ComeCome is not a medical device and does not provide medical advice.",
+  "nutrition_attestation_required": "You must acknowledge the disclaimer to enable nutrition insights.",
+  "nutrition_reack_notice": "We updated our medical disclaimer. Please review and re-acknowledge it.",
+  "nutrition_reack_review": "Review"
 }

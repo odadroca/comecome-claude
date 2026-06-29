@@ -48,6 +48,12 @@ define('APP_VERSION', '0.11.0');
 // re-acknowledges the new version.
 define('CONSENT_NOTICE_VERSION', 1);
 
+// Nutrition-attestation version. Bump this integer whenever the in-app medical
+// disclaimer text (medical_disclaimer_* locale keys) changes materially (e.g. after
+// the external EU/PT legal sign-off); a previously-attested guardian becomes "stale"
+// → insights keep rendering but a re-acknowledge notice appears (soft re-ack).
+define('NUTRITION_ATTESTATION_VERSION', 1);
+
 // Sprint 2 (A15) — allowed data-retention periods in MONTHS. 0 = off (default).
 // Server-side allowlist: any value not in this set is rejected.
 define('RETENTION_PRESETS', [0, 6, 12, 24, 36]);
