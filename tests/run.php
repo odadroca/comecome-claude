@@ -343,6 +343,8 @@ define('GUEST_TOKEN_LIFETIME', 604800);
 // Launch Sprint 2 — consent-notice version (mirrors config.php; defined here because
 // config.php cannot be loaded by the CLI harness due to session_start side-effects).
 define('CONSENT_NOTICE_VERSION', 1);
+// S2/A21 — nutrition-attestation version (mirrors config.php; same reason).
+define('NUTRITION_ATTESTATION_VERSION', 1);
 date_default_timezone_set('Europe/Lisbon');
 
 require_once $ROOT . '/includes/db.php';
@@ -2538,6 +2540,76 @@ ok((int)$ccDb->query("SELECT COUNT(*) FROM daily_checkin WHERE check_date='2026-
 
 // PHASE A11 cleanup.
 $ccDb = null;
+gc_collect_cycles();
+if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
+
+/* -------------------------------------------------------------------------
+ * PHASE A12 — S2 / A21: nutrition attestation helpers + canonical locale strings.
+ *
+ *   A21 adds a medical-disclaimer attestation gate. This phase checks:
+ *     - NUTRITION_ATTESTATION_VERSION constant defined
+ *     - guardianNutritionAttestationCurrent() / recordGuardianNutritionAttestation()
+ *       in includes/auth.php (mirroring the consent pattern)
+ *     - nutritionAttestationStale() in includes/nutrition.php
+ *     - medical_disclaimer_short + medical_disclaimer_full resolve (not key-fallback)
+ *       in BOTH pt and en locales
+ * ------------------------------------------------------------------------- */
+echo "\n### PHASE A12 — S2 A21 nutrition attestation helpers + disclaimer locale strings ###\n";
+
+// Rebuild a clean DB for this phase.
+gc_collect_cycles();
+for ($i = 0; $i < 25 && file_exists(DB_PATH); $i++) {
+    if (@unlink(DB_PATH)) { break; }
+    usleep(20000);
+}
+initializeDatabase();
+
+// --- Phase A7: nutrition attestation helpers (S2 / A21) --------------------
+ok(defined('NUTRITION_ATTESTATION_VERSION'), 'A12 NUTRITION_ATTESTATION_VERSION constant defined');
+ok(function_exists('guardianNutritionAttestationCurrent')
+   && function_exists('recordGuardianNutritionAttestation'),
+   'A12 attestation helpers present in includes/auth.php');
+ok(function_exists('nutritionAttestationStale'),
+   'A12 nutritionAttestationStale() present in includes/nutrition.php');
+
+// Require nutrition.php (not yet loaded in this process).
+require_once $ROOT . '/includes/nutrition.php';
+
+setSetting('show_nutrition_insights', '0');
+setSetting('nutrition_attestation_version', '');
+ok(!guardianNutritionAttestationCurrent(), 'A12 attestation not current when unset');
+ok(!nutritionAttestationStale(), 'A12 not stale when insights off');
+recordGuardianNutritionAttestation();
+ok(guardianNutritionAttestationCurrent(), 'A12 attestation current after record');
+ok(getSetting('nutrition_attestation_at', '') !== '', 'A12 attestation timestamp written');
+setSetting('show_nutrition_insights', '1');
+setSetting('nutrition_attestation_version', '0'); // simulate a version bump (current is >=1)
+ok(nutritionAttestationStale(), 'A12 stale when insights on but version behind');
+
+// Canonical disclaimer strings resolve (not the key fallback) in BOTH pt and en.
+// i18n.php is already loaded (PHASE E). Re-load translations for each locale explicitly.
+loadTranslations('pt');
+$GLOBALS['current_locale'] = 'pt';
+$ptShort = t('medical_disclaimer_short');
+$ptFull  = t('medical_disclaimer_full');
+ok($ptShort !== 'medical_disclaimer_short', 'A12 pt medical_disclaimer_short resolves (not key fallback)');
+ok($ptFull  !== 'medical_disclaimer_full',  'A12 pt medical_disclaimer_full resolves (not key fallback)');
+ok(strlen($ptShort) > 10, 'A12 pt medical_disclaimer_short is non-trivial text');
+ok(strlen($ptFull)  > 20, 'A12 pt medical_disclaimer_full is non-trivial text');
+
+loadTranslations('en');
+$GLOBALS['current_locale'] = 'en';
+$enShort = t('medical_disclaimer_short');
+$enFull  = t('medical_disclaimer_full');
+ok($enShort !== 'medical_disclaimer_short', 'A12 en medical_disclaimer_short resolves (not key fallback)');
+ok($enFull  !== 'medical_disclaimer_full',  'A12 en medical_disclaimer_full resolves (not key fallback)');
+ok(strlen($enShort) > 10, 'A12 en medical_disclaimer_short is non-trivial text');
+ok(strlen($enFull)  > 20, 'A12 en medical_disclaimer_full is non-trivial text');
+
+// Restore locale to default (pt) so any code after this is not surprised.
+$GLOBALS['current_locale'] = 'pt';
+
+// PHASE A12 cleanup.
 gc_collect_cycles();
 if (file_exists(DB_PATH)) { @unlink(DB_PATH); }
 

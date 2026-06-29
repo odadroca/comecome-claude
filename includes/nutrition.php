@@ -44,6 +44,20 @@ function nutritionInsightsEnabled() {
     return getSetting('show_nutrition_insights', '0') === '1';
 }
 
+/**
+ * S2 / A21 — Is the guardian's medical disclaimer attestation stale?
+ *
+ * Returns true when nutrition insights are enabled AND the stored attestation
+ * version no longer matches NUTRITION_ATTESTATION_VERSION. The soft model means
+ * insights keep rendering on a stale version; only a re-acknowledge notice is
+ * shown. nutritionInsightsEnabled() is NOT changed — display never hides on a
+ * stale attestation.
+ */
+function nutritionAttestationStale(): bool {
+    return getSetting('show_nutrition_insights', '0') === '1'
+        && !guardianNutritionAttestationCurrent();
+}
+
 /** The six growth tags (single source of truth; mirrors the CHECK constraint). */
 function growthTagNames() {
     return ['calorie_dense', 'protein_rich', 'bone_building', 'brain_fuel', 'easy_to_eat', 'hydrating'];
