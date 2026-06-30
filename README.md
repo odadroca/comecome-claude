@@ -1,4 +1,4 @@
-# 🍽️ ComeCome v0.11.0 - ADHD-Friendly Food Tracking
+# 🍽️ ComeCome v0.11.3 - ADHD-Friendly Food Tracking
 
 A compassionate nutrition tracking application designed specifically for neuro-divergent children, particularly those with ADHD and medication-induced appetite challenges.
 
@@ -37,8 +37,8 @@ ComeCome helps families monitor their children's eating habits with **minimal fr
 ## 🚀 Installation
 
 ### Requirements
-- PHP 7.4+ with SQLite support
-- Any web server (Apache, Nginx, etc.)
+- **PHP 8.x** with SQLite (PDO) — the Docker image and CI both run **8.3**; the optional at-rest encryption needs the `sodium` extension (bundled since PHP 7.2)
+- Any web server (Apache, Nginx, …) — or use the bundled Docker stack below
 - Modern web browser
 
 ### Quick Start
@@ -130,12 +130,27 @@ Complete data structure for:
 
 ## 🔐 Security
 
-- **PIN-based authentication** (child-friendly 4-digit PINs)
-- **Session management** with secure tokens
-- **Guest access tokens** with expiration
-- **SQLite database** - No external DB server needed
-- **Input sanitization** and prepared statements
-- **No external dependencies** for core functionality
+- **PIN-based authentication** (child-friendly 4-digit PINs) with **brute-force throttling/lockout** and a forced change of the seeded default `0000` guardian PIN on first login
+- **CSRF protection** on every state-changing request; **session management** with secure tokens
+- **Guest access tokens** with expiration (revocable clinician links)
+- **Input sanitization** and prepared statements throughout (SQLite via PDO — no external DB server)
+- **No outbound third-party calls** — Chart.js and the web fonts are self-hosted and the WHO growth data is embedded, so the app makes zero requests to external CDNs
+- **Optional at-rest field encryption** (libsodium, opt-in) that **fails closed** if misconfigured, with an in-app operator warning when it is off
+- **CI on every change** — the test suite runs on Linux, plus secret-scanning (gitleaks) and a guard against committing a database; the container image is built and vulnerability-scanned (Trivy)
+
+## 🛡️ Privacy & data governance
+
+ComeCome handles **special-category data** (a child's health) and is built to keep families in control:
+
+- **Guardian consent gate** — a guardian must acknowledge the privacy/consent notice before the app is usable; children see a neutral "not set up yet" screen until then.
+- **In-app medical disclaimer + attestation** — the not-medical-advice disclaimer shows in-app and on every clinician export; enabling nutrition intelligence requires a versioned "I understand" attestation (re-acknowledged when the text changes).
+- **Child data-visibility note** — a one-time, child-facing first-run note explaining that their guardian can see what they log.
+- **Data export** — HTML / CSV / JSON, plus a whole-database JSON export, for portability and clinician sharing.
+- **Right to erasure** — per-child or whole-instance deletion, recorded in a PII-free `data_deletion_log` audit trail.
+- **Optional retention auto-purge** — opt-in (off by default; 6/12/24/36-month presets) automatic deletion of old time-series data.
+- **At-rest field encryption** — optional libsodium encryption of the high-sensitivity identity/free-text columns (see Production Hardening below).
+
+See [`PRIVACY.md`](PRIVACY.md) for the full policy.
 
 ## 🔒 Production Hardening (optional, recommended)
 
@@ -224,7 +239,7 @@ threat-ordered plan in `docs/roadmap/SPRINT-SECURITY.md`.
 
 ## 🗄️ Database Schema
 
-ComeCome uses SQLite with a clean, normalized schema (auto-migrated to **`schema_version` 7**):
+ComeCome uses SQLite with a clean, normalized schema (auto-migrated to **`schema_version` 8**):
 - **users** - Children and guardians (incl. `gender`, `date_of_birth` for percentiles)
 - **meals** / **foods** / **food_categories** - Meals + extensible food catalog
 - **food_growth_tags** - Strategic growth tags per food (powers the nutrition intelligence panel)
@@ -235,6 +250,7 @@ ComeCome uses SQLite with a clean, normalized schema (auto-migrated to **`schema
 - **sleep_log** / **sleep_interruptions** - Detailed sleep tracking
 - **guest_tokens** - Temporary clinician access (revocable)
 - **login_attempts** - PIN brute-force throttling state
+- **data_deletion_log** - privacy audit trail for data erasure / retention purges (PII-free counts)
 - **settings** - Key/value feature toggles + config; **translations** - i18n overrides
 
 ## 🎨 Customization
@@ -317,17 +333,19 @@ ComeCome is a tracking tool, not medical software. Always consult healthcare pro
 
 Planning and review documents live in [`docs/roadmap/`](docs/roadmap/). The
 canonical sprint plan is [`.claude/SPRINT-PLAN_reconciled.md`](.claude/SPRINT-PLAN_reconciled.md).
-Sprints 0–2 (bug fixes, feature toggles, sleep tracking) shipped in v0.9; Sprints 3–5
-(percentiles, growth-support nutrition) and at-rest encryption are planned/deferred.
+WHO growth percentiles, growth-support nutrition intelligence, sleep + medication-timing
+tracking, and optional at-rest field encryption have all shipped. Current work is launch
+hardening — privacy/consent & data governance, CI/supply-chain, and Docker packaging — toward
+a 1.0 public release.
 
 ## 📄 License
 
 ComeCome is licensed under the **GNU Affero General Public License v3.0 or later**
 (`SPDX-License-Identifier: AGPL-3.0-or-later`). See [`LICENSE`](LICENSE) for the full text.
 
-Third-party components and reference data are attributed in [`NOTICE`](NOTICE); medical and
-liability disclaimers are in [`DISCLAIMER.md`](DISCLAIMER.md); security reporting is described in
-[`SECURITY.md`](SECURITY.md).
+Third-party components and reference data are attributed in [`NOTICE`](NOTICE); the privacy &
+data-governance policy is in [`PRIVACY.md`](PRIVACY.md); medical and liability disclaimers are in
+[`DISCLAIMER.md`](DISCLAIMER.md); security reporting is described in [`SECURITY.md`](SECURITY.md).
 
 ## ❤️ Acknowledgments
 
