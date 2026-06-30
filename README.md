@@ -76,7 +76,7 @@ The SQLite database persists in the `comecome-data` volume, kept **outside the w
 docker compose --profile demo up
 ```
 
-Then log in as the guardian **Guardião** / PIN **0000** (dashboard, nutrition insights, growth + sleep), or as a child — **Boy (demo)** / **1111** or **Girl (demo)** / **2222**. Re-seed any time with `docker compose --profile demo run --rm seed php db/seed-demo.php --reset`. Plain `docker compose up` (no profile) stays a clean, empty install.
+Then log in as the guardian **Guardião** / PIN **1425** (dashboard, nutrition insights, growth + sleep), or as a child — **Boy (demo)** / **1111** or **Girl (demo)** / **2222**. (The demo pre-sets that guardian PIN and acknowledges consent so the logins open straight into the app.) The demo writes the shared `comecome-data` volume, so a later plain `docker compose up` keeps the demo data — run `docker compose down -v` to return to a clean, empty install (or run the demo in its own project: `docker compose -p comecome-demo --profile demo up`).
 
 **Host a public, self-resetting demo** — `docker compose --profile sandbox up` runs the app plus a sidecar that restores a pristine demo every **2 hours** (login: guardian **1425**, children **1111** / **2222**). See [Host a public demo](docs/DEPLOYMENT.md) for the interval, the host-cron alternative, and the "no real data — wiped every 2h" caveat. **Never use this profile on a real deployment.**
 

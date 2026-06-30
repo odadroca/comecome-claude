@@ -21,10 +21,12 @@ services:
       - "80"
     restart: unless-stopped
 
-  # Demo-data seeder (opt-in). `docker compose --profile demo up` runs this once to
-  # populate the shared volume with ~90 days of realistic demo data, then it exits.
-  # Plain `docker compose up` does NOT start it (clean empty install). Re-seed with:
-  #   docker compose --profile demo run --rm seed php db/seed-demo.php --reset
+  # Demo setup (opt-in). `docker compose --profile demo up` runs this once to populate the
+  # shared volume with ~90 days of demo data AND clear the first-run gates (sets the published
+  # demo guardian PIN + records consent), so the advertised demo logins open the app; then it exits.
+  # Plain `docker compose up` does NOT start it. NOTE: this writes the shared `comecome-data`
+  # volume — to return to a clean EMPTY install afterwards, run `docker compose down -v` (or run the
+  # demo in its own project: `docker compose -p comecome-demo --profile demo up`).
   seed:
     build: .
     image: ghcr.io/odadroca/comecome:latest
@@ -32,7 +34,7 @@ services:
     # Run as www-data (the user Apache serves as) so the DB this creates is writable
     # by the app. As root the DB would be root-owned and read-only to the app (500s).
     user: "www-data"
-    command: ["php", "db/seed-demo.php"]
+    command: ["php", "scripts/demo-setup.php"]
     environment:
       COMECOME_DB_PATH: /data/data.db
     volumes:
@@ -41,9 +43,9 @@ services:
 
   # Public-demo auto-reset (opt-in). `docker compose --profile sandbox up` runs the
   # app + a sidecar that restores a pristine demo every SANDBOX_RESET_INTERVAL seconds
-  # (default 2h) via scripts/sandbox-reset.php (wipe -> re-seed -> set the published
-  # demo guardian PIN). FOR A PUBLIC DEMO ONLY — it WIPES the database each cycle.
-  # Host-cron alternative: docker compose exec -T -u www-data comecome php scripts/sandbox-reset.php
+  # (default 2h) via scripts/demo-setup.php --reset (wipe -> seed -> set the published demo
+  # guardian PIN -> record consent). FOR A PUBLIC DEMO ONLY — it WIPES the database each cycle.
+  # Host-cron alternative: docker compose exec -T -u www-data comecome php scripts/demo-setup.php --reset
   reset:
     build: .
     image: ghcr.io/odadroca/comecome:latest
@@ -55,7 +57,7 @@ services:
       SANDBOX_GUARDIAN_PIN: "1425"     # published demo guardian PIN (non-default → force-change gate stays off)
     volumes:
       - comecome-data:/data
-    entrypoint: ["sh", "-c", "php scripts/sandbox-reset.php; while true; do sleep \"$$SANDBOX_RESET_INTERVAL\"; php scripts/sandbox-reset.php; done"]
+    entrypoint: ["sh", "-c", "php scripts/demo-setup.php --reset; while true; do sleep \"$$SANDBOX_RESET_INTERVAL\"; php scripts/demo-setup.php --reset; done"]
     restart: unless-stopped
 
   caddy:
