@@ -79,6 +79,50 @@ docker compose up --build -d        # app (PHP/Apache) + Caddy (auto-HTTPS)
   `docker compose --profile demo run --rm seed php db/seed-demo.php --reset`. Plain `docker compose up`
   (no profile) is a clean, empty install — **do not use the `demo` profile on a real deployment.**
 
+### Host a public, auto-resetting demo
+
+To run a **public** ComeCome demo (e.g. for prospective self-hosters), use the `sandbox` profile:
+
+```bash
+docker compose --profile sandbox up -d --build
+```
+
+This starts the app + a `reset` sidecar that restores a pristine demo **every 2 hours** (configurable via
+`SANDBOX_RESET_INTERVAL`, seconds) — wiping all visitor changes. Published demo login: guardian **1425**
+(dashboard / insights / growth / sleep); children **Boy (demo) / 1111** and **Girl (demo) / 2222**.
+
+> ⚠️ A public demo holds **no real data** and is **wiped every 2 hours**; the guardian PIN `1425` is
+> intentionally public. **Never enable the `sandbox` profile on a real deployment** — it destroys the
+> database each cycle.
+
+Prefer host cron over the sidecar? Run the reset on a schedule instead, e.g. every 2 hours:
+
+```cron
+0 */2 * * *  cd /path/to/comecome && docker compose exec -T -u www-data comecome php scripts/sandbox-reset.php
+```
+
+### Getting started (first run)
+
+On a fresh install:
+1. Open the app and log in as the guardian **Guardião** with the default PIN **`0000`**.
+2. You are **required to set your own guardian PIN** before reaching anything else — the default `0000` is
+   force-changed (a security gate).
+3. Add your first child (Manage Children), then start logging meals.
+4. Optionally enable **nutrition insights** and **growth percentiles** in Settings.
+
+### Running in N minutes
+
+A from-scratch Docker install should be serving within a couple of minutes:
+
+```bash
+git clone <repo> comecome && cd comecome
+time docker compose up --build -d      # first build pulls base images + installs PHP extensions
+curl -k https://localhost/?page=login  # expect HTTP 200 once the comecome container is healthy
+```
+
+Typical timings: the first `--build` ≈ 1–3 min (mostly the base-image pull); subsequent `up` is seconds.
+`docker compose ps` shows the `comecome` service as `healthy` once PHP is serving the login page.
+
 ---
 
 ## 2. Hardening (recommended for an internet-facing deployment)
