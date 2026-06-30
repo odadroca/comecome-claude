@@ -598,5 +598,7 @@
   "_encryption_off": "=== AT-REST ENCRYPTION WARNING (A28) ===",
   "encryption_off_title": "At-rest encryption is off.",
   "encryption_off_body": "Special-category data (children's health) is stored unencrypted, and downloaded backups are unencrypted too. To enable encryption, set ENCRYPTION_KEY_FILE to a key file kept above the web root — see SECURITY.md / DEPLOYMENT.md.",
-  "encryption_off_backup_note": "This backup will be unencrypted — no encryption key is configured."
+  "encryption_off_backup_note": "This backup will be unencrypted — no encryption key is configured.",
+  "encryption_broken_title": "Encryption is configured but unavailable.",
+  "encryption_broken_body": "An encryption key is set, but the PHP sodium extension is missing on this host — ComeCome cannot encrypt or decrypt data, so saving check-ins, medications and other protected fields will fail. Install or enable the PHP sodium extension — see SECURITY.md / DEPLOYMENT.md."
 }

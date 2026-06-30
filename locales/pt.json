@@ -598,5 +598,7 @@
   "_encryption_off": "=== AVISO DE ENCRIPTAÇÃO EM REPOUSO (A28) ===",
   "encryption_off_title": "A encriptação em repouso está desativada.",
   "encryption_off_body": "Os dados de categoria especial (saúde de crianças) são guardados sem encriptação, e as cópias de segurança descarregadas também não são encriptadas. Para ativar a encriptação, defina ENCRYPTION_KEY_FILE para um ficheiro de chave guardado acima da raiz web — consulte SECURITY.md / DEPLOYMENT.md.",
-  "encryption_off_backup_note": "Esta cópia de segurança não será encriptada — não há chave de encriptação configurada."
+  "encryption_off_backup_note": "Esta cópia de segurança não será encriptada — não há chave de encriptação configurada.",
+  "encryption_broken_title": "A encriptação está configurada mas indisponível.",
+  "encryption_broken_body": "Está definida uma chave de encriptação, mas falta a extensão sodium do PHP neste servidor — o ComeCome não consegue encriptar nem desencriptar dados, por isso guardar check-ins, medicação e outros campos protegidos irá falhar. Instale ou ative a extensão sodium do PHP — consulte SECURITY.md / DEPLOYMENT.md."
 }
