@@ -60,6 +60,16 @@ chown www-data:www-data comecome/db
 ### No Build Step Required!
 This application uses vanilla PHP, SQLite, and pure CSS/JS. Just upload and run.
 
+### 🐳 Run with Docker (automatic HTTPS)
+The repo ships a `Dockerfile` + `docker-compose.yml` (the PHP/Apache app + [Caddy](https://caddyserver.com) for automatic HTTPS):
+
+```bash
+docker compose up --build
+# then open https://localhost   (accept the local-CA warning once)
+```
+
+The SQLite database persists in the `comecome-data` volume, kept **outside the web root** (`COMECOME_DB_PATH=/data/data.db`). Update with `git pull && docker compose up --build -d`. For an internet-facing deployment (real Let's Encrypt certificate) and optional at-rest field encryption, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ## 📱 PWA Installation
 
 ComeCome works as a Progressive Web App. On mobile:
