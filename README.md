@@ -146,7 +146,7 @@ ComeCome handles **special-category data** (a child's health) and is built to ke
 - **In-app medical disclaimer + attestation** — the not-medical-advice disclaimer shows in-app and on every clinician export; enabling nutrition intelligence requires a versioned "I understand" attestation (re-acknowledged when the text changes).
 - **Child data-visibility note** — a one-time, child-facing first-run note explaining that their guardian can see what they log.
 - **Data export** — HTML / CSV / JSON, plus a whole-database JSON export, for portability and clinician sharing.
-- **Right to erasure** — per-child or whole-instance deletion, recorded in a PII-free `data_deletion_log` audit trail.
+- **Right to erasure** — delete a single child's data, or (in the guardian Database "danger zone") the whole instance. **Per-child erasure and the opt-in retention purges** are recorded in a PII-free `data_deletion_log` audit trail; the whole-instance reset wipes the entire database — the audit log included.
 - **Optional retention auto-purge** — opt-in (off by default; 6/12/24/36-month presets) automatic deletion of old time-series data.
 - **At-rest field encryption** — optional libsodium encryption of the high-sensitivity identity/free-text columns (see Production Hardening below).
 
