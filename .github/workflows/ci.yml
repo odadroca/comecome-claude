@@ -24,7 +24,7 @@ jobs:
     name: Lint & test suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5 (Node 24)
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v5 (Node 24)
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.3'
@@ -45,7 +45,7 @@ jobs:
     name: Secret scan & no-DB guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5 (Node 24)
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v5 (Node 24)
         with:
           fetch-depth: 0
       - name: gitleaks (full history)
@@ -70,7 +70,7 @@ jobs:
     name: Docker image build & scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5 (Node 24)
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v5 (Node 24)
       - name: Plant probe DB/key files (root, db/, nested) — prove .dockerignore excludes them
         run: |
           mkdir -p db private/backup
