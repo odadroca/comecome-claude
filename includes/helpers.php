@@ -1311,14 +1311,37 @@ function renderLayout($title, $content, $additionalHead = '') {
 }
 
 /**
- * A28 — operator warning shown when at-rest field encryption is OFF (no key configured),
- * so a shared-hosting operator knows special-category (children's health) data is stored
- * in plaintext. Returns a theme-aware `.alert alert-warning` banner, or '' when encryption
- * is enabled. GUARDIAN/OPERATOR surfaces only — never include this on a child page.
+ * A28 — classify the at-rest field-encryption posture for the operator banner. Pure (testable):
+ *   'ok'     — a key is configured AND libsodium is available → encryption operational (no banner).
+ *   'broken' — a key is configured BUT libsodium is missing → encryptField()/decryptField() FAIL
+ *              CLOSED (throw), so encryption is non-operational and saves to scoped columns error.
+ *   'off'    — no key configured → scoped special-category columns are stored in plaintext.
+ */
+function encryptionWarningKind($enabled, $sodium) {
+    if ($enabled && $sodium) { return 'ok'; }
+    if ($enabled && !$sodium) { return 'broken'; }
+    return 'off';
+}
+
+/**
+ * A28 — operator warning shown when at-rest field encryption is not fully operational: either
+ * special-category (children's health) data is stored in plaintext (no key), OR a key is configured
+ * but libsodium is missing so encryption is unusable (saves fail closed). Returns a theme-aware alert
+ * banner, or '' when encryption is operational. GUARDIAN/OPERATOR surfaces only — never on a child page.
  */
 function renderEncryptionWarning() {
-    if (function_exists('encryptionEnabled') && encryptionEnabled()) {
+    $kind = encryptionWarningKind(
+        function_exists('encryptionEnabled') && encryptionEnabled(),
+        function_exists('sodiumAvailable') && sodiumAvailable()
+    );
+    if ($kind === 'ok') {
         return '';
+    }
+    if ($kind === 'broken') {
+        return '<div class="alert alert-error" role="alert" style="margin-bottom:1rem;">'
+            . '<strong>⛔ ' . htmlspecialchars(t('encryption_broken_title'), ENT_QUOTES, 'UTF-8') . '</strong> '
+            . htmlspecialchars(t('encryption_broken_body'), ENT_QUOTES, 'UTF-8')
+            . '</div>';
     }
     return '<div class="alert alert-warning" role="alert" style="margin-bottom:1rem;">'
         . '<strong>⚠️ ' . htmlspecialchars(t('encryption_off_title'), ENT_QUOTES, 'UTF-8') . '</strong> '

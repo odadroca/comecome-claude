@@ -1920,6 +1920,12 @@ ok(encryptionEnabled() === false, "L6 no key configured => encryption OFF (opt-i
 $a28off = renderEncryptionWarning();
 ok($a28off !== '' && strpos($a28off, 'alert-warning') !== false, "A28 encryption-off warning is SHOWN (alert-warning) when encryption is OFF");
 ok(strpos($a28off, t('encryption_off_title')) !== false && t('encryption_off_title') !== 'encryption_off_title', "A28 warning contains the resolved localized title");
+// A28 three-state classifier — pure, so it covers the 'broken' (key set, sodium missing) state
+// the live env can't trigger (sodium is always present in test/CI).
+ok(encryptionWarningKind(true, true) === 'ok', "A28 kind=ok: key configured + sodium available => no banner");
+ok(encryptionWarningKind(true, false) === 'broken', "A28 kind=broken: key configured but sodium MISSING => error banner");
+ok(encryptionWarningKind(false, false) === 'off' && encryptionWarningKind(false, true) === 'off', "A28 kind=off: no key => plaintext warning");
+ok(t('encryption_broken_title') !== 'encryption_broken_title', "A28 broken-state locale key resolves");
 gc_collect_cycles();
 for ($i = 0; $i < 20 && file_exists(DB_PATH); $i++) {
     if (@unlink(DB_PATH)) { break; }
