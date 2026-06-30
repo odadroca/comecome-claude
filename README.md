@@ -70,6 +70,14 @@ docker compose up --build
 
 The SQLite database persists in the `comecome-data` volume, kept **outside the web root** (`COMECOME_DB_PATH=/data/data.db`). Update with `git pull && docker compose up --build -d`. For an internet-facing deployment (real Let's Encrypt certificate) and optional at-rest field encryption, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
+**Try it with demo data** — to explore a *populated* app, add the `demo` profile (it runs the seeder once, then serves):
+
+```bash
+docker compose --profile demo up
+```
+
+Then log in as the guardian **Guardião** / PIN **0000** (dashboard, nutrition insights, growth + sleep), or as a child — **Boy (demo)** / **1111** or **Girl (demo)** / **2222**. Re-seed any time with `docker compose --profile demo run --rm seed php db/seed-demo.php --reset`. Plain `docker compose up` (no profile) stays a clean, empty install.
+
 ## 📱 PWA Installation
 
 ComeCome works as a Progressive Web App. On mobile:
