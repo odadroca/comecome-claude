@@ -58,12 +58,16 @@ jobs:
           ignore-unfixed: true
           exit-code: '0'
 
-      - name: Generate SBOM (SPDX JSON)  # anchore/sbom-action also uploads it as a workflow artifact
+      - name: Generate SBOM (SPDX JSON)  # uploaded as a workflow artifact + attested via cosign below
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
           format: spdx-json
           output-file: sbom.spdx.json
+          # Don't attach to a GitHub Release (default true). On a tag created via a Release that
+          # path needs contents:write and would 403 here — we keep contents:read (least privilege);
+          # the SBOM is preserved as a workflow artifact and attested to the image by cosign.
+          upload-release-assets: false
 
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
