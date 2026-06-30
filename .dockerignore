@@ -14,17 +14,19 @@ software-launcher-framework
 node_modules
 
 # Databases + secrets must NEVER enter the image (the DB lives in the /data volume).
-# Mirror the hardened .gitignore: any .db/.sqlite + WAL/SHM/journal sidecars + backups,
-# anywhere in the tree (not just db/), since A17 Part 2 publishes this image.
-*.db
-*.sqlite
-*.sqlite3
-*.db-*
-*.sqlite-*
-*.sqlite3-*
-config.local.php
-*encryption-key.php
-*.key
+# Mirror the hardened .gitignore: any .db/.sqlite + WAL/SHM/journal sidecars + backups.
+# NOTE: .dockerignore globs are NOT recursive like .gitignore — a bare `*.db` matches only
+# the context ROOT, so the default db/data.db (a subdirectory) would slip through `COPY .`.
+# Use `**/` to exclude at EVERY depth. A17 Part 2 publishes this image, so this is airtight.
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.db-*
+**/*.sqlite-*
+**/*.sqlite3-*
+**/config.local.php
+**/*encryption-key.php
+**/*.key
 
 # Scratch
 _*.md
