@@ -21,6 +21,24 @@ services:
       - "80"
     restart: unless-stopped
 
+  # Demo-data seeder (opt-in). `docker compose --profile demo up` runs this once to
+  # populate the shared volume with ~90 days of realistic demo data, then it exits.
+  # Plain `docker compose up` does NOT start it (clean empty install). Re-seed with:
+  #   docker compose --profile demo run --rm seed php db/seed-demo.php --reset
+  seed:
+    build: .
+    image: ghcr.io/odadroca/comecome:latest
+    profiles: ["demo"]
+    # Run as www-data (the user Apache serves as) so the DB this creates is writable
+    # by the app. As root the DB would be root-owned and read-only to the app (500s).
+    user: "www-data"
+    command: ["php", "db/seed-demo.php"]
+    environment:
+      COMECOME_DB_PATH: /data/data.db
+    volumes:
+      - comecome-data:/data
+    restart: "no"
+
   caddy:
     image: caddy:2
     depends_on:

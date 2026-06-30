@@ -73,6 +73,11 @@ docker compose up --build -d        # app (PHP/Apache) + Caddy (auto-HTTPS)
   a key the app runs zero-config with data **unencrypted at rest** — the admin UI warns about this.
 - **Health:** the container ships a `HEALTHCHECK` (it curls the login page); `docker compose ps` shows
   the `comecome` service as `healthy` once it's up.
+- **Try it with demo data:** `docker compose --profile demo up` runs a one-shot `seed` service that
+  populates the volume with ~90 days of realistic demo data, then serves it. Log in as guardian
+  **Guardião / 0000**, or a child — **Boy (demo) / 1111** or **Girl (demo) / 2222**. Re-seed with
+  `docker compose --profile demo run --rm seed php db/seed-demo.php --reset`. Plain `docker compose up`
+  (no profile) is a clean, empty install — **do not use the `demo` profile on a real deployment.**
 
 ---
 
