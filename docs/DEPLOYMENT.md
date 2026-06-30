@@ -74,10 +74,12 @@ docker compose up --build -d        # app (PHP/Apache) + Caddy (auto-HTTPS)
 - **Health:** the container ships a `HEALTHCHECK` (it curls the login page); `docker compose ps` shows
   the `comecome` service as `healthy` once it's up.
 - **Try it with demo data:** `docker compose --profile demo up` runs a one-shot `seed` service that
-  populates the volume with ~90 days of realistic demo data, then serves it. Log in as guardian
-  **Guardião / 0000**, or a child — **Boy (demo) / 1111** or **Girl (demo) / 2222**. Re-seed with
-  `docker compose --profile demo run --rm seed php db/seed-demo.php --reset`. Plain `docker compose up`
-  (no profile) is a clean, empty install — **do not use the `demo` profile on a real deployment.**
+  populates the volume with ~90 days of demo data **and clears the first-run gates** (sets the demo guardian
+  PIN + records consent), then serves it. Log in as guardian **Guardião / 1425**, or a child —
+  **Boy (demo) / 1111** or **Girl (demo) / 2222**. The demo writes the shared `comecome-data` volume, so a
+  later plain `docker compose up` keeps the demo data — run `docker compose down -v` to return to a clean,
+  empty install (or use a separate project: `docker compose -p comecome-demo --profile demo up`). **Do not
+  use the `demo` profile on a real deployment.**
 
 ### Host a public, auto-resetting demo
 
@@ -98,15 +100,15 @@ This starts the app + a `reset` sidecar that restores a pristine demo **every 2 
 Prefer host cron over the sidecar? Run the reset on a schedule instead, e.g. every 2 hours:
 
 ```cron
-0 */2 * * *  cd /path/to/comecome && docker compose exec -T -u www-data comecome php scripts/sandbox-reset.php
+0 */2 * * *  cd /path/to/comecome && docker compose exec -T -u www-data comecome php scripts/demo-setup.php --reset
 ```
 
 ### Getting started (first run)
 
 On a fresh install:
 1. Open the app and log in as the guardian **Guardião** with the default PIN **`0000`**.
-2. You are **required to set your own guardian PIN** before reaching anything else — the default `0000` is
-   force-changed (a security gate).
+2. You are **required to set your own guardian PIN** (the default `0000` is force-changed), then
+   **acknowledge the privacy/consent notice** — both are one-time first-run gates.
 3. Add your first child (Manage Children), then start logging meals.
 4. Optionally enable **nutrition insights** and **growth percentiles** in Settings.
 
