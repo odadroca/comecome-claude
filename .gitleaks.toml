@@ -6,9 +6,11 @@ useDefault = true
 
 [allowlist]
 description = "Known non-secrets / test fixtures (tighten precisely if the scan flags more)"
-# The default/demo child PIN is a 4-digit non-secret, not a credential.
+# The default/demo PINs are 4-digit non-secrets, not credentials (0000 = fresh-init
+# default; 1425 = the published public-demo guardian PIN, see scripts/sandbox-reset.php).
 regexes = [
   '''\b0000\b''',
+  '''\b1425\b''',
 ]
 # Bundled font license texts are not secrets.
 paths = [

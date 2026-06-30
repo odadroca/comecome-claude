@@ -39,6 +39,25 @@ services:
       - comecome-data:/data
     restart: "no"
 
+  # Public-demo auto-reset (opt-in). `docker compose --profile sandbox up` runs the
+  # app + a sidecar that restores a pristine demo every SANDBOX_RESET_INTERVAL seconds
+  # (default 2h) via scripts/sandbox-reset.php (wipe -> re-seed -> set the published
+  # demo guardian PIN). FOR A PUBLIC DEMO ONLY — it WIPES the database each cycle.
+  # Host-cron alternative: docker compose exec -T -u www-data comecome php scripts/sandbox-reset.php
+  reset:
+    build: .
+    image: ghcr.io/odadroca/comecome:latest
+    profiles: ["sandbox"]
+    user: "www-data"            # same uid as the app — the DB it writes must be app-writable
+    environment:
+      COMECOME_DB_PATH: /data/data.db
+      SANDBOX_RESET_INTERVAL: "7200"   # 2 hours
+      SANDBOX_GUARDIAN_PIN: "1425"     # published demo guardian PIN (non-default → force-change gate stays off)
+    volumes:
+      - comecome-data:/data
+    entrypoint: ["sh", "-c", "php scripts/sandbox-reset.php; while true; do sleep \"$$SANDBOX_RESET_INTERVAL\"; php scripts/sandbox-reset.php; done"]
+    restart: unless-stopped
+
   caddy:
     image: caddy:2
     depends_on:
