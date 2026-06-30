@@ -51,6 +51,31 @@ harden it.
 
 ---
 
+## 1A. Deploy with Docker (self-host alternative)
+
+The repo ships a `Dockerfile`, `docker-compose.yml`, and a `Caddyfile` — a one-command self-host with
+automatic HTTPS, as an alternative to the shared-hosting path in §1.
+
+```bash
+git clone <repo> comecome && cd comecome
+docker compose up --build -d        # app (PHP/Apache) + Caddy (auto-HTTPS)
+# open https://localhost            # local: Caddy's internal CA — accept the warning once
+```
+
+- **Data:** the SQLite DB lives in the named volume `comecome-data`, **outside the web root**, via
+  `COMECOME_DB_PATH=/data/data.db`. The image never contains a database — it is built with `COPY .` plus a
+  `.dockerignore` that excludes every `*.db`/`*.sqlite` (and sidecars). Back the DB up from the volume (§4).
+- **Production HTTPS:** edit `Caddyfile` — replace `localhost` with your domain and set a contact `email`
+  in the global block; Caddy then obtains and auto-renews a real Let's Encrypt certificate.
+- **Update:** `git pull && docker compose up --build -d`.
+- **At-rest field encryption (optional — see §3):** mount an above-docroot key/config file and point
+  `COMECOME_CONFIG` (or `ENCRYPTION_KEY_FILE`) at it (`docker-compose.yml` has a commented example). Without
+  a key the app runs zero-config with data **unencrypted at rest** — the admin UI warns about this.
+- **Health:** the container ships a `HEALTHCHECK` (it curls the login page); `docker compose ps` shows
+  the `comecome` service as `healthy` once it's up.
+
+---
+
 ## 2. Hardening (recommended for an internet-facing deployment)
 
 All of this is driven by a **git-ignored `config.local.php`** (copy

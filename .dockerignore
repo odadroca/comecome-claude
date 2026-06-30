@@ -1,0 +1,30 @@
+# VCS / tooling
+.git
+.github
+.gitignore
+.dockerignore
+.claude
+.remember
+
+# Dev-only (not needed at runtime). Legal files (LICENSE/NOTICE/DISCLAIMER.md)
+# are intentionally NOT excluded — they must ship in the artifact.
+tests
+design-handover
+software-launcher-framework
+node_modules
+
+# Databases + secrets must NEVER enter the image (the DB lives in the /data volume).
+# Mirror the hardened .gitignore: any .db/.sqlite + WAL/SHM/journal sidecars + backups,
+# anywhere in the tree (not just db/), since A17 Part 2 publishes this image.
+*.db
+*.sqlite
+*.sqlite3
+*.db-*
+*.sqlite-*
+*.sqlite3-*
+config.local.php
+*encryption-key.php
+*.key
+
+# Scratch
+_*.md

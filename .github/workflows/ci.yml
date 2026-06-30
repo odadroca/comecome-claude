@@ -1,9 +1,10 @@
 name: CI
 
-# A17 (Part 1) — PR-gating CI. Runs the full suite on a clean Linux box on every
-# PR/push (lifting the "Hostinger-untested" residual risk) + a secret scan and a
-# committed-database guard. Image build/scan/sign/publish is Part 2 (A10/Sprint 4).
-# Config-only: no app behaviour change. Third-party actions are pinned to a commit SHA.
+# PR-gating CI. Runs the full suite on a clean Linux box on every PR/push (lifting
+# the "Hostinger-untested" residual risk) + a secret scan + a committed-database
+# guard (A17 Part 1), and builds + Trivy-scans the Docker image (A10 — verifies the
+# Dockerfile builds on Linux). SBOM + cosign-sign + GHCR publish remain A17 Part 2.
+# Third-party actions are pinned to a commit SHA.
 
 on:
   pull_request:
@@ -64,3 +65,19 @@ jobs:
             exit 1
           fi
           echo "OK: no database/SQLite files tracked."
+
+  docker-build:
+    name: Docker image build & scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5 (Node 24)
+      - name: Build image (verifies the Dockerfile builds on Linux)
+        run: docker build -t comecome:ci .
+      - name: Trivy image scan (report-only; enforcement is A17 Part 2)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: comecome:ci
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '0'
