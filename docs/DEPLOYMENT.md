@@ -252,6 +252,8 @@ data, secrets — or it won't work:
 > migrates, but every encrypted name/note/med reads as a fail-closed error because
 > the key didn't travel with the code.
 
+> **Promoting a release to the public repo?** See [RELEASE.md](RELEASE.md) — the clean-snapshot publish + rollback runbook; back up per §4 first.
+
 ### 4.4 Exports are a plaintext escape hatch
 
 The four export surfaces (HTML / CSV / JSON / guest-report) **decrypt on read**, so
