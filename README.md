@@ -345,7 +345,8 @@ ComeCome is licensed under the **GNU Affero General Public License v3.0 or later
 
 Third-party components and reference data are attributed in [`NOTICE`](NOTICE); the privacy &
 data-governance policy is in [`PRIVACY.md`](PRIVACY.md); medical and liability disclaimers are in
-[`DISCLAIMER.md`](DISCLAIMER.md); security reporting is described in [`SECURITY.md`](SECURITY.md).
+[`DISCLAIMER.md`](DISCLAIMER.md); security reporting is described in [`SECURITY.md`](SECURITY.md);
+release & promotion runbook (dev → public, rollback) is in [`docs/RELEASE.md`](docs/RELEASE.md).
 
 ## ❤️ Acknowledgments
 
