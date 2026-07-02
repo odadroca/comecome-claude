@@ -53,12 +53,23 @@ Then **prod smoke:** clone the public repo fresh → `docker compose up --build`
 https://localhost/?page=login` → 200; confirm `schema_version` = HEAD.
 
 ## 4. Rollback
-- **v1.0.0 (first publish — no prior public commit):** **take down / unpublish** (make `come-come` private
-  or revert the snapshot commit on `main`). If a bad migration reached the real instance, **restore it from
-  the §2 pre-promote backup**. There is no "previous tag" to roll back to.
-- **vX.Y.Z where a prior public tag exists:** re-publish the **prior tag's** snapshot to `main` +
-  **restore the pre-deploy DB backup** (additive migrations can't cleanly downgrade → the backup IS the
-  downgrade). Re-tagging the prior version re-runs `publish.yml` for a clean image.
+- **v1.0.0 (first publish — no prior public commit):** **take down / unpublish** — make `come-come` private
+  or revert the snapshot commit on `main`. The published **image is separate**: reverting the repo does NOT
+  remove the GHCR image, so also **delete the bad `:v1.0.0` + `:latest` versions** in the package settings
+  (or overwrite `:latest` by re-publishing a fixed tag). If a bad migration reached the real instance,
+  **restore it from the §2 pre-promote backup**. There is no "previous tag" to roll back to.
+- **vX.Y.Z where a prior public tag exists:** restore the code by **force-pushing the prior good tag's
+  snapshot** to `come-come` `main`, **restore the pre-deploy DB backup** (additive migrations can't cleanly
+  downgrade → the backup IS the downgrade), and **re-publish the image explicitly** — a SEPARATE step,
+  because `publish.yml` fires ONLY on a *new* `v*.*.*` tag-push event and pushes **both `:<tag>` and
+  `:latest`**, so GHCR `:latest` + the bad `:vX.Y.Z` keep pointing at the bad build until you act. Do ONE of:
+  - **Preferred (forward-only):** with `main` restored to the good snapshot, cut a NEW rollback release tag
+    on it — `git tag -a vX.Y.<Z+1> -m "rollback to <good-sha>"; git push public vX.Y.<Z+1>` → `publish.yml`
+    rebuilds the good image and resets `:latest` to it. Do NOT re-push the *existing* prior tag: an unchanged
+    tag push is a no-op (no run), and force-moving a released tag rewrites what consumers pinned to it.
+  - **Alternative (no new tag):** in the public repo's **Actions**, re-run the prior good tag's original
+    *Publish image* run — it rebuilds that commit and re-pushes `:latest` to the good image.
+  - Optionally delete the bad `:vX.Y.Z` image version in the GHCR package settings.
 - **Rollback owner:** maintainer `odadroca` (sole operator). Decide within one review cycle of a failed
   prod smoke or a reported data-integrity issue.
 
