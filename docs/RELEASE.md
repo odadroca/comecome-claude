@@ -29,11 +29,19 @@ Publish a **fresh-history snapshot** (no dev history/test-data/secrets). Run fro
 `comecome-claude` checked out at the release commit:
 ```bash
 git checkout --orphan release-vX.Y.Z
+# strip internal-only tracked paths so they never reach the public repo
+# (.claude/ = Claude Code planning docs; keep .github/ — it carries ci.yml + publish.yml):
+git rm -r --cached --quiet --ignore-unmatch .claude .remember
+# also exclude from git add -A via .gitignore (git rm --cached alone is reversed by add -A
+# for tracked paths that aren't already in .gitignore):
+printf '\n.claude/\n.remember\n' >> .gitignore
 git add -A
 git commit -s -m "release: vX.Y.Z (ComeCome public launch)"
-# verify cleanliness — MUST show exactly one commit and no leaked artifacts:
+# verify cleanliness — MUST show exactly one commit and no leaked artifacts. The
+# config/key patterns are anchored with $ so the *.example TEMPLATES (which SHOULD
+# ship) never false-positive; .claude/.remember were stripped above:
 git log --oneline                        # -> exactly ONE line
-git ls-files | grep -iE '\.(db|sqlite3?)$|(^|/)\.(remember|claude)/|config\.local\.php|encryption-key' \
+git ls-files | grep -iE '\.(db|sqlite3?)$|(^|/)\.(remember|claude)/|(^|/)config\.local\.php$|(^|/)encryption-key\.php$' \
   && echo "STOP: leak detected" || echo "clean: no DB/secrets/internal"
 # publish:
 git remote add public git@github.com:odadroca/come-come.git
