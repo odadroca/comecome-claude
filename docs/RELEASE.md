@@ -37,6 +37,7 @@ git rm -r --cached --quiet --ignore-unmatch .claude .remember
 printf '\n.claude/\n.remember\n' >> .gitignore
 git add -A
 git commit -s -m "release: vX.Y.Z (ComeCome public launch)"
+git tag -a vX.Y.Z -m "ComeCome vX.Y.Z"   # the orphan branch carries no tags — create it here (annotated, not -s: repo uses DCO, not GPG)
 # verify cleanliness — MUST show exactly one commit and no leaked artifacts. The
 # config/key patterns are anchored with $ so the *.example TEMPLATES (which SHOULD
 # ship) never false-positive; .claude/.remember were stripped above:
