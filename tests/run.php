@@ -454,6 +454,19 @@ buildV1Fixture($migDb);
 $m = new PDO('sqlite:' . $migDb);
 $m->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+// A16: extra rows across the populated v1 tables so the row-count-preservation
+// assertion below is meaningful (a 1->1 check proves nothing). FK enforcement is
+// off on this raw handle, and food_log has no UNIQUE, so these are safe.
+$m->exec("INSERT INTO users (id,name,type,pin) VALUES (2,'FixtureChild','child','1111')");
+$m->exec("INSERT INTO daily_checkin (user_id,check_date,appetite_level,mood_level,medication_taken)
+          VALUES (2,'2026-01-02',2,3,0)");
+$m->exec("INSERT INTO daily_checkin (user_id,check_date,appetite_level,mood_level,medication_taken)
+          VALUES (1,'2026-01-05',4,4,1)");
+$m->exec("INSERT INTO food_log (id,user_id,food_id,meal_id,portion,log_date,log_time)
+          VALUES (2,2,1,1,'half','2026-01-07','12:00:00')");
+$m->exec("INSERT INTO food_log (id,user_id,food_id,meal_id,portion,log_date,log_time)
+          VALUES (3,1,2,2,'all','2026-01-08','18:00:00')");
+
 // Pre-state assertions: prove the fixture is genuinely OLD (real forward work).
 ok(readSchemaVersion($m) === 1, "A2 fixture starts at schema_version=1 (pre-Sprint-2)");
 ok(!columnExists($m, 'daily_checkin', 'sleep_quality'),
@@ -487,6 +500,12 @@ ok(!in_array('login_attempts', listTables($m), true),
 ok(!in_array('food_growth_tags', listTables($m), true),
    "A2 fixture lacks food_growth_tags before migrate");
 
+// A16: capture whole-table row counts of every populated v1 table so we can prove
+// the v1->v8 forward migration is non-destructive at the TABLE level (not just spot rows).
+$countsBefore = [];
+foreach (['users','daily_checkin','food_log'] as $t) {
+    $countsBefore[$t] = (int) $m->query("SELECT COUNT(*) FROM $t")->fetchColumn();
+}
 // Forward migrate.
 $threwFwd = false;
 try { migrateDatabase($m); } catch (Throwable $e) { $threwFwd = true; echo "    EXCEPTION: " . $e->getMessage() . "\n"; }
@@ -496,6 +515,16 @@ ok(!$threwFwd, "A2 forward migrateDatabase() did not throw");
 // Sprint-11 deliverables now exist. The fixture migrates forward through every gated
 // block (v1->v2->v3->v4->v5->v6->v7->v8) in one call.
 ok(readSchemaVersion($m) === 8, "A2 schema_version is 8 after forward migrate");
+// A16: every populated table retains EXACTLY its pre-migrate row count — no data loss
+// across the full v1->v8 chain. (Counted before the constraint-test INSERTs below.)
+foreach ($countsBefore as $t => $n) {
+    $after = (int) $m->query("SELECT COUNT(*) FROM $t")->fetchColumn();
+    ok($after === $n, "A16 $t row count preserved across v1->v8 migrate ($n -> $after)");
+}
+// A16: the v7->v8 deliverable (data_deletion_log) now exists ON THE MIGRATED FIXTURE
+// (A2 previously only checked it on a fresh init, not on a forward-migrated old DB).
+ok(in_array('data_deletion_log', listTables($m), true),
+   "A16 data_deletion_log exists on the migrated v1->v8 fixture (v8 step ran)");
 ok(in_array('food_growth_tags', listTables($m), true),
    "A2 food_growth_tags exists after migrate (v7)");
 ok(columnExists($m, 'daily_checkin', 'sleep_quality'),
